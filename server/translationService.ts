@@ -78,9 +78,15 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
       }
     );
 
+    // Log Whisper API response for debugging
+    console.log("[Whisper API Response]", JSON.stringify(response.data, null, 2));
+
+    const detectedLanguage = response.data.language || "zh"; // Default to Chinese if not detected
+    console.log(`[Language Detection] Detected: ${detectedLanguage}`);
+
     return {
       text: response.data.text || "",
-      language: response.data.language || "unknown",
+      language: detectedLanguage,
     };
   } catch (error: any) {
     if (error.response) {
