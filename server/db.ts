@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, translations, InsertTranslation, languageConfig } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,48 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Translation queries
+export async function insertTranslation(translation: InsertTranslation) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot insert translation: database not available");
+    return undefined;
+  }
+
+  const result = await db.insert(translations).values(translation);
+  return result;
+}
+
+export async function getRecentTranslations(limit: number = 20) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get translations: database not available");
+    return [];
+  }
+
+  const result = await db.select().from(translations).limit(limit);
+  return result;
+}
+
+// Language configuration queries
+export async function getActiveLanguages() {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get languages: database not available");
+    return [];
+  }
+
+  const result = await db.select().from(languageConfig).where(eq(languageConfig.isActive, 1));
+  return result;
+}
+
+export async function getLanguageByCode(code: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get language: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(languageConfig).where(eq(languageConfig.code, code)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
