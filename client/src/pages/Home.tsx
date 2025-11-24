@@ -107,6 +107,10 @@ export default function Home() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const messageIdRef = useRef(0);
+  
+  // Refs for auto-scroll
+  const nurseScrollRef = useRef<HTMLDivElement>(null);
+  const patientScrollRef = useRef<HTMLDivElement>(null);
 
   // VAD 狀態
   const currentSpeechBufferRef = useRef<Float32Array[]>([]);
@@ -129,6 +133,15 @@ export default function Home() {
 
         setConversations((prev) => [...prev, newMessage]);
         setProcessingStatus("listening");
+        
+        // Auto-scroll to latest message
+        setTimeout(() => {
+          if (speaker === "nurse" && nurseScrollRef.current) {
+            nurseScrollRef.current.scrollTop = nurseScrollRef.current.scrollHeight;
+          } else if (speaker === "patient" && patientScrollRef.current) {
+            patientScrollRef.current.scrollTop = patientScrollRef.current.scrollHeight;
+          }
+        }, 100);
       } else if (data.error) {
         console.log("Translation error:", data.error);
         setProcessingStatus("listening");
@@ -391,7 +404,7 @@ export default function Home() {
           {/* 台灣人 (中文) */}
           <div>
             <h2 className="text-xl font-semibold mb-4 text-center">台灣人 (中文)</h2>
-            <div className="space-y-4 max-h-[500px] overflow-y-auto">
+            <div ref={nurseScrollRef} className="space-y-4 max-h-[500px] overflow-y-auto scroll-smooth">
               {conversations
                 .filter((msg) => msg.speaker === "nurse")
                 .map((msg) => (
@@ -409,7 +422,7 @@ export default function Home() {
           {/* 外國人 (外語) */}
           <div>
             <h2 className="text-xl font-semibold mb-4 text-center">外國人 (外語)</h2>
-            <div className="space-y-4 max-h-[500px] overflow-y-auto">
+            <div ref={patientScrollRef} className="space-y-4 max-h-[500px] overflow-y-auto scroll-smooth">
               {conversations
                 .filter((msg) => msg.speaker === "patient")
                 .map((msg) => (
