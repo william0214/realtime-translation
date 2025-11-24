@@ -4,18 +4,16 @@ import FormData from "form-data";
 
 /**
  * Language role mapping
- * Chinese variants are ALWAYS Taiwanese (nurse)
- * All other languages are ALWAYS foreigners (patient)
+ * Chinese variants are ALWAYS Taiwanese
+ * All other languages are ALWAYS foreigners
  */
-const CHINESE_LANGUAGES = ["zh", "zh-tw", "zh-cn", "cmn", "yue"];
+const CHINESE_LANGUAGES = ["zh", "zh-tw", "zh-cn", "cmn", "yue", "chinese"];
 
 /**
  * Determine translation direction based on detected language
  * Logic:
  * 1. If detected language is Chinese → Taiwanese → translate to user's preferred language
  * 2. If detected language is NOT Chinese → Foreigner → translate to Chinese
- * @param language - Detected language code
- * @param preferredTargetLang - User's preferred target language (optional)
  */
 export function determineDirection(
   language: string,
@@ -31,8 +29,8 @@ export function determineDirection(
   if (CHINESE_LANGUAGES.includes(normalizedLang)) {
     return {
       direction: "nurse_to_patient",
-      sourceLang: normalizedLang,
-      targetLang: preferredTargetLang || "vi", // Use user preference or default to Vietnamese
+      sourceLang: "zh",
+      targetLang: preferredTargetLang || "vi",
     };
   }
 
@@ -40,59 +38,15 @@ export function determineDirection(
   return {
     direction: "patient_to_nurse",
     sourceLang: normalizedLang,
-    targetLang: "zh", // Always translate to Chinese
+    targetLang: "zh",
   };
 }
 
 /**
- * Stage 2 Language Detection using LLM (near 100% accuracy)
- * This refines Whisper's language detection result
- */
-async function detectLanguageWithLLM(
-  text: string,
-  whisperDetectedLang: string
-): Promise<string> {
-  if (!text || text.trim().length === 0) {
-    return whisperDetectedLang; // Fallback to Whisper's result
-  }
-
-  const systemPrompt = `你是一個語言偵測專家。請判斷下面句子屬於哪一種語言，只回傳語言代碼。
-
-支援的語言代碼：
-- zh: 中文（繁體或簡體）
-- vi: 越南語
-- en: 英文
-- id: 印尼語
-- tl: 菲律賓語（他加祿語）
-- it: 義大利語
-- ja: 日文
-- ko: 韓文
-- th: 泰文
-
-只回傳語言代碼，不要任何解釋。`;
-
-  try {
-    const response = await invokeLLM({
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `句子：「${text}」` },
-      ],
-    });
-
-    const content = response.choices[0]?.message?.content;
-    const detectedLang = typeof content === "string" ? content.trim().toLowerCase() : whisperDetectedLang;
-
-    // Validate the detected language code
-    const validLangs = ["zh", "vi", "en", "id", "tl", "it", "ja", "ko", "th"];
-    return validLangs.includes(detectedLang) ? detectedLang : whisperDetectedLang;
-  } catch (error) {
-    console.error("[LLM Language Detection] Error:", error);
-    return whisperDetectedLang; // Fallback to Whisper's result
-  }
-}
-
-/**
- * Transcribe audio using OpenAI Whisper API
+ * Transcribe audio using OpenAI Whisper API (OPTIMIZED FOR SPEED)
+ * - Uses language hint (zh) to improve Chinese detection
+ * - Trusts Whisper's language detection (no LLM refinement)
+ * - Fast and reliable for most cases
  */
 export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<{
   text: string;
@@ -103,7 +57,6 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
     throw new Error("OPENAI_API_KEY is not configured");
   }
 
-  // Use form-data with Buffer (most stable way)
   // Support both WebM and WAV formats
   const contentType = filename.endsWith(".wav") ? "audio/wav" : "audio/webm";
   const form = new FormData();
@@ -112,7 +65,7 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
     contentType,
   });
   form.append("model", "whisper-1");
-  // Add language hint to improve Chinese detection rate by 30-60%
+  // Language hint improves Chinese detection rate by 30-60%
   form.append("language", "zh");
 
   try {
@@ -127,19 +80,12 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
       }
     );
 
-    // Log Whisper API response for debugging
-    console.log("[Whisper API Response]", JSON.stringify(response.data, null, 2));
-
-    const detectedLanguage = response.data.language || "zh"; // Default to Chinese if not detected
-    console.log(`[Language Detection] Detected: ${detectedLanguage}`);
-
-    // Stage 2: Use LLM for more accurate language detection
-    const refinedLanguage = await detectLanguageWithLLM(response.data.text || "", detectedLanguage);
-    console.log(`[Language Detection] Refined: ${refinedLanguage}`);
+    const detectedLanguage = response.data.language || "zh";
+    console.log(`[Whisper] Text: "${response.data.text}", Language: ${detectedLanguage}`);
 
     return {
       text: response.data.text || "",
-      language: refinedLanguage,
+      language: detectedLanguage,
     };
   } catch (error: any) {
     if (error.response) {
@@ -152,7 +98,9 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
 }
 
 /**
- * Translate text using OpenAI GPT
+ * Translate text using OpenAI GPT (OPTIMIZED FOR SPEED)
+ * - Simple and direct translation
+ * - No unnecessary prompts
  */
 export async function translateText(
   text: string,
@@ -161,31 +109,20 @@ export async function translateText(
 ): Promise<string> {
   const languageNames: Record<string, string> = {
     zh: "中文",
-    "zh-tw": "繁體中文",
-    "zh-cn": "簡體中文",
     vi: "越南語",
     id: "印尼語",
-    tl: "他加祿語",
-    fil: "菲律賓語",
+    tl: "菲律賓語",
     en: "英文",
+    it: "義大利語",
+    ja: "日文",
+    ko: "韓文",
+    th: "泰文",
   };
 
   const sourceLanguageName = languageNames[sourceLang] || sourceLang;
   const targetLanguageName = languageNames[targetLang] || targetLang;
 
-  const systemPrompt = `你是一個專業的醫療翻譯助手。請將${sourceLanguageName}直接翻譯成${targetLanguageName}。
-
-重要規則：
-1. 只回傳翻譯結果，不要任何解釋、說明或額外文字
-2. 不要加上「原文：」、「翻譯：」、「備註：」等標籤
-3. 不要使用粗體、星號或其他格式符號
-4. 保持醫療術語準確性
-5. 如果是問候語或簡短對話，直接翻譯即可
-
-範例：
-輸入："Hello"
-正確輸出："你好"
-錯誤輸出："好的，這是翻譯：你好" ❌`;
+  const systemPrompt = `你是專業翻譯。將${sourceLanguageName}翻譯成${targetLanguageName}。只回傳翻譯結果，不要解釋。`;
 
   const response = await invokeLLM({
     messages: [
@@ -198,5 +135,3 @@ export async function translateText(
   const translatedText = typeof content === "string" ? content : "";
   return translatedText.trim();
 }
-
-// TTS功能已移除，不需要語音播放
