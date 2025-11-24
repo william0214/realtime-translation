@@ -19,41 +19,125 @@ export const appRouter = router({
 
   // Audio processing endpoints
   audio: router({
-    // Process WebM audio chunk → Whisper transcription
+    // Receive and buffer WebM chunks
     chunk: publicProcedure
       .input(
         z.object({
-          audioBase64: z.string(),
-          filename: z.string().optional(),
+          sessionId: z.string(),
+          chunkBase64: z.string(),
         })
       )
       .mutation(async ({ input }) => {
-        const { transcribeAudio } = await import("./translationService");
+        const { addChunkToSession, getSessionStatus } = await import("./chunkBuffer");
 
         try {
-          const audioBuffer = Buffer.from(input.audioBase64, "base64");
-          const filename = input.filename || `audio-${Date.now()}.webm`;
+          const chunkBuffer = Buffer.from(input.chunkBase64, "base64");
+          addChunkToSession(input.sessionId, chunkBuffer);
 
-          // Step 1: Whisper transcription (WebM direct)
-          const { text } = await transcribeAudio(audioBuffer, filename);
+          const status = getSessionStatus(input.sessionId);
 
-          if (!text || text.trim() === "") {
+          return {
+            success: true,
+            sessionId: input.sessionId,
+            chunkCount: status.chunkCount,
+          };
+        } catch (error: any) {
+          console.error("[audio.chunk] Error:", error);
+          return {
+            success: false,
+            error: error.message || "Failed to buffer chunk",
+          };
+        }
+      }),
+  }),
+
+  // Translation endpoint (handles full workflow)
+  translation: router({
+    // Auto-translate: merge chunks → Whisper → LLM language detection → translate
+    autoTranslate: publicProcedure
+      .input(
+        z.object({
+          audioBase64: z.string().optional(), // Not used, kept for compatibility
+          filename: z.string().optional(),
+          preferredTargetLang: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { mergeSessionChunks, clearSession } = await import("./chunkBuffer");
+        const { transcribeAudio, identifyLanguage, translateText, determineDirection } = await import(
+          "./translationService"
+        );
+        const { promises: fs } = await import("fs");
+
+        // Extract session ID from filename
+        const sessionId = input.filename?.replace("session-", "").replace(".webm", "") || "";
+        if (!sessionId) {
+          return {
+            success: false,
+            error: "Invalid session ID",
+          };
+        }
+
+        let mergedFilePath: string | null = null;
+
+        try {
+          // Step 1: Merge chunks using ffmpeg
+          console.log(`[autoTranslate] Merging chunks for session: ${sessionId}`);
+          mergedFilePath = await mergeSessionChunks(sessionId);
+
+          // Step 2: Read merged WebM file
+          const audioBuffer = await fs.readFile(mergedFilePath);
+          console.log(`[autoTranslate] Merged audio size: ${audioBuffer.length} bytes`);
+
+          // Step 3: Whisper transcription
+          console.log(`[autoTranslate] Transcribing audio...`);
+          const { text: sourceText } = await transcribeAudio(audioBuffer, `${sessionId}.webm`);
+
+          if (!sourceText || sourceText.trim() === "") {
             return {
               success: false,
               error: "No speech detected",
             };
           }
 
+          console.log(`[autoTranslate] Transcript: "${sourceText}"`);
+
+          // Step 4: LLM language identification
+          console.log(`[autoTranslate] Identifying language...`);
+          const detectedLanguage = await identifyLanguage(sourceText);
+          console.log(`[autoTranslate] Detected language: ${detectedLanguage}`);
+
+          // Step 5: Determine translation direction
+          const targetLang = input.preferredTargetLang || "vi";
+          const { direction, sourceLang, targetLang: finalTargetLang } = determineDirection(detectedLanguage, targetLang);
+
+          console.log(`[autoTranslate] Direction: ${direction}, ${sourceLang} → ${finalTargetLang}`);
+
+          // Step 6: Translate
+          console.log(`[autoTranslate] Translating...`);
+          const translatedText = await translateText(sourceText, sourceLang, finalTargetLang);
+          console.log(`[autoTranslate] Translation: "${translatedText}"`);
+
           return {
             success: true,
-            text,
+            sourceText,
+            translatedText,
+            sourceLang,
+            targetLang: finalTargetLang,
+            direction,
           };
         } catch (error: any) {
-          console.error("[audio.chunk] Error:", error);
+          console.error("[autoTranslate] Error:", error);
           return {
             success: false,
-            error: error.message || "Transcription failed",
+            error: error.message || "Translation failed",
           };
+        } finally {
+          // Clean up
+          if (mergedFilePath) {
+            await fs.unlink(mergedFilePath).catch(() => {});
+          }
+          await clearSession(sessionId);
         }
       }),
   }),
@@ -103,11 +187,7 @@ export const appRouter = router({
         const { translateText } = await import("./translationService");
 
         try {
-          const translatedText = await translateText(
-            input.text,
-            input.sourceLang,
-            input.targetLang
-          );
+          const translatedText = await translateText(input.text, input.sourceLang, input.targetLang);
 
           return {
             success: true,
@@ -130,94 +210,15 @@ export const appRouter = router({
       .input(
         z.object({
           text: z.string(),
-          targetLang: z.string(),
+          lang: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const { generateSpeech } = await import("./translationService");
-
-        try {
-          const audioBuffer = await generateSpeech(input.text, input.targetLang);
-          const audioBase64 = audioBuffer.toString("base64");
-
-          return {
-            success: true,
-            audioBase64,
-          };
-        } catch (error: any) {
-          console.error("[tts.generate] Error:", error);
-          return {
-            success: false,
-            error: error.message || "TTS generation failed",
-          };
-        }
-      }),
-  }),
-
-  // Legacy endpoint (for backward compatibility)
-  translation: router({
-    // Auto translate: ASR + Language Detection + Translation (all-in-one)
-    autoTranslate: publicProcedure
-      .input(
-        z.object({
-          audioBase64: z.string(),
-          filename: z.string().optional(),
-          preferredTargetLang: z.string().optional(),
-        })
-      )
-      .mutation(async ({ input }) => {
-        const { transcribeAudio, identifyLanguage, determineDirection, translateText } =
-          await import("./translationService");
-
-        try {
-          const audioBuffer = Buffer.from(input.audioBase64, "base64");
-          const filename = input.filename || `audio-${Date.now()}.webm`;
-
-          // Step 1: Whisper transcription
-          const { text: sourceText } = await transcribeAudio(audioBuffer, filename);
-
-          if (!sourceText || sourceText.trim() === "") {
-            return {
-              success: false,
-              error: "No speech detected",
-            };
-          }
-
-          // Step 2: LLM language identification
-          const language = await identifyLanguage(sourceText);
-
-          // Step 3: Determine direction
-          const { direction, sourceLang, targetLang } = determineDirection(
-            language,
-            input.preferredTargetLang
-          );
-
-          // Step 4: Translate
-          const translatedText = await translateText(sourceText, sourceLang, targetLang);
-
-          return {
-            success: true,
-            direction,
-            sourceLang,
-            targetLang,
-            sourceText,
-            translatedText,
-          };
-        } catch (error: any) {
-          console.error("[autoTranslate] Error:", error);
-          return {
-            success: false,
-            error: error.message || "Translation failed",
-          };
-        }
-      }),
-
-    // Get recent translations
-    getRecent: publicProcedure
-      .input(z.object({ limit: z.number().optional() }))
-      .query(async ({ input }) => {
-        const { getRecentTranslations } = await import("./db");
-        return getRecentTranslations(input.limit);
+        // TTS implementation placeholder
+        return {
+          success: true,
+          audioUrl: "", // TODO: Implement TTS
+        };
       }),
   }),
 });

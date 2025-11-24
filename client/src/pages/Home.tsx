@@ -35,7 +35,8 @@ const LANGUAGE_OPTIONS = [
 
 // VAD Settings
 const RMS_THRESHOLD = 0.02;
-const SILENCE_DURATION_MS = 1200; // Increased to 1.2s for better speech detection
+const SILENCE_DURATION_MS = 1200;
+const CHUNK_INTERVAL_MS = 500; // 300-800ms range
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -53,16 +54,15 @@ export default function Home() {
   const nurseScrollRef = useRef<HTMLDivElement>(null);
   const patientScrollRef = useRef<HTMLDivElement>(null);
 
-  // VAD state
-  const audioChunksRef = useRef<Blob[]>([]);
+  // Session management
+  const sessionIdRef = useRef<string>("");
   const lastSpeechTimeRef = useRef<number>(0);
   const isSpeakingRef = useRef<boolean>(false);
   const vadIntervalRef = useRef<number | null>(null);
 
   // tRPC mutations
-  const audioChunkMutation = trpc.audio.chunk.useMutation();
-  const languageIdentifyMutation = trpc.language.identify.useMutation();
-  const translateMutation = trpc.translate.text.useMutation();
+  const sendChunkMutation = trpc.audio.chunk.useMutation();
+  const finalizeSessionMutation = trpc.translation.autoTranslate.useMutation();
 
   // Check audio level (VAD)
   const checkAudioLevel = useCallback(() => {
@@ -86,107 +86,58 @@ export default function Home() {
     return rms > RMS_THRESHOLD;
   }, []);
 
-  // Process audio chunk
-  const processAudioChunk = useCallback(
-    async (audioBlob: Blob) => {
-      console.log(`[processAudioChunk] Processing audio blob, size: ${audioBlob.size} bytes`);
-      
-      if (audioBlob.size < 1000) {
-        console.log("Audio chunk too small, skipping...");
-        return;
-      }
-
+  // Finalize speech segment
+  const finalizeSpeechSegment = useCallback(
+    async (sessionId: string) => {
+      console.log(`[finalizeSpeechSegment] Finalizing session: ${sessionId}`);
       setProcessingStatus("recognizing");
 
       try {
-        // Step 1: Whisper transcription
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64Audio = (reader.result as string).split(",")[1];
-          if (!base64Audio) {
-            console.error("Failed to convert audio to base64");
-            setProcessingStatus("listening");
-            return;
-          }
+        const result = await finalizeSessionMutation.mutateAsync({
+          audioBase64: "", // Not used, backend uses buffered chunks
+          filename: `session-${sessionId}.webm`,
+          preferredTargetLang: targetLanguage,
+        });
 
-          console.log(`[processAudioChunk] Sending to Whisper API, base64 length: ${base64Audio.length}`);
-
-          const transcriptResult = await audioChunkMutation.mutateAsync({
-            audioBase64: base64Audio,
-            filename: `audio-${Date.now()}.webm`,
-          });
-
-          if (!transcriptResult.success || !transcriptResult.text) {
-            console.log("[processAudioChunk] No speech detected or transcription failed");
-            setProcessingStatus("listening");
-            return;
-          }
-
-          const sourceText = transcriptResult.text;
-          console.log(`[processAudioChunk] Transcript: "${sourceText}"`);
-
-          // Step 2: Language identification
-          setProcessingStatus("translating");
-          const langResult = await languageIdentifyMutation.mutateAsync({
-            text: sourceText,
-          });
-
-          const detectedLanguage = langResult.language || "zh";
-          console.log(`[processAudioChunk] Detected language: ${detectedLanguage}`);
-
-          // Step 3: Determine direction
-          const isNurse = ["zh", "zh-tw", "zh-cn", "cmn", "yue", "chinese"].includes(
-            detectedLanguage.toLowerCase()
-          );
-          const speaker = isNurse ? "nurse" : "patient";
-          const sourceLang = isNurse ? "zh" : detectedLanguage;
-          const targetLang = isNurse ? targetLanguage : "zh";
-
-          // Step 4: Translate
-          const translateResult = await translateMutation.mutateAsync({
-            text: sourceText,
-            sourceLang,
-            targetLang,
-          });
-
-          if (!translateResult.success || !translateResult.translatedText) {
-            console.log("[processAudioChunk] Translation failed");
-            setProcessingStatus("listening");
-            return;
-          }
-
-          console.log(`[processAudioChunk] Translation: "${translateResult.translatedText}"`);
-
-          // Add to conversation
-          const newMessage: ConversationMessage = {
-            id: messageIdRef.current++,
-            speaker,
-            originalText: sourceText,
-            translatedText: translateResult.translatedText,
-            detectedLanguage,
-            timestamp: new Date(),
-          };
-
-          setConversations((prev) => [...prev, newMessage]);
+        if (!result.success || !result.sourceText) {
+          console.log("[finalizeSpeechSegment] No speech detected or processing failed");
           setProcessingStatus("listening");
+          return;
+        }
 
-          // Auto-scroll
-          setTimeout(() => {
-            if (speaker === "nurse" && nurseScrollRef.current) {
-              nurseScrollRef.current.scrollTop = nurseScrollRef.current.scrollHeight;
-            } else if (speaker === "patient" && patientScrollRef.current) {
-              patientScrollRef.current.scrollTop = patientScrollRef.current.scrollHeight;
-            }
-          }, 100);
+        console.log(`[finalizeSpeechSegment] Result:`, result);
+
+        // Determine speaker
+        const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
+
+        // Add to conversation
+        const newMessage: ConversationMessage = {
+          id: messageIdRef.current++,
+          speaker,
+          originalText: result.sourceText,
+          translatedText: result.translatedText || "",
+          detectedLanguage: result.sourceLang || "unknown",
+          timestamp: new Date(),
         };
-        reader.readAsDataURL(audioBlob);
+
+        setConversations((prev) => [...prev, newMessage]);
+        setProcessingStatus("listening");
+
+        // Auto-scroll
+        setTimeout(() => {
+          if (speaker === "nurse" && nurseScrollRef.current) {
+            nurseScrollRef.current.scrollTop = nurseScrollRef.current.scrollHeight;
+          } else if (speaker === "patient" && patientScrollRef.current) {
+            patientScrollRef.current.scrollTop = patientScrollRef.current.scrollHeight;
+          }
+        }, 100);
       } catch (error: any) {
-        console.error("[processAudioChunk] Error:", error);
+        console.error("[finalizeSpeechSegment] Error:", error);
         toast.error("處理失敗：" + error.message);
         setProcessingStatus("listening");
       }
     },
-    [audioChunkMutation, languageIdentifyMutation, translateMutation, targetLanguage]
+    [finalizeSessionMutation, targetLanguage]
   );
 
   // VAD monitoring loop
@@ -202,33 +153,30 @@ export default function Home() {
         if (!isSpeakingRef.current) {
           isSpeakingRef.current = true;
           setProcessingStatus("vad-detected");
-          console.log("🔵 Speech started");
+          // Generate new session ID
+          sessionIdRef.current = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          console.log(`🔵 Speech started, session: ${sessionIdRef.current}`);
         }
       } else {
         // Silence
         if (isSpeakingRef.current) {
           const silenceDuration = now - lastSpeechTimeRef.current;
           if (silenceDuration >= SILENCE_DURATION_MS) {
-            // Speech ended, process audio
+            // Speech ended
             isSpeakingRef.current = false;
             setProcessingStatus("listening");
-            console.log(`🟢 Speech ended (silence: ${silenceDuration}ms), processing audio...`);
+            console.log(`🟢 Speech ended (silence: ${silenceDuration}ms), finalizing session: ${sessionIdRef.current}`);
 
-            if (audioChunksRef.current.length > 0) {
-              const audioBlob = new Blob(audioChunksRef.current, {
-                type: "audio/webm;codecs=opus",
-              });
-              console.log(`[VAD] Created audio blob, size: ${audioBlob.size} bytes, chunks: ${audioChunksRef.current.length}`);
-              processAudioChunk(audioBlob);
-              audioChunksRef.current = [];
-            } else {
-              console.log("[VAD] No audio chunks collected");
+            // Finalize this speech segment
+            const currentSessionId = sessionIdRef.current;
+            if (currentSessionId) {
+              finalizeSpeechSegment(currentSessionId);
             }
           }
         }
       }
     }, 100);
-  }, [checkAudioLevel, processAudioChunk]);
+  }, [checkAudioLevel, finalizeSpeechSegment]);
 
   // Stop VAD monitoring
   const stopVADMonitoring = useCallback(() => {
@@ -274,17 +222,33 @@ export default function Home() {
 
       mediaRecorderRef.current = mediaRecorder;
 
-      // Collect audio chunks
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-          console.log(`[MediaRecorder] Data available, size: ${event.data.size} bytes, total chunks: ${audioChunksRef.current.length}`);
+      // Send chunks to backend immediately
+      mediaRecorder.ondataavailable = async (event) => {
+        if (event.data.size > 0 && isSpeakingRef.current) {
+          console.log(`[MediaRecorder] Chunk available, size: ${event.data.size} bytes, session: ${sessionIdRef.current}`);
+
+          // Convert to base64 and send to backend
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const base64Chunk = (reader.result as string).split(",")[1];
+            if (base64Chunk && sessionIdRef.current) {
+              try {
+                await sendChunkMutation.mutateAsync({
+                  sessionId: sessionIdRef.current,
+                  chunkBase64: base64Chunk,
+                });
+              } catch (error) {
+                console.error("[MediaRecorder] Failed to send chunk:", error);
+              }
+            }
+          };
+          reader.readAsDataURL(event.data);
         }
       };
 
-      // Start recording with timeslice for continuous chunks
-      mediaRecorder.start(100); // Request data every 100ms
-      console.log("[MediaRecorder] Started recording");
+      // Start recording with chunk interval
+      mediaRecorder.start(CHUNK_INTERVAL_MS);
+      console.log(`[MediaRecorder] Started recording with ${CHUNK_INTERVAL_MS}ms chunks`);
 
       // Start VAD monitoring
       startVADMonitoring();
@@ -296,7 +260,7 @@ export default function Home() {
       toast.error("無法啟動麥克風：" + (error as Error).message);
       console.error("[startRecording] Error:", error);
     }
-  }, [startVADMonitoring]);
+  }, [startVADMonitoring, sendChunkMutation]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -318,9 +282,9 @@ export default function Home() {
       streamRef.current = null;
     }
 
-    audioChunksRef.current = [];
     isSpeakingRef.current = false;
     lastSpeechTimeRef.current = 0;
+    sessionIdRef.current = "";
     analyserRef.current = null;
 
     setIsRecording(false);

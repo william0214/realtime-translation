@@ -94,13 +94,14 @@ describe("WebM Direct Streaming Optimization", () => {
       expect(caller.tts.generate).toBeDefined();
     });
 
-    it("should reject empty audio in audio.chunk", async () => {
+    it("should accept chunk with valid session ID", async () => {
       const result = await caller.audio.chunk({
-        audioBase64: "",
-        filename: "test.webm",
+        sessionId: "test-session-123",
+        chunkBase64: Buffer.from("test-chunk").toString("base64"),
       });
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.sessionId).toBe("test-session-123");
     });
 
     it("should identify language via language.identify", async () => {

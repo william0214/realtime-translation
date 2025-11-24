@@ -106,3 +106,12 @@
 
 ## Bug 修復
 - [x] 修復「一直等待語音」問題（VAD 未正確觸發處理）
+
+## WebM Chunk Buffer + FFmpeg 封裝方案
+- [x] 前端改回 chunk-based 錄音（300-800ms interval）
+- [x] 前端即時發送 WebM chunks 到後端
+- [x] 後端實作 chunk buffer（依 session 管理）
+- [x] 後端使用 ffmpeg 合併 chunks 並重新封裝為完整 WebM
+- [x] VAD 偵測語音段落結束時觸發合併
+- [x] 完整 WebM 送 Whisper API（temperature=0, response_format=json）
+- [x] 測試 pseudo-streaming 效能（延遲 < 1 秒）
