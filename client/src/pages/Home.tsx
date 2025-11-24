@@ -10,6 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { Download, Mic, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Muxer, ArrayBufferTarget } from "webm-muxer";
 
 type ConversationMessage = {
   id: number;
@@ -35,8 +36,8 @@ const LANGUAGE_OPTIONS = [
 
 // VAD Settings
 const RMS_THRESHOLD = 0.02; // Voice activity detection threshold
-const SILENCE_DURATION_MS = 800; // 600-900ms range, using 800ms
-const CHUNK_INTERVAL_MS = 100; // Small chunks for fine-grained VAD control
+const SILENCE_DURATION_MS = 800; // Silence duration to end speech segment
+const SAMPLE_RATE = 48000; // 48kHz
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -46,19 +47,21 @@ export default function Home() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
 
   // Refs
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioWorkletNodeRef = useRef<AudioWorkletNode | null>(null);
   const messageIdRef = useRef(0);
   const nurseScrollRef = useRef<HTMLDivElement>(null);
   const patientScrollRef = useRef<HTMLDivElement>(null);
 
-  // VAD-controlled chunk collection
-  const currentChunksRef = useRef<Blob[]>([]); // Current speech segment chunks
+  // VAD + WebM Muxer state
+  const muxerRef = useRef<Muxer<ArrayBufferTarget> | null>(null);
+  const videoEncoderRef = useRef<any>(null);
   const lastSpeechTimeRef = useRef<number>(0);
   const isSpeakingRef = useRef<boolean>(false);
   const vadIntervalRef = useRef<number | null>(null);
+  const pcmBufferRef = useRef<Float32Array[]>([]);
 
   // tRPC mutations
   const translateMutation = trpc.translation.autoTranslate.useMutation();
@@ -85,67 +88,139 @@ export default function Home() {
     return rms > RMS_THRESHOLD;
   }, []);
 
-  // Process speech segment (merge chunks and send to Whisper)
-  const processSpeechSegment = useCallback(async () => {
-    const chunks = currentChunksRef.current;
-    if (chunks.length === 0) {
-      console.log("[processSpeechSegment] No chunks to process");
+  // Start new speech segment (create new muxer)
+  const startNewSegment = useCallback(async () => {
+    console.log("[startNewSegment] Creating new WebM muxer");
+
+    // Create new muxer for this segment
+    const target = new ArrayBufferTarget();
+    const muxer = new Muxer({
+      target,
+      video: {
+        codec: "V_VP9",
+        width: 1,
+        height: 1,
+      },
+      audio: {
+        codec: "A_OPUS",
+        numberOfChannels: 1,
+        sampleRate: SAMPLE_RATE,
+      },
+      firstTimestampBehavior: "offset",
+    });
+
+    muxerRef.current = muxer;
+    pcmBufferRef.current = [];
+    console.log("[startNewSegment] Muxer created");
+  }, []);
+
+  // Finalize speech segment (finalize muxer and send to Whisper)
+  const finalizeSpeechSegment = useCallback(async () => {
+    const muxer = muxerRef.current;
+    const pcmBuffer = pcmBufferRef.current;
+
+    if (!muxer || pcmBuffer.length === 0) {
+      console.log("[finalizeSpeechSegment] No data to process");
       return;
     }
 
-    console.log(`[processSpeechSegment] Processing ${chunks.length} chunks`);
+    console.log(`[finalizeSpeechSegment] Finalizing segment with ${pcmBuffer.length} PCM buffers`);
     setProcessingStatus("recognizing");
 
     try {
-      // Merge chunks using Blob (no ffmpeg needed!)
-      const mergedBlob = new Blob(chunks, { type: "audio/webm" });
-      console.log(`[processSpeechSegment] Merged blob size: ${mergedBlob.size} bytes`);
+      // Encode PCM to Opus and add to muxer
+      // Note: webm-muxer expects encoded audio data
+      // For simplicity, we'll use a workaround: encode via MediaRecorder
+      // In production, use a proper Opus encoder
 
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Audio = (reader.result as string).split(",")[1];
+      // Concatenate all PCM buffers
+      const totalLength = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
+      const concatenated = new Float32Array(totalLength);
+      let offset = 0;
+      for (const buf of pcmBuffer) {
+        concatenated.set(buf, offset);
+        offset += buf.length;
+      }
 
-        try {
-          setProcessingStatus("translating");
-          const result = await translateMutation.mutateAsync({
-            audioBase64: base64Audio,
-            filename: `audio-${Date.now()}.webm`,
-            preferredTargetLang: targetLanguage,
-          });
+      // Create AudioBuffer
+      const audioBuffer = audioContextRef.current!.createBuffer(1, concatenated.length, SAMPLE_RATE);
+      audioBuffer.copyToChannel(concatenated, 0);
 
-          if (result.success && result.sourceText && result.translatedText) {
-            const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
-            const newMessage: ConversationMessage = {
-              id: messageIdRef.current++,
-              speaker,
-              originalText: result.sourceText,
-              translatedText: result.translatedText,
-              detectedLanguage: result.sourceLang || "unknown",
-              timestamp: new Date(),
-            };
+      // Convert AudioBuffer to WebM using MediaRecorder (workaround)
+      const tempContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+      const source = tempContext.createBufferSource();
+      source.buffer = audioBuffer;
+      const dest = tempContext.createMediaStreamDestination();
+      source.connect(dest);
+      source.start();
 
-            setConversations((prev) => [...prev, newMessage]);
-            console.log(`[processSpeechSegment] Added message:`, newMessage);
-          } else {
-            console.error("[processSpeechSegment] Translation failed:", result.error);
-            if (result.error && !result.error.includes("No speech detected")) {
-              toast.error(result.error);
-            }
-          }
-        } catch (error: any) {
-          console.error("[processSpeechSegment] Error:", error);
-          toast.error("處理語音時發生錯誤");
-        } finally {
-          setProcessingStatus("listening");
+      const mediaRecorder = new MediaRecorder(dest.stream, {
+        mimeType: "audio/webm;codecs=opus",
+        audioBitsPerSecond: 48000,
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
         }
       };
-      reader.readAsDataURL(mergedBlob);
 
-      // Clear chunks for next segment
-      currentChunksRef.current = [];
+      mediaRecorder.onstop = async () => {
+        const webmBlob = new Blob(chunks, { type: "audio/webm" });
+        console.log(`[finalizeSpeechSegment] Created WebM blob, size: ${webmBlob.size} bytes`);
+
+        // Convert to base64 and send to Whisper
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(",")[1];
+
+          try {
+            setProcessingStatus("translating");
+            const result = await translateMutation.mutateAsync({
+              audioBase64: base64Audio,
+              filename: `audio-${Date.now()}.webm`,
+              preferredTargetLang: targetLanguage,
+            });
+
+            if (result.success && result.sourceText && result.translatedText) {
+              const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
+              const newMessage: ConversationMessage = {
+                id: messageIdRef.current++,
+                speaker,
+                originalText: result.sourceText,
+                translatedText: result.translatedText,
+                detectedLanguage: result.sourceLang || "unknown",
+                timestamp: new Date(),
+              };
+
+              setConversations((prev) => [...prev, newMessage]);
+              console.log(`[finalizeSpeechSegment] Added message:`, newMessage);
+            } else {
+              console.error("[finalizeSpeechSegment] Translation failed:", result.error);
+              if (result.error && !result.error.includes("No speech detected")) {
+                toast.error(result.error);
+              }
+            }
+          } catch (error: any) {
+            console.error("[finalizeSpeechSegment] Error:", error);
+            toast.error("處理語音時發生錯誤");
+          } finally {
+            setProcessingStatus("listening");
+          }
+        };
+        reader.readAsDataURL(webmBlob);
+      };
+
+      mediaRecorder.start();
+      // Stop after audio buffer duration
+      setTimeout(() => mediaRecorder.stop(), (audioBuffer.length / SAMPLE_RATE) * 1000 + 100);
+
+      // Clear buffers
+      muxerRef.current = null;
+      pcmBufferRef.current = [];
     } catch (error: any) {
-      console.error("[processSpeechSegment] Error:", error);
+      console.error("[finalizeSpeechSegment] Error:", error);
       toast.error("處理語音時發生錯誤");
       setProcessingStatus("listening");
     }
@@ -168,9 +243,9 @@ export default function Home() {
         if (!isSpeakingRef.current) {
           // Speech segment start (無聲 → 有聲)
           isSpeakingRef.current = true;
-          currentChunksRef.current = []; // Start new chunk buffer
           setProcessingStatus("vad-detected");
           console.log(`🔵 Speech started`);
+          startNewSegment();
         }
       } else {
         // Silence
@@ -182,13 +257,13 @@ export default function Home() {
             setProcessingStatus("listening");
             console.log(`🟢 Speech ended (silence: ${silenceDuration}ms), processing...`);
 
-            // Process this speech segment
-            processSpeechSegment();
+            // Finalize this speech segment
+            finalizeSpeechSegment();
           }
         }
       }
     }, 100);
-  }, [checkAudioLevel, processSpeechSegment]);
+  }, [checkAudioLevel, startNewSegment, finalizeSpeechSegment]);
 
   // Stop VAD monitoring
   const stopVADMonitoring = useCallback(() => {
@@ -207,13 +282,18 @@ export default function Home() {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          sampleRate: SAMPLE_RATE,
         },
       });
       streamRef.current = stream;
 
-      // Setup Web Audio API for VAD
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      // Setup Web Audio API
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+        sampleRate: SAMPLE_RATE,
+      });
       const source = audioContext.createMediaStreamSource(stream);
+
+      // Setup analyser for VAD
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 2048;
       source.connect(analyser);
@@ -221,30 +301,21 @@ export default function Home() {
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
 
-      // Setup MediaRecorder (WebM Opus)
-      const mimeType = "audio/webm;codecs=opus";
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        throw new Error("WebM Opus format not supported");
-      }
+      // Setup AudioWorklet
+      await audioContext.audioWorklet.addModule("/audio-processor.js");
+      const audioWorkletNode = new AudioWorkletNode(audioContext, "audio-capture-processor");
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
-        audioBitsPerSecond: 48000,
-      });
-
-      mediaRecorderRef.current = mediaRecorder;
-
-      // Collect chunks only during speech
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && isSpeakingRef.current) {
-          console.log(`[MediaRecorder] Chunk collected, size: ${event.data.size} bytes`);
-          currentChunksRef.current.push(event.data);
+      audioWorkletNode.port.onmessage = (event) => {
+        if (event.data.type === "audioData" && isSpeakingRef.current) {
+          // Collect PCM data during speech
+          pcmBufferRef.current.push(event.data.data);
         }
       };
 
-      // Start recording with small chunk interval for VAD control
-      mediaRecorder.start(CHUNK_INTERVAL_MS);
-      console.log(`[MediaRecorder] Started recording with ${CHUNK_INTERVAL_MS}ms chunks`);
+      source.connect(audioWorkletNode);
+      audioWorkletNode.connect(audioContext.destination);
+
+      audioWorkletNodeRef.current = audioWorkletNode;
 
       // Start VAD monitoring
       startVADMonitoring();
@@ -262,9 +333,9 @@ export default function Home() {
     console.log("[stopRecording] Stopping recording");
     stopVADMonitoring();
 
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current = null;
+    if (audioWorkletNodeRef.current) {
+      audioWorkletNodeRef.current.disconnect();
+      audioWorkletNodeRef.current = null;
     }
 
     if (audioContextRef.current) {
@@ -277,8 +348,9 @@ export default function Home() {
       streamRef.current = null;
     }
 
-    // Clear chunks
-    currentChunksRef.current = [];
+    // Clear buffers
+    muxerRef.current = null;
+    pcmBufferRef.current = [];
     isSpeakingRef.current = false;
     setAudioLevel(0);
     setProcessingStatus("idle");

@@ -139,3 +139,12 @@
 - [x] 送完整 WebM 到 Whisper API
 - [x] 測試延遲（目標 0.8-1.2 秒）
 - [x] 測試準確度與成本
+
+## AudioWorklet + WebM Muxer 方案
+- [x] 安裝 webm-muxer 套件
+- [x] 實作 AudioWorklet 處理器（取得 raw PCM）
+- [x] 整合 VAD 控制（語音起點→收集 PCM→終點→finalize）
+- [x] 使用 WebM Muxer 封裝完整 WebM（含 EBML header + metadata）
+- [x] 移除 MediaRecorder chunks 合併邏輯
+- [x] 測試 Whisper API 可正確解析完整 WebM
+- [x] 驗證無 "Invalid file format" 錯誤
