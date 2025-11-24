@@ -31,4 +31,9 @@
 ## 文件與部署
 - [x] 撰寫 README 使用說明
 - [x] 建立 Demo 測試腳本
-- [ ] 建立專案檢查點
+- [x] 建立專案檢查點
+
+## Bug 修正
+- [x] 修正 Whisper API multipart form 解析錯誤
+- [x] 修正 React useEffect 清理函數錯誤
+- [ ] 測試語音識別功能

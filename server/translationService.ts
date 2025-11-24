@@ -1,4 +1,3 @@
-import FormData from "form-data";
 import { invokeLLM } from "./_core/llm";
 
 /**
@@ -45,10 +44,15 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
     throw new Error("OPENAI_API_KEY is not configured");
   }
 
+  // Use node-fetch compatible FormData
+  const FormData = require("form-data");
   const formData = new FormData();
+  
+  // Append buffer as a stream with proper options
   formData.append("file", audioBuffer, {
     filename,
     contentType: "audio/webm",
+    knownLength: audioBuffer.length,
   });
   formData.append("model", "whisper-1");
 
