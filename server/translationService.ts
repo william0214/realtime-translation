@@ -57,10 +57,12 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
   }
 
   // Use form-data with Buffer (most stable way)
+  // Support both WebM and WAV formats
+  const contentType = filename.endsWith(".wav") ? "audio/wav" : "audio/webm";
   const form = new FormData();
   form.append("file", audioBuffer, {
     filename,
-    contentType: "audio/webm",
+    contentType,
   });
   form.append("model", "whisper-1");
 
