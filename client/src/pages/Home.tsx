@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Mic, MicOff } from "lucide-react";
+import { Download, Mic, MicOff, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -20,6 +20,7 @@ interface ConversationMessage {
   speaker: "nurse" | "patient";
   originalText: string;
   translatedText: string;
+  detectedLanguage?: string;
   timestamp: Date;
 }
 
@@ -43,6 +44,7 @@ export default function Home() {
           speaker,
           originalText: data.sourceText,
           translatedText: data.translatedText,
+          detectedLanguage: data.sourceLang,
           timestamp: new Date(),
         };
 
@@ -134,6 +136,66 @@ export default function Home() {
     toast.info("結束對話");
   }, []);
 
+  const clearConversations = useCallback(() => {
+    setConversations([]);
+    messageIdRef.current = 0;
+    toast.success("已清除對話記錄");
+  }, []);
+
+  const exportConversations = useCallback(() => {
+    if (conversations.length === 0) {
+      toast.error("沒有對話記錄可匯出");
+      return;
+    }
+
+    const languageNames: Record<string, string> = {
+      zh: "中文",
+      "zh-tw": "繁體中文",
+      vi: "越南語",
+      id: "印尼語",
+      tl: "他加祿語",
+      fil: "菲律賓語",
+      en: "英文",
+    };
+
+    let content = "即時雙向翻譯系統 - 對話記錄\n";
+    content += "=" + "=".repeat(50) + "\n\n";
+
+    conversations.forEach((msg, index) => {
+      const speaker = msg.speaker === "nurse" ? "台灣人" : "外國人";
+      const lang = msg.detectedLanguage ? languageNames[msg.detectedLanguage] || msg.detectedLanguage : "";
+      const time = msg.timestamp.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+
+      content += `[${index + 1}] ${speaker}${lang ? ` (${lang})` : ""} - ${time}\n`;
+      content += `原文：${msg.originalText}\n`;
+      content += `譯文：${msg.translatedText}\n\n`;
+    });
+
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `對話記錄_${new Date().toISOString().split("T")[0]}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    toast.success("對話記錄已下載");
+  }, [conversations]);
+
+  const getLanguageName = (langCode?: string): string => {
+    if (!langCode) return "";
+    const languageNames: Record<string, string> = {
+      zh: "中文",
+      "zh-tw": "繁體中文",
+      vi: "越南語",
+      id: "印尼語",
+      tl: "他加祿語",
+      fil: "菲律賓語",
+      en: "英文",
+    };
+    return languageNames[langCode] || langCode;
+  };
+
   useEffect(() => {
     // Cleanup on unmount
     return () => {
@@ -155,14 +217,38 @@ export default function Home() {
       <div className="fixed top-8 left-1/2 transform -translate-x-1/2 text-center z-10">
         <h1 className="text-white text-2xl font-bold mb-2">即時雙向翻譯系統</h1>
         <p className="text-white/60 text-sm">
-          點擊「開始對話」後，系統將持續識別語言並即時翻譯
+          點擊「開始對話」後,系統將持續識別語言並即時翻譯
         </p>
+      </div>
+
+      {/* Action buttons (top right) */}
+      <div className="fixed top-8 right-8 flex space-x-2 z-10">
+        <Button
+          onClick={exportConversations}
+          variant="outline"
+          size="sm"
+          className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+          disabled={conversations.length === 0}
+        >
+          <Download className="w-4 h-4 mr-2" />
+          匯出
+        </Button>
+        <Button
+          onClick={clearConversations}
+          variant="outline"
+          size="sm"
+          className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+          disabled={conversations.length === 0}
+        >
+          <Trash2 className="w-4 h-4 mr-2" />
+          清除
+        </Button>
       </div>
 
       {/* Conversation Display */}
       <div className="flex-1 flex items-center justify-center mt-24 mb-24">
         <div className="w-full max-w-6xl grid grid-cols-2 gap-8">
-          {/* Nurse Side (Left) */}
+          {/* Taiwanese Side (Left) */}
           <div className="flex flex-col space-y-4">
             <h2 className="text-white text-xl font-bold text-center mb-4">台灣人 (中文)</h2>
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
@@ -177,15 +263,20 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Patient Side (Right) */}
+          {/* Foreigner Side (Right) */}
           <div className="flex flex-col space-y-4">
             <h2 className="text-white text-xl font-bold text-center mb-4">外國人 (外語)</h2>
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
               {conversations
                 .filter((msg) => msg.speaker === "patient")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-white/10 backdrop-blur-md rounded-lg p-4">
-                    <p className="text-white text-lg font-medium mb-2">{msg.originalText}</p>
+                  <div key={msg.id} className="bg-white/10 backdrop-blur-md rounded-lg p-4 relative">
+                    {msg.detectedLanguage && (
+                      <span className="absolute top-2 right-2 text-xs bg-blue-500/80 text-white px-2 py-1 rounded">
+                        {getLanguageName(msg.detectedLanguage)}
+                      </span>
+                    )}
+                    <p className="text-white text-lg font-medium mb-2 pr-16">{msg.originalText}</p>
                     <p className="text-white/70 text-sm">→ {msg.translatedText}</p>
                   </div>
                 ))}
