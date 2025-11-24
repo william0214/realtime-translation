@@ -103,3 +103,6 @@
 - [x] 新增 API 端點：/tts
 - [x] 實作 UI 狀態顯示（listening, vad-detected, recognizing, translating, speaking）
 - [x] 性能測試（目標：全流程延遲 ≦ 1 秒）
+
+## Bug 修復
+- [x] 修復「一直等待語音」問題（VAD 未正確觸發處理）
