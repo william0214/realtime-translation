@@ -116,47 +116,4 @@ export async function translateText(
   return translatedText.trim();
 }
 
-/**
- * Generate speech from text using OpenAI TTS API
- */
-export async function generateSpeech(text: string, language: string): Promise<Buffer> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
-
-  // Map language to voice
-  const voiceMap: Record<string, string> = {
-    zh: "alloy",
-    "zh-tw": "alloy",
-    "zh-cn": "alloy",
-    vi: "nova",
-    id: "nova",
-    tl: "nova",
-    fil: "nova",
-    en: "echo",
-  };
-
-  const voice = voiceMap[language] || "alloy";
-
-  const response = await fetch("https://api.openai.com/v1/audio/speech", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "tts-1",
-      voice,
-      input: text,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`TTS API error: ${response.status} ${errorText}`);
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
-}
+// TTS功能已移除，不需要語音播放

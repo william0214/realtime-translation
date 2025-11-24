@@ -40,4 +40,9 @@
 - [x] 修正 require is not defined 錯誤（改用 ES Module import）
 - [x] 重寫 Whisper API 呼叫（使用 OpenAI SDK）
 - [x] 改用 axios + form-data 上傳音訊（最穩定方式）
+- [x] 修正 TTS 音訊播放中斷錯誤
+- [x] 改為連續錄音模式（不需按停止）
+- [x] 修改按鈕文字為「開始對話」和「結束對話」
+- [x] 移除 TTS 語音播放功能
+- [x] 重設顯示邏輯，顯示雙方對話記錄
 - [x] 測試語音識別功能

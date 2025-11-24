@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Mic, MicOff, Volume2 } from "lucide-react";
+import { Mic, MicOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,41 +15,38 @@ interface TranslationResult {
   error?: string;
 }
 
+interface ConversationMessage {
+  id: number;
+  speaker: "nurse" | "patient";
+  originalText: string;
+  translatedText: string;
+  timestamp: Date;
+}
+
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
-  const [primaryText, setPrimaryText] = useState("");
-  const [secondaryText, setSecondaryText] = useState("");
-  const [currentDirection, setCurrentDirection] = useState<string>("");
+  const [conversations, setConversations] = useState<ConversationMessage[]>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const messageIdRef = useRef(0);
 
   const autoTranslateMutation = trpc.translation.autoTranslate.useMutation({
     onSuccess: (data: TranslationResult) => {
       if (data.success && data.sourceText && data.translatedText) {
-        // Update subtitles based on direction
-        if (data.direction === "nurse_to_patient") {
-          // Primary: Patient language (target), Secondary: Chinese (source)
-          setPrimaryText(data.translatedText);
-          setSecondaryText(data.sourceText);
-          setCurrentDirection("護理師 → 病患");
-        } else {
-          // Primary: Chinese (target), Secondary: Patient language (source)
-          setPrimaryText(data.translatedText);
-          setSecondaryText(data.sourceText);
-          setCurrentDirection("病患 → 護理師");
-        }
+        const speaker = data.direction === "nurse_to_patient" ? "nurse" : "patient";
+        
+        const newMessage: ConversationMessage = {
+          id: messageIdRef.current++,
+          speaker,
+          originalText: data.sourceText,
+          translatedText: data.translatedText,
+          timestamp: new Date(),
+        };
 
-        // Play TTS audio
-        if (data.audioUrl && audioRef.current) {
-          audioRef.current.src = data.audioUrl;
-          audioRef.current.play().catch((err) => {
-            console.error("Audio playback failed:", err);
-          });
-        }
+        setConversations((prev) => [...prev, newMessage]);
       } else if (data.error) {
         console.log("Translation error:", data.error);
       }
@@ -112,7 +109,7 @@ export default function Home() {
       }, 2000);
 
       recordingIntervalRef.current = intervalId;
-      toast.success("開始錄音");
+      toast.success("開始對話");
     } catch (error) {
       toast.error("無法啟動麥克風：" + (error as Error).message);
     }
@@ -134,7 +131,7 @@ export default function Home() {
     }
 
     setIsRecording(false);
-    toast.info("停止錄音");
+    toast.info("結束對話");
   }, []);
 
   useEffect(() => {
@@ -153,46 +150,59 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-black/30 backdrop-blur-sm flex flex-col items-center justify-center p-8 relative">
-      {/* Audio element for TTS playback */}
-      <audio ref={audioRef} className="hidden" />
-
-      {/* Main subtitle display area */}
-      <div className="flex-1 flex flex-col items-center justify-center w-full max-w-4xl space-y-8">
-        {/* Direction indicator */}
-        {currentDirection && (
-          <div className="text-white/60 text-lg font-medium mb-4">
-            {currentDirection}
-          </div>
-        )}
-
-        {/* Primary subtitle (large) */}
-        <div className="text-center">
-          <p className="text-white text-5xl font-bold leading-tight min-h-[120px] flex items-center justify-center">
-            {primaryText || "等待語音輸入..."}
-          </p>
-        </div>
-
-        {/* Secondary subtitle (small) */}
-        {secondaryText && (
-          <div className="text-center">
-            <p className="text-white/70 text-3xl leading-relaxed">
-              {secondaryText}
-            </p>
-          </div>
-        )}
-
-        {/* Loading indicator */}
-        {autoTranslateMutation.isPending && (
-          <div className="flex items-center space-x-2 text-white/60">
-            <Volume2 className="w-5 h-5 animate-pulse" />
-            <span className="text-lg">處理中...</span>
-          </div>
-        )}
+    <div className="min-h-screen bg-black/30 backdrop-blur-sm flex flex-col p-8 relative">
+      {/* Header */}
+      <div className="fixed top-8 left-1/2 transform -translate-x-1/2 text-center z-10">
+        <h1 className="text-white text-2xl font-bold mb-2">護理推車即時雙向翻譯系統</h1>
+        <p className="text-white/60 text-sm">
+          點擊「開始對話」後，系統將持續識別語言並即時翻譯
+        </p>
       </div>
 
+      {/* Conversation Display */}
+      <div className="flex-1 flex items-center justify-center mt-24 mb-24">
+        <div className="w-full max-w-6xl grid grid-cols-2 gap-8">
+          {/* Nurse Side (Left) */}
+          <div className="flex flex-col space-y-4">
+            <h2 className="text-white text-xl font-bold text-center mb-4">護理師 (中文)</h2>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+              {conversations
+                .filter((msg) => msg.speaker === "nurse")
+                .map((msg) => (
+                  <div key={msg.id} className="bg-white/10 backdrop-blur-md rounded-lg p-4">
+                    <p className="text-white text-lg font-medium mb-2">{msg.originalText}</p>
+                    <p className="text-white/70 text-sm">→ {msg.translatedText}</p>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Patient Side (Right) */}
+          <div className="flex flex-col space-y-4">
+            <h2 className="text-white text-xl font-bold text-center mb-4">病患 (外語)</h2>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+              {conversations
+                .filter((msg) => msg.speaker === "patient")
+                .map((msg) => (
+                  <div key={msg.id} className="bg-white/10 backdrop-blur-md rounded-lg p-4">
+                    <p className="text-white text-lg font-medium mb-2">{msg.originalText}</p>
+                    <p className="text-white/70 text-sm">→ {msg.translatedText}</p>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Loading indicator */}
+      {autoTranslateMutation.isPending && (
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-md rounded-lg px-6 py-3">
+          <span className="text-white text-lg">處理中...</span>
+        </div>
+      )}
+
       {/* Control buttons */}
-      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-4">
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-4 z-10">
         {!isRecording ? (
           <Button
             onClick={startRecording}
@@ -200,7 +210,7 @@ export default function Home() {
             className="bg-green-600 hover:bg-green-700 text-white px-8 py-6 text-xl rounded-full shadow-lg"
           >
             <Mic className="w-8 h-8 mr-2" />
-            開始錄音
+            開始對話
           </Button>
         ) : (
           <Button
@@ -209,17 +219,9 @@ export default function Home() {
             className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-xl rounded-full shadow-lg animate-pulse"
           >
             <MicOff className="w-8 h-8 mr-2" />
-            停止錄音
+            結束對話
           </Button>
         )}
-      </div>
-
-      {/* Instructions */}
-      <div className="fixed top-8 left-1/2 transform -translate-x-1/2 text-center">
-        <h1 className="text-white text-2xl font-bold mb-2">護理推車即時雙向翻譯系統</h1>
-        <p className="text-white/60 text-sm">
-          點擊「開始錄音」後，系統將自動識別語言並進行翻譯
-        </p>
       </div>
     </div>
   );

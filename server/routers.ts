@@ -26,9 +26,9 @@ export const appRouter = router({
         filename: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { transcribeAudio, determineDirection, translateText, generateSpeech } = await import("./translationService");
+        const { transcribeAudio, determineDirection, translateText } = await import("./translationService");
         const { insertTranslation } = await import("./db");
-        const { storagePut } = await import("./storage");
+
 
         // Decode base64 audio
         const audioBuffer = Buffer.from(input.audioBase64, "base64");
@@ -50,10 +50,8 @@ export const appRouter = router({
         // Step 3: Translate
         const translatedText = await translateText(sourceText, sourceLang, targetLang);
 
-        // Step 4: TTS
-        const audioData = await generateSpeech(translatedText, targetLang);
-        const audioKey = `tts/${Date.now()}-${Math.random().toString(36).substring(7)}.mp3`;
-        const { url: audioUrl } = await storagePut(audioKey, audioData, "audio/mpeg");
+        // TTS 功能已移除
+        const audioUrl = "";
 
         // Step 5: Save to database
         await insertTranslation({
