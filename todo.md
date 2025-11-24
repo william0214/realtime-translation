@@ -120,3 +120,22 @@
 - [x] 診斷「並無字幕產生」問題（ffmpeg concat 失敗）
 - [x] 修復 chunk 合併邏輯（改用 Buffer.concat）
 - [x] 測試字幕顯示功能
+
+## 修正 WebM Chunk 合併方式（使用 Blob）
+- [x] 前端收集 WebM chunks（300-800ms interval）
+- [x] VAD 偵測語音段落結束時建立 Blob
+- [x] 使用 `new Blob(chunks, { type: "audio/webm" })` 合併
+- [x] 直接送 Blob 到 Whisper API
+- [x] 移除後端 chunk buffer 邏輯
+- [x] 移除所有 ffmpeg 相關程式碼
+- [x] 測試 Whisper API 可正確解析多 header WebM
+
+## VAD 控制的智能 Chunk 切割
+- [x] VAD 偵測語音起點（無聲 → 有聲，RMS > 0.02）
+- [x] 語音起點時開始收集 chunks 到 buffer
+- [x] 語音段落中持續 push chunks
+- [x] VAD 偵測語音終點（有聲 → 無聲，持續 800ms）
+- [x] 語音終點時合併 chunks（new Blob）
+- [x] 送完整 WebM 到 Whisper API
+- [x] 測試延遲（目標 0.8-1.2 秒）
+- [x] 測試準確度與成本

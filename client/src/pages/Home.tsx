@@ -34,9 +34,9 @@ const LANGUAGE_OPTIONS = [
 ];
 
 // VAD Settings
-const RMS_THRESHOLD = 0.02;
-const SILENCE_DURATION_MS = 1200;
-const CHUNK_INTERVAL_MS = 500; // 300-800ms range
+const RMS_THRESHOLD = 0.02; // Voice activity detection threshold
+const SILENCE_DURATION_MS = 800; // 600-900ms range, using 800ms
+const CHUNK_INTERVAL_MS = 100; // Small chunks for fine-grained VAD control
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -54,15 +54,14 @@ export default function Home() {
   const nurseScrollRef = useRef<HTMLDivElement>(null);
   const patientScrollRef = useRef<HTMLDivElement>(null);
 
-  // Session management
-  const sessionIdRef = useRef<string>("");
+  // VAD-controlled chunk collection
+  const currentChunksRef = useRef<Blob[]>([]); // Current speech segment chunks
   const lastSpeechTimeRef = useRef<number>(0);
   const isSpeakingRef = useRef<boolean>(false);
   const vadIntervalRef = useRef<number | null>(null);
 
   // tRPC mutations
-  const sendChunkMutation = trpc.audio.chunk.useMutation();
-  const finalizeSessionMutation = trpc.translation.autoTranslate.useMutation();
+  const translateMutation = trpc.translation.autoTranslate.useMutation();
 
   // Check audio level (VAD)
   const checkAudioLevel = useCallback(() => {
@@ -86,63 +85,79 @@ export default function Home() {
     return rms > RMS_THRESHOLD;
   }, []);
 
-  // Finalize speech segment
-  const finalizeSpeechSegment = useCallback(
-    async (sessionId: string) => {
-      console.log(`[finalizeSpeechSegment] Finalizing session: ${sessionId}`);
-      setProcessingStatus("recognizing");
+  // Process speech segment (merge chunks and send to Whisper)
+  const processSpeechSegment = useCallback(async () => {
+    const chunks = currentChunksRef.current;
+    if (chunks.length === 0) {
+      console.log("[processSpeechSegment] No chunks to process");
+      return;
+    }
 
-      try {
-        const result = await finalizeSessionMutation.mutateAsync({
-          audioBase64: "", // Not used, backend uses buffered chunks
-          filename: `session-${sessionId}.webm`,
-          preferredTargetLang: targetLanguage,
-        });
+    console.log(`[processSpeechSegment] Processing ${chunks.length} chunks`);
+    setProcessingStatus("recognizing");
 
-        if (!result.success || !result.sourceText) {
-          console.log("[finalizeSpeechSegment] No speech detected or processing failed");
-          setProcessingStatus("listening");
-          return;
-        }
+    try {
+      // Merge chunks using Blob (no ffmpeg needed!)
+      const mergedBlob = new Blob(chunks, { type: "audio/webm" });
+      console.log(`[processSpeechSegment] Merged blob size: ${mergedBlob.size} bytes`);
 
-        console.log(`[finalizeSpeechSegment] Result:`, result);
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Audio = (reader.result as string).split(",")[1];
 
-        // Determine speaker
-        const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
+        try {
+          setProcessingStatus("translating");
+          const result = await translateMutation.mutateAsync({
+            audioBase64: base64Audio,
+            filename: `audio-${Date.now()}.webm`,
+            preferredTargetLang: targetLanguage,
+          });
 
-        // Add to conversation
-        const newMessage: ConversationMessage = {
-          id: messageIdRef.current++,
-          speaker,
-          originalText: result.sourceText,
-          translatedText: result.translatedText || "",
-          detectedLanguage: result.sourceLang || "unknown",
-          timestamp: new Date(),
-        };
+          if (result.success && result.sourceText && result.translatedText) {
+            const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
+            const newMessage: ConversationMessage = {
+              id: messageIdRef.current++,
+              speaker,
+              originalText: result.sourceText,
+              translatedText: result.translatedText,
+              detectedLanguage: result.sourceLang || "unknown",
+              timestamp: new Date(),
+            };
 
-        setConversations((prev) => [...prev, newMessage]);
-        setProcessingStatus("listening");
-
-        // Auto-scroll
-        setTimeout(() => {
-          if (speaker === "nurse" && nurseScrollRef.current) {
-            nurseScrollRef.current.scrollTop = nurseScrollRef.current.scrollHeight;
-          } else if (speaker === "patient" && patientScrollRef.current) {
-            patientScrollRef.current.scrollTop = patientScrollRef.current.scrollHeight;
+            setConversations((prev) => [...prev, newMessage]);
+            console.log(`[processSpeechSegment] Added message:`, newMessage);
+          } else {
+            console.error("[processSpeechSegment] Translation failed:", result.error);
+            if (result.error && !result.error.includes("No speech detected")) {
+              toast.error(result.error);
+            }
           }
-        }, 100);
-      } catch (error: any) {
-        console.error("[finalizeSpeechSegment] Error:", error);
-        toast.error("處理失敗：" + error.message);
-        setProcessingStatus("listening");
-      }
-    },
-    [finalizeSessionMutation, targetLanguage]
-  );
+        } catch (error: any) {
+          console.error("[processSpeechSegment] Error:", error);
+          toast.error("處理語音時發生錯誤");
+        } finally {
+          setProcessingStatus("listening");
+        }
+      };
+      reader.readAsDataURL(mergedBlob);
 
-  // VAD monitoring loop
+      // Clear chunks for next segment
+      currentChunksRef.current = [];
+    } catch (error: any) {
+      console.error("[processSpeechSegment] Error:", error);
+      toast.error("處理語音時發生錯誤");
+      setProcessingStatus("listening");
+    }
+  }, [targetLanguage, translateMutation]);
+
+  // Start VAD monitoring
   const startVADMonitoring = useCallback(() => {
-    console.log("[VAD] Starting VAD monitoring");
+    if (vadIntervalRef.current !== null) return;
+
+    console.log("[VAD] Started VAD monitoring");
+    setProcessingStatus("listening");
+
     vadIntervalRef.current = window.setInterval(() => {
       const isSpeaking = checkAudioLevel();
       const now = Date.now();
@@ -151,32 +166,29 @@ export default function Home() {
         // Speech detected
         lastSpeechTimeRef.current = now;
         if (!isSpeakingRef.current) {
+          // Speech segment start (無聲 → 有聲)
           isSpeakingRef.current = true;
+          currentChunksRef.current = []; // Start new chunk buffer
           setProcessingStatus("vad-detected");
-          // Generate new session ID
-          sessionIdRef.current = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          console.log(`🔵 Speech started, session: ${sessionIdRef.current}`);
+          console.log(`🔵 Speech started`);
         }
       } else {
         // Silence
         if (isSpeakingRef.current) {
           const silenceDuration = now - lastSpeechTimeRef.current;
           if (silenceDuration >= SILENCE_DURATION_MS) {
-            // Speech ended
+            // Speech segment end (有聲 → 無聲，持續 800ms)
             isSpeakingRef.current = false;
             setProcessingStatus("listening");
-            console.log(`🟢 Speech ended (silence: ${silenceDuration}ms), finalizing session: ${sessionIdRef.current}`);
+            console.log(`🟢 Speech ended (silence: ${silenceDuration}ms), processing...`);
 
-            // Finalize this speech segment
-            const currentSessionId = sessionIdRef.current;
-            if (currentSessionId) {
-              finalizeSpeechSegment(currentSessionId);
-            }
+            // Process this speech segment
+            processSpeechSegment();
           }
         }
       }
     }, 100);
-  }, [checkAudioLevel, finalizeSpeechSegment]);
+  }, [checkAudioLevel, processSpeechSegment]);
 
   // Stop VAD monitoring
   const stopVADMonitoring = useCallback(() => {
@@ -222,31 +234,15 @@ export default function Home() {
 
       mediaRecorderRef.current = mediaRecorder;
 
-      // Send chunks to backend immediately
-      mediaRecorder.ondataavailable = async (event) => {
+      // Collect chunks only during speech
+      mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0 && isSpeakingRef.current) {
-          console.log(`[MediaRecorder] Chunk available, size: ${event.data.size} bytes, session: ${sessionIdRef.current}`);
-
-          // Convert to base64 and send to backend
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const base64Chunk = (reader.result as string).split(",")[1];
-            if (base64Chunk && sessionIdRef.current) {
-              try {
-                await sendChunkMutation.mutateAsync({
-                  sessionId: sessionIdRef.current,
-                  chunkBase64: base64Chunk,
-                });
-              } catch (error) {
-                console.error("[MediaRecorder] Failed to send chunk:", error);
-              }
-            }
-          };
-          reader.readAsDataURL(event.data);
+          console.log(`[MediaRecorder] Chunk collected, size: ${event.data.size} bytes`);
+          currentChunksRef.current.push(event.data);
         }
       };
 
-      // Start recording with chunk interval
+      // Start recording with small chunk interval for VAD control
       mediaRecorder.start(CHUNK_INTERVAL_MS);
       console.log(`[MediaRecorder] Started recording with ${CHUNK_INTERVAL_MS}ms chunks`);
 
@@ -254,13 +250,12 @@ export default function Home() {
       startVADMonitoring();
 
       setIsRecording(true);
-      setProcessingStatus("listening");
-      toast.success("開始對話");
-    } catch (error) {
-      toast.error("無法啟動麥克風：" + (error as Error).message);
+      toast.success("開始錄音");
+    } catch (error: any) {
       console.error("[startRecording] Error:", error);
+      toast.error("無法啟動麥克風");
     }
-  }, [startVADMonitoring, sendChunkMutation]);
+  }, [startVADMonitoring]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -282,22 +277,29 @@ export default function Home() {
       streamRef.current = null;
     }
 
+    // Clear chunks
+    currentChunksRef.current = [];
     isSpeakingRef.current = false;
-    lastSpeechTimeRef.current = 0;
-    sessionIdRef.current = "";
-    analyserRef.current = null;
-
-    setIsRecording(false);
     setAudioLevel(0);
     setProcessingStatus("idle");
-    toast.info("結束對話");
+    setIsRecording(false);
+    toast.success("停止錄音");
   }, [stopVADMonitoring]);
+
+  // Toggle recording
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
 
   // Clear conversations
   const clearConversations = useCallback(() => {
     setConversations([]);
     messageIdRef.current = 0;
-    toast.success("對話記錄已清除");
+    toast.success("已清除對話記錄");
   }, []);
 
   // Export conversations
@@ -311,8 +313,7 @@ export default function Home() {
       .map((msg) => {
         const speaker = msg.speaker === "nurse" ? "台灣人" : "外國人";
         const time = msg.timestamp.toLocaleTimeString("zh-TW");
-        const lang = msg.detectedLanguage.toUpperCase();
-        return `[${time}] ${speaker} (${lang})\n原文: ${msg.originalText}\n譯文: ${msg.translatedText}\n`;
+        return `[${time}] ${speaker}:\n原文: ${msg.originalText}\n譯文: ${msg.translatedText}\n`;
       })
       .join("\n");
 
@@ -327,20 +328,23 @@ export default function Home() {
     toast.success("對話記錄已匯出");
   }, [conversations]);
 
-  // Cleanup
+  // Auto-scroll to latest message
   useEffect(() => {
-    return () => {
-      stopRecording();
-    };
-  }, [stopRecording]);
+    if (nurseScrollRef.current) {
+      nurseScrollRef.current.scrollTop = nurseScrollRef.current.scrollHeight;
+    }
+    if (patientScrollRef.current) {
+      patientScrollRef.current.scrollTop = patientScrollRef.current.scrollHeight;
+    }
+  }, [conversations]);
 
-  // Status message
-  const getStatusMessage = () => {
+  // Get status display
+  const getStatusDisplay = () => {
     switch (processingStatus) {
       case "listening":
-        return "🟢 等待語音...";
+        return "🔵 等待語音...";
       case "vad-detected":
-        return "🔵 偵測到語音...";
+        return "🟢 偵測到語音...";
       case "recognizing":
         return "🟡 正在辨識...";
       case "translating":
@@ -348,122 +352,91 @@ export default function Home() {
       case "speaking":
         return "🔊 播放中...";
       default:
-        return "";
+        return "閒置";
     }
   };
 
-  const getLanguageLabel = (code: string) => {
-    const lang = LANGUAGE_OPTIONS.find((l) => l.value === code);
-    return lang ? lang.label : code;
-  };
-
   return (
-    <div className="min-h-screen flex flex-col bg-black/80 text-white">
+    <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Header */}
-      <header className="p-6 flex items-center justify-between border-b border-white/10">
-        <div className="flex items-center gap-4">
+      <header className="border-b border-gray-800 p-4">
+        <div className="container mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">即時雙向翻譯系統</h1>
-          <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>
-            <SelectTrigger className="w-[180px] bg-white/10 border-white/20">
-              <SelectValue placeholder="選擇目標語言" />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGE_OPTIONS.map((lang) => (
-                <SelectItem key={lang.value} value={lang.value}>
-                  {lang.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={exportConversations}
-            disabled={conversations.length === 0}
-            className="bg-white/10 border-white/20 hover:bg-white/20"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={clearConversations}
-            disabled={conversations.length === 0}
-            className="bg-white/10 border-white/20 hover:bg-white/20"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-4">
+            <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>
+              <SelectTrigger className="w-[180px] bg-gray-900 border-gray-700">
+                <SelectValue placeholder="選擇語言" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-700">
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon" onClick={exportConversations} disabled={conversations.length === 0}>
+              <Download className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={clearConversations} disabled={conversations.length === 0}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
-      <div className="flex-1 p-6">
-        <p className="text-center text-white/60 mb-4">
-          點擊「開始對話」後，系統將持續偵測語音並即時翻譯
-        </p>
-
-        {/* Processing status indicator */}
-        {processingStatus !== "idle" && (
-          <div className="fixed top-20 right-6 bg-black/70 backdrop-blur-sm px-6 py-3 rounded-lg border border-white/20 text-lg z-50">
-            {getStatusMessage()}
-          </div>
-        )}
-
-        {/* Audio level indicator */}
-        {isRecording && (
-          <div className="mb-6 flex items-center justify-center gap-4">
-            <span className="text-sm text-white/60">音量:</span>
-            <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-100 ${
-                  isSpeakingRef.current ? "bg-green-500" : "bg-white/30"
-                }`}
-                style={{ width: `${Math.min(audioLevel * 100, 100)}%` }}
-              />
+      {/* Status Bar */}
+      <div className="bg-gray-900 p-3 text-center text-sm">
+        <div className="container mx-auto flex items-center justify-center gap-4">
+          <span>{getStatusDisplay()}</span>
+          {isRecording && (
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">音量:</span>
+              <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all ${audioLevel > 1 ? "bg-green-500" : "bg-gray-600"}`}
+                  style={{ width: `${Math.min(audioLevel * 100, 100)}%` }}
+                />
+              </div>
             </div>
-            <span className="text-sm text-white/60">
-              {isSpeakingRef.current ? "偵測到語音" : "靜音"}
-            </span>
-          </div>
-        )}
+          )}
+        </div>
+      </div>
 
-        {/* Conversation Display */}
-        <div className="grid grid-cols-2 gap-6 mb-8">
-          {/* 台灣人 (中文) */}
-          <div>
+      {/* Main Content */}
+      <main className="flex-1 container mx-auto p-6">
+        <div className="text-center mb-6 text-gray-400">
+          點擊「開始對話」後，系統將持續偵測語音並即時翻譯
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          {/* Nurse (Chinese) */}
+          <div className="bg-gray-900 rounded-lg p-4">
             <h2 className="text-xl font-semibold mb-4 text-center">台灣人 (中文)</h2>
-            <div ref={nurseScrollRef} className="space-y-4 max-h-[500px] overflow-y-auto scroll-smooth">
+            <div ref={nurseScrollRef} className="h-[400px] overflow-y-auto space-y-3">
               {conversations
                 .filter((msg) => msg.speaker === "nurse")
                 .map((msg) => (
-                  <div
-                    key={msg.id}
-                    className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/20"
-                  >
-                    <p className="text-lg mb-2">{msg.originalText}</p>
-                    <p className="text-sm text-white/60">→ {msg.translatedText}</p>
+                  <div key={msg.id} className="bg-gray-800 p-3 rounded">
+                    <div className="text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
+                    <div className="font-medium mb-1">{msg.originalText}</div>
+                    <div className="text-gray-400 text-sm">→ {msg.translatedText}</div>
                   </div>
                 ))}
             </div>
           </div>
 
-          {/* 外國人 (外語) */}
-          <div>
+          {/* Patient (Foreign Language) */}
+          <div className="bg-gray-900 rounded-lg p-4">
             <h2 className="text-xl font-semibold mb-4 text-center">外國人 (外語)</h2>
-            <div ref={patientScrollRef} className="space-y-4 max-h-[500px] overflow-y-auto scroll-smooth">
+            <div ref={patientScrollRef} className="h-[400px] overflow-y-auto space-y-3">
               {conversations
                 .filter((msg) => msg.speaker === "patient")
                 .map((msg) => (
-                  <div
-                    key={msg.id}
-                    className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/20 relative"
-                  >
-                    <span className="absolute top-2 right-2 text-xs bg-white/20 px-2 py-1 rounded">
-                      {getLanguageLabel(msg.detectedLanguage)}
-                    </span>
-                    <p className="text-lg mb-2">{msg.originalText}</p>
-                    <p className="text-sm text-white/60">→ {msg.translatedText}</p>
+                  <div key={msg.id} className="bg-gray-800 p-3 rounded">
+                    <div className="text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
+                    <div className="font-medium mb-1">{msg.originalText}</div>
+                    <div className="text-gray-400 text-sm">→ {msg.translatedText}</div>
                   </div>
                 ))}
             </div>
@@ -471,28 +444,21 @@ export default function Home() {
         </div>
 
         {/* Control Button */}
-        <div className="flex justify-center">
-          {!isRecording ? (
-            <Button
-              onClick={startRecording}
-              size="lg"
-              className="bg-green-600 hover:bg-green-700 text-white px-8 py-6 text-lg"
-            >
-              <Mic className="mr-2 h-5 w-5" />
-              開始對話
-            </Button>
-          ) : (
-            <Button
-              onClick={stopRecording}
-              size="lg"
-              className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
-            >
-              <Mic className="mr-2 h-5 w-5" />
-              結束對話
-            </Button>
-          )}
+        <div className="text-center">
+          <Button
+            size="lg"
+            onClick={toggleRecording}
+            className={`px-8 py-6 text-lg ${
+              isRecording
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-green-600 hover:bg-green-700"
+            }`}
+          >
+            <Mic className="mr-2 h-5 w-5" />
+            {isRecording ? "結束對話" : "開始對話"}
+          </Button>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
