@@ -68,7 +68,6 @@ export default function Home() {
 
   // tRPC mutations
   const translateMutation = trpc.translation.autoTranslate.useMutation();
-  const ttsMutation = trpc.tts.generate.useMutation();
 
   // Check audio level (VAD)
   const checkAudioLevel = useCallback(() => {
@@ -242,36 +241,7 @@ export default function Home() {
               setConversations((prev) => [...prev, newMessage]);
               setCurrentSubtitle(""); // Clear subtitle after translation
               console.log(`[Translation] Added message:`, newMessage);
-
-              // Play TTS audio
-              setProcessingStatus("speaking");
-              try {
-                const ttsResult = await ttsMutation.mutateAsync({
-                  text: result.translatedText,
-                  language: result.targetLang || "vi",
-                });
-
-                if (ttsResult.success && ttsResult.audioBase64) {
-                  const audioBlob = new Blob(
-                    [Uint8Array.from(atob(ttsResult.audioBase64), (c) => c.charCodeAt(0))],
-                    { type: "audio/mp3" }
-                  );
-                  const audioUrl = URL.createObjectURL(audioBlob);
-                  const audio = new Audio(audioUrl);
-                  audio.onended = () => {
-                    URL.revokeObjectURL(audioUrl);
-                    setProcessingStatus("listening");
-                  };
-                  await audio.play();
-                  console.log(`[TTS] Playing audio for: "${result.translatedText}"`);
-                } else {
-                  console.error("[TTS] Failed:", ttsResult.error);
-                  setProcessingStatus("listening");
-                }
-              } catch (ttsError: any) {
-                console.error("[TTS] Error:", ttsError);
-                setProcessingStatus("listening");
-              }
+              setProcessingStatus("listening");
             } else {
               console.error("[Translation] Translation failed:", result.error);
               if (result.error && !result.error.includes("No speech detected")) {
