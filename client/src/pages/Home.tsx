@@ -7,51 +7,61 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Download, Languages, Mic, MicOff, Trash2 } from "lucide-react";
+import { Download, Mic, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-interface TranslationResult {
+type ConversationMessage = {
+  id: number;
+  speaker: "nurse" | "patient";
+  originalText: string;
+  translatedText: string;
+  detectedLanguage: string;
+  timestamp: Date;
+};
+
+type TranslationResult = {
   success: boolean;
   direction?: "nurse_to_patient" | "patient_to_nurse";
   sourceLang?: string;
   targetLang?: string;
   sourceText?: string;
   translatedText?: string;
-  audioUrl?: string;
   error?: string;
-}
+};
 
-interface ConversationMessage {
-  id: number;
-  speaker: "nurse" | "patient";
-  originalText: string;
-  translatedText: string;
-  detectedLanguage?: string;
-  timestamp: Date;
-}
-
-const SUPPORTED_LANGUAGES = [
-  { code: "vi", name: "越南語" },
-  { code: "id", name: "印尼語" },
-  { code: "tl", name: "菲律賓語" },
-  { code: "en", name: "英文" },
-  { code: "it", name: "義大利語" },
-  { code: "ja", name: "日文" },
-  { code: "ko", name: "韓文" },
-  { code: "th", name: "泰文" },
+const LANGUAGE_OPTIONS = [
+  { value: "vi", label: "越南語" },
+  { value: "id", label: "印尼語" },
+  { value: "fil", label: "菲律賓語" },
+  { value: "en", label: "英文" },
+  { value: "it", label: "義大利語" },
+  { value: "ja", label: "日文" },
+  { value: "ko", label: "韓文" },
+  { value: "th", label: "泰文" },
 ];
+
+// VAD 設定
+const VAD_THRESHOLD = 0.01; // 音量閾值（0-1），低於此值視為靜音
+const VAD_SAMPLE_RATE = 100; // 取樣頻率（ms）
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [conversations, setConversations] = useState<ConversationMessage[]>([]);
   const [targetLanguage, setTargetLanguage] = useState<string>("vi"); // Default to Vietnamese
+  const [audioLevel, setAudioLevel] = useState<number>(0); // 即時音量 (0-1)
+  const [hasVoiceActivity, setHasVoiceActivity] = useState<boolean>(false); // 是否偵測到語音
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const messageIdRef = useRef(0);
+  
+  // VAD 相關 refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const vadIntervalRef = useRef<number | null>(null);
 
   const autoTranslateMutation = trpc.translation.autoTranslate.useMutation({
     onSuccess: (data: TranslationResult) => {
@@ -63,7 +73,7 @@ export default function Home() {
           speaker,
           originalText: data.sourceText,
           translatedText: data.translatedText,
-          detectedLanguage: data.sourceLang,
+          detectedLanguage: data.sourceLang || "unknown",
           timestamp: new Date(),
         };
 
@@ -77,7 +87,28 @@ export default function Home() {
     },
   });
 
-  const processAudioChunk = useCallback((audioBlob: Blob) => {
+  // VAD: 分析音量
+  const analyzeAudioLevel = useCallback(() => {
+    if (!analyserRef.current) return;
+
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(dataArray);
+
+    // 計算平均音量
+    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+    const normalizedLevel = average / 255; // 正規化到 0-1
+
+    setAudioLevel(normalizedLevel);
+    setHasVoiceActivity(normalizedLevel > VAD_THRESHOLD);
+  }, []);
+
+  const processAudioChunk = useCallback((audioBlob: Blob, hadVoiceActivity: boolean) => {
+    // VAD: 只處理有語音活動的片段
+    if (!hadVoiceActivity) {
+      console.log("No voice activity detected, skipping...");
+      return;
+    }
+
     // Check if audio blob has content
     if (audioBlob.size < 1000) {
       console.log("Audio chunk too small, skipping...");
@@ -104,12 +135,28 @@ export default function Home() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
+      // 初始化 AudioContext 用於 VAD
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      // 啟動 VAD 分析
+      const vadInterval = window.setInterval(analyzeAudioLevel, VAD_SAMPLE_RATE);
+      vadIntervalRef.current = vadInterval;
+
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: "audio/webm",
       });
 
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
+
+      let chunkHadVoiceActivity = false;
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -120,9 +167,10 @@ export default function Home() {
       mediaRecorder.onstop = () => {
         if (audioChunksRef.current.length > 0) {
           const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-          processAudioChunk(audioBlob);
+          processAudioChunk(audioBlob, chunkHadVoiceActivity);
         }
         audioChunksRef.current = [];
+        chunkHadVoiceActivity = false;
       };
 
       mediaRecorder.start();
@@ -131,6 +179,9 @@ export default function Home() {
       // Record in 3-second chunks (longer for better quality)
       const intervalId = window.setInterval(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          // 記錄這個片段是否有語音活動
+          chunkHadVoiceActivity = hasVoiceActivity;
+          
           mediaRecorderRef.current.stop();
           mediaRecorderRef.current.start();
         }
@@ -141,16 +192,11 @@ export default function Home() {
     } catch (error) {
       toast.error("無法啟動麥克風：" + (error as Error).message);
     }
-  }, [processAudioChunk]);
+  }, [processAudioChunk, analyzeAudioLevel, hasVoiceActivity]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
     }
 
     if (recordingIntervalRef.current) {
@@ -158,8 +204,25 @@ export default function Home() {
       recordingIntervalRef.current = null;
     }
 
+    if (vadIntervalRef.current) {
+      window.clearInterval(vadIntervalRef.current);
+      vadIntervalRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
     setIsRecording(false);
-    toast.info("結束對話");
+    setAudioLevel(0);
+    setHasVoiceActivity(false);
+    toast.success("結束對話");
   }, []);
 
   const clearConversations = useCallback(() => {
@@ -174,199 +237,175 @@ export default function Home() {
       return;
     }
 
-    const languageNames: Record<string, string> = {
-      zh: "中文",
-      "zh-tw": "繁體中文",
-      vi: "越南語",
-      id: "印尼語",
-      tl: "他加祿語",
-      fil: "菲律賓語",
-      en: "英文",
-      it: "義大利語",
-      ja: "日文",
-      ko: "韓文",
-      th: "泰文",
-    };
-
-    let content = "即時雙向翻譯系統 - 對話記錄\n";
-    content += "=" + "=".repeat(50) + "\n\n";
-
-    conversations.forEach((msg, index) => {
-      const speaker = msg.speaker === "nurse" ? "台灣人" : "外國人";
-      const lang = msg.detectedLanguage ? languageNames[msg.detectedLanguage] || msg.detectedLanguage : "";
-      const time = msg.timestamp.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
-
-      content += `[${index + 1}] ${speaker}${lang ? ` (${lang})` : ""} - ${time}\n`;
-      content += `原文：${msg.originalText}\n`;
-      content += `譯文：${msg.translatedText}\n\n`;
-    });
+    const content = conversations
+      .map((msg) => {
+        const speaker = msg.speaker === "nurse" ? "台灣人" : "外國人";
+        const time = msg.timestamp.toLocaleTimeString("zh-TW");
+        return `[${time}] ${speaker}\n原文: ${msg.originalText}\n譯文: ${msg.translatedText}\n`;
+      })
+      .join("\n");
 
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `對話記錄_${new Date().toISOString().split("T")[0]}.txt`;
-    link.click();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `translation-${Date.now()}.txt`;
+    a.click();
     URL.revokeObjectURL(url);
 
-    toast.success("對話記錄已下載");
+    toast.success("對話記錄已匯出");
   }, [conversations]);
 
-  const getLanguageName = (langCode?: string): string => {
-    if (!langCode) return "";
-    const languageNames: Record<string, string> = {
-      zh: "中文",
-      "zh-tw": "繁體中文",
-      vi: "越南語",
-      id: "印尼語",
-      tl: "他加祿語",
-      fil: "菲律賓語",
-      en: "英文",
-      it: "義大利語",
-      ja: "日文",
-      ko: "韓文",
-      th: "泰文",
-    };
-    return languageNames[langCode] || langCode;
-  };
-
   useEffect(() => {
-    // Cleanup on unmount
     return () => {
       if (recordingIntervalRef.current) {
         window.clearInterval(recordingIntervalRef.current);
       }
+      if (vadIntervalRef.current) {
+        window.clearInterval(vadIntervalRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-        mediaRecorderRef.current.stop();
       }
     };
   }, []);
 
-  return (
-    <div className="min-h-screen bg-black/30 backdrop-blur-sm flex flex-col p-8 relative">
-      {/* Header */}
-      <div className="fixed top-8 left-1/2 transform -translate-x-1/2 text-center z-10">
-        <h1 className="text-white text-2xl font-bold mb-2">即時雙向翻譯系統</h1>
-        <p className="text-white/60 text-sm">
-          點擊「開始對話」後，系統將持續識別語言並即時翻譯
-        </p>
-      </div>
+  const getLanguageLabel = (code: string) => {
+    const lang = LANGUAGE_OPTIONS.find((l) => l.value === code);
+    return lang ? lang.label : code;
+  };
 
-      {/* Language Selector (top left) */}
-      <div className="fixed top-8 left-8 z-10">
-        <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-md rounded-lg px-4 py-2">
-          <Languages className="w-5 h-5 text-white" />
-          <span className="text-white text-sm">目標語言：</span>
+  return (
+    <div className="min-h-screen flex flex-col bg-black/80 text-white">
+      {/* Header */}
+      <header className="p-6 flex items-center justify-between border-b border-white/10">
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold">即時雙向翻譯系統</h1>
           <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>
-            <SelectTrigger className="w-32 bg-white/20 border-white/30 text-white">
-              <SelectValue />
+            <SelectTrigger className="w-[180px] bg-white/10 border-white/20">
+              <SelectValue placeholder="選擇目標語言" />
             </SelectTrigger>
             <SelectContent>
-              {SUPPORTED_LANGUAGES.map((lang) => (
-                <SelectItem key={lang.code} value={lang.code}>
-                  {lang.name}
+              {LANGUAGE_OPTIONS.map((lang) => (
+                <SelectItem key={lang.value} value={lang.value}>
+                  {lang.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-      </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={exportConversations}
+            disabled={conversations.length === 0}
+            className="bg-white/10 border-white/20 hover:bg-white/20"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={clearConversations}
+            disabled={conversations.length === 0}
+            className="bg-white/10 border-white/20 hover:bg-white/20"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </header>
 
-      {/* Action buttons (top right) */}
-      <div className="fixed top-8 right-8 flex space-x-2 z-10">
-        <Button
-          onClick={exportConversations}
-          variant="outline"
-          size="sm"
-          className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-          disabled={conversations.length === 0}
-        >
-          <Download className="w-4 h-4 mr-2" />
-          匯出
-        </Button>
-        <Button
-          onClick={clearConversations}
-          variant="outline"
-          size="sm"
-          className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-          disabled={conversations.length === 0}
-        >
-          <Trash2 className="w-4 h-4 mr-2" />
-          清除
-        </Button>
-      </div>
+      <div className="flex-1 p-6">
+        <p className="text-center text-white/60 mb-8">
+          點擊「開始對話」後，系統將持續偵測語音並即時翻譯
+        </p>
 
-      {/* Conversation Display */}
-      <div className="flex-1 flex items-center justify-center mt-24 mb-24">
-        <div className="w-full max-w-6xl grid grid-cols-2 gap-8">
-          {/* Taiwanese Side (Left) */}
-          <div className="flex flex-col space-y-4">
-            <h2 className="text-white text-xl font-bold text-center mb-4">台灣人 (中文)</h2>
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+        {/* 音量指示器 */}
+        {isRecording && (
+          <div className="mb-6 flex items-center justify-center gap-4">
+            <span className="text-sm text-white/60">音量:</span>
+            <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-100 ${
+                  hasVoiceActivity ? "bg-green-500" : "bg-white/30"
+                }`}
+                style={{ width: `${audioLevel * 100}%` }}
+              />
+            </div>
+            <span className="text-sm text-white/60">
+              {hasVoiceActivity ? "偵測到語音" : "靜音"}
+            </span>
+          </div>
+        )}
+
+        {/* Conversation Display */}
+        <div className="grid grid-cols-2 gap-6 mb-8">
+          {/* 台灣人 (中文) */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4 text-center">台灣人 (中文)</h2>
+            <div className="space-y-4 max-h-[500px] overflow-y-auto">
               {conversations
                 .filter((msg) => msg.speaker === "nurse")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-white/10 backdrop-blur-md rounded-lg p-4">
-                    <p className="text-white text-lg font-medium mb-2">{msg.originalText}</p>
-                    <p className="text-white/70 text-sm">→ {msg.translatedText}</p>
+                  <div
+                    key={msg.id}
+                    className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/20"
+                  >
+                    <p className="text-lg mb-2">{msg.originalText}</p>
+                    <p className="text-sm text-white/60">→ {msg.translatedText}</p>
                   </div>
                 ))}
             </div>
           </div>
 
-          {/* Foreigner Side (Right) */}
-          <div className="flex flex-col space-y-4">
-            <h2 className="text-white text-xl font-bold text-center mb-4">外國人 (外語)</h2>
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+          {/* 外國人 (外語) */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4 text-center">外國人 (外語)</h2>
+            <div className="space-y-4 max-h-[500px] overflow-y-auto">
               {conversations
                 .filter((msg) => msg.speaker === "patient")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-white/10 backdrop-blur-md rounded-lg p-4 relative">
-                    {msg.detectedLanguage && (
-                      <span className="absolute top-2 right-2 text-xs bg-blue-500/80 text-white px-2 py-1 rounded">
-                        {getLanguageName(msg.detectedLanguage)}
-                      </span>
-                    )}
-                    <p className="text-white text-lg font-medium mb-2 pr-16">{msg.originalText}</p>
-                    <p className="text-white/70 text-sm">→ {msg.translatedText}</p>
+                  <div
+                    key={msg.id}
+                    className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border border-white/20 relative"
+                  >
+                    <span className="absolute top-2 right-2 text-xs bg-white/20 px-2 py-1 rounded">
+                      {getLanguageLabel(msg.detectedLanguage)}
+                    </span>
+                    <p className="text-lg mb-2">{msg.originalText}</p>
+                    <p className="text-sm text-white/60">→ {msg.translatedText}</p>
                   </div>
                 ))}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Loading indicator */}
-      {autoTranslateMutation.isPending && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-md rounded-lg px-6 py-3">
-          <span className="text-white text-lg">處理中...</span>
+        {/* Control Button */}
+        <div className="flex justify-center">
+          {!isRecording ? (
+            <Button
+              onClick={startRecording}
+              size="lg"
+              className="bg-green-600 hover:bg-green-700 text-white px-8 py-6 text-lg"
+            >
+              <Mic className="mr-2 h-5 w-5" />
+              開始對話
+            </Button>
+          ) : (
+            <Button
+              onClick={stopRecording}
+              size="lg"
+              variant="destructive"
+              className="px-8 py-6 text-lg"
+            >
+              結束對話
+            </Button>
+          )}
         </div>
-      )}
-
-      {/* Control buttons */}
-      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-4 z-10">
-        {!isRecording ? (
-          <Button
-            onClick={startRecording}
-            size="lg"
-            className="bg-green-600 hover:bg-green-700 text-white px-8 py-6 text-xl rounded-full shadow-lg"
-          >
-            <Mic className="w-8 h-8 mr-2" />
-            開始對話
-          </Button>
-        ) : (
-          <Button
-            onClick={stopRecording}
-            size="lg"
-            className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-xl rounded-full shadow-lg animate-pulse"
-          >
-            <MicOff className="w-8 h-8 mr-2" />
-            結束對話
-          </Button>
-        )}
       </div>
     </div>
   );
