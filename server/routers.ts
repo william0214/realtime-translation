@@ -28,51 +28,44 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const { transcribeAudio, determineDirection, translateText } = await import("./translationService");
-        const { insertTranslation } = await import("./db");
 
+        try {
+          // Decode base64 audio
+          const audioBuffer = Buffer.from(input.audioBase64, "base64");
+          const filename = input.filename || `audio-${Date.now()}.webm`;
 
-        // Decode base64 audio
-        const audioBuffer = Buffer.from(input.audioBase64, "base64");
-        const filename = input.filename || `audio-${Date.now()}.webm`;
+          // Step 1: ASR - Transcribe audio
+          const { text: sourceText, language } = await transcribeAudio(audioBuffer, filename);
 
-        // Step 1: ASR - Transcribe audio
-        const { text: sourceText, language } = await transcribeAudio(audioBuffer, filename);
+          if (!sourceText || sourceText.trim() === "") {
+            return {
+              success: false,
+              error: "No speech detected",
+            };
+          }
 
-        if (!sourceText || sourceText.trim() === "") {
+          // Step 2: Determine direction (with user preference)
+          const { direction, sourceLang, targetLang } = determineDirection(language, input.preferredTargetLang);
+
+          // Step 3: Translate
+          const translatedText = await translateText(sourceText, sourceLang, targetLang);
+
+          // Return result (no database storage)
+          return {
+            success: true,
+            direction,
+            sourceLang,
+            targetLang,
+            sourceText,
+            translatedText,
+          };
+        } catch (error: any) {
+          console.error("[autoTranslate] Error:", error);
           return {
             success: false,
-            error: "No speech detected",
+            error: error.message || "Translation failed",
           };
         }
-
-        // Step 2: Determine direction (with user preference)
-        const { direction, sourceLang, targetLang } = determineDirection(language, input.preferredTargetLang);
-
-        // Step 3: Translate
-        const translatedText = await translateText(sourceText, sourceLang, targetLang);
-
-        // TTS 功能已移除
-        const audioUrl = "";
-
-        // Step 5: Save to database
-        await insertTranslation({
-          direction,
-          sourceLang,
-          targetLang,
-          sourceText,
-          translatedText,
-          audioUrl,
-        });
-
-        return {
-          success: true,
-          direction,
-          sourceLang,
-          targetLang,
-          sourceText,
-          translatedText,
-          audioUrl,
-        };
       }),
 
     // Get recent translations

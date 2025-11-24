@@ -78,6 +78,12 @@ export default function Home() {
   });
 
   const processAudioChunk = useCallback((audioBlob: Blob) => {
+    // Check if audio blob has content
+    if (audioBlob.size < 1000) {
+      console.log("Audio chunk too small, skipping...");
+      return;
+    }
+
     // Convert to base64
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -122,13 +128,13 @@ export default function Home() {
       mediaRecorder.start();
       setIsRecording(true);
 
-      // Record in 2-second chunks
+      // Record in 3-second chunks (longer for better quality)
       const intervalId = window.setInterval(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
           mediaRecorderRef.current.stop();
           mediaRecorderRef.current.start();
         }
-      }, 2000);
+      }, 3000);
 
       recordingIntervalRef.current = intervalId;
       toast.success("開始對話");
