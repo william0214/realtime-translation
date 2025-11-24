@@ -43,10 +43,10 @@ export function determineDirection(
 }
 
 /**
- * Transcribe audio using OpenAI Whisper API (OPTIMIZED FOR SPEED)
+ * Transcribe audio using OpenAI Whisper API (OPTIMIZED - Direct WebM)
+ * - No WAV conversion needed (faster!)
  * - Uses language hint (zh) to improve Chinese detection
- * - Trusts Whisper's language detection (no LLM refinement)
- * - Fast and reliable for most cases
+ * - Supports WebM format directly
  */
 export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<{
   text: string;
@@ -57,15 +57,20 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
     throw new Error("OPENAI_API_KEY is not configured");
   }
 
-  // Support both WebM and WAV formats
-  const contentType = filename.endsWith(".wav") ? "audio/wav" : "audio/webm";
+  // Detect content type from filename
+  const contentType = filename.endsWith(".wav") 
+    ? "audio/wav" 
+    : filename.endsWith(".mp3")
+    ? "audio/mp3"
+    : "audio/webm";
+
   const form = new FormData();
   form.append("file", audioBuffer, {
     filename,
     contentType,
   });
   form.append("model", "whisper-1");
-  // Language hint improves Chinese detection rate by 30-60%
+  // Language hint improves Chinese detection rate
   form.append("language", "zh");
 
   try {
@@ -112,6 +117,7 @@ export async function translateText(
     vi: "越南語",
     id: "印尼語",
     tl: "菲律賓語",
+    fil: "菲律賓語",
     en: "英文",
     it: "義大利語",
     ja: "日文",
