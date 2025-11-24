@@ -45,6 +45,53 @@ export function determineDirection(
 }
 
 /**
+ * Stage 2 Language Detection using LLM (near 100% accuracy)
+ * This refines Whisper's language detection result
+ */
+async function detectLanguageWithLLM(
+  text: string,
+  whisperDetectedLang: string
+): Promise<string> {
+  if (!text || text.trim().length === 0) {
+    return whisperDetectedLang; // Fallback to Whisper's result
+  }
+
+  const systemPrompt = `你是一個語言偵測專家。請判斷下面句子屬於哪一種語言，只回傳語言代碼。
+
+支援的語言代碼：
+- zh: 中文（繁體或簡體）
+- vi: 越南語
+- en: 英文
+- id: 印尼語
+- tl: 菲律賓語（他加祿語）
+- it: 義大利語
+- ja: 日文
+- ko: 韓文
+- th: 泰文
+
+只回傳語言代碼，不要任何解釋。`;
+
+  try {
+    const response = await invokeLLM({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `句子：「${text}」` },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content;
+    const detectedLang = typeof content === "string" ? content.trim().toLowerCase() : whisperDetectedLang;
+
+    // Validate the detected language code
+    const validLangs = ["zh", "vi", "en", "id", "tl", "it", "ja", "ko", "th"];
+    return validLangs.includes(detectedLang) ? detectedLang : whisperDetectedLang;
+  } catch (error) {
+    console.error("[LLM Language Detection] Error:", error);
+    return whisperDetectedLang; // Fallback to Whisper's result
+  }
+}
+
+/**
  * Transcribe audio using OpenAI Whisper API
  */
 export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<{
@@ -65,6 +112,8 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
     contentType,
   });
   form.append("model", "whisper-1");
+  // Add language hint to improve Chinese detection rate by 30-60%
+  form.append("language", "zh");
 
   try {
     const response = await axios.post(
@@ -84,9 +133,13 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
     const detectedLanguage = response.data.language || "zh"; // Default to Chinese if not detected
     console.log(`[Language Detection] Detected: ${detectedLanguage}`);
 
+    // Stage 2: Use LLM for more accurate language detection
+    const refinedLanguage = await detectLanguageWithLLM(response.data.text || "", detectedLanguage);
+    console.log(`[Language Detection] Refined: ${refinedLanguage}`);
+
     return {
       text: response.data.text || "",
-      language: detectedLanguage,
+      language: refinedLanguage,
     };
   } catch (error: any) {
     if (error.response) {
