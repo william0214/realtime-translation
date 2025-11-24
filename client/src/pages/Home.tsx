@@ -20,17 +20,7 @@ type ConversationMessage = {
   timestamp: Date;
 };
 
-type TranslationResult = {
-  success: boolean;
-  direction?: "nurse_to_patient" | "patient_to_nurse";
-  sourceLang?: string;
-  targetLang?: string;
-  sourceText?: string;
-  translatedText?: string;
-  error?: string;
-};
-
-type ProcessingStatus = "listening" | "recognizing" | "translating" | "idle";
+type ProcessingStatus = "idle" | "listening" | "vad-detected" | "recognizing" | "translating" | "speaking";
 
 const LANGUAGE_OPTIONS = [
   { value: "vi", label: "越南語" },
@@ -43,58 +33,10 @@ const LANGUAGE_OPTIONS = [
   { value: "th", label: "泰文" },
 ];
 
-// VAD 設定（使用 RMS 音量檢測）
-const RMS_THRESHOLD = 0.02; // RMS 閾值
-const SILENCE_FRAMES_THRESHOLD = 10; // 約 800ms 靜音判定為語音結束
-const AUDIO_PROCESS_BUFFER_SIZE = 4096;
-
-// WAV 編碼函數
-function encodeWAV(samples: Float32Array[], sampleRate: number): Blob {
-  const length = samples.reduce((acc, arr) => acc + arr.length, 0);
-  const buffer = new ArrayBuffer(44 + length * 2);
-  const view = new DataView(buffer);
-
-  function writeString(view: DataView, offset: number, string: string) {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  }
-
-  writeString(view, 0, "RIFF");
-  view.setUint32(4, 36 + length * 2, true);
-  writeString(view, 8, "WAVE");
-  writeString(view, 12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(view, 36, "data");
-  view.setUint32(40, length * 2, true);
-
-  let offset = 44;
-  let index = 0;
-  for (const sample of samples) {
-    for (let i = 0; i < sample.length; i++, offset += 2, index++) {
-      const s = Math.max(-1, Math.min(1, sample[i]));
-      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    }
-  }
-
-  return new Blob([view], { type: "audio/wav" });
-}
-
-// RMS 音量檢測
-function isSpeaking(audioArray: Float32Array): boolean {
-  let sum = 0;
-  for (let i = 0; i < audioArray.length; i++) {
-    sum += audioArray[i] * audioArray[i];
-  }
-  const rms = Math.sqrt(sum / audioArray.length);
-  return rms > RMS_THRESHOLD;
-}
+// VAD Settings
+const RMS_THRESHOLD = 0.02;
+const SILENCE_DURATION_MS = 800;
+const CHUNK_INTERVAL_MS = 500; // 300-800ms range, using 500ms as optimal
 
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
@@ -103,133 +45,229 @@ export default function Home() {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
 
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  // Refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
   const messageIdRef = useRef(0);
-  
-  // Refs for auto-scroll
   const nurseScrollRef = useRef<HTMLDivElement>(null);
   const patientScrollRef = useRef<HTMLDivElement>(null);
 
-  // VAD 狀態
-  const currentSpeechBufferRef = useRef<Float32Array[]>([]);
-  const speakingRef = useRef(false);
-  const silenceFramesRef = useRef(0);
+  // VAD state
+  const audioChunksRef = useRef<Blob[]>([]);
+  const lastSpeechTimeRef = useRef<number>(0);
+  const isSpeakingRef = useRef<boolean>(false);
+  const vadIntervalRef = useRef<number | null>(null);
 
-  const autoTranslateMutation = trpc.translation.autoTranslate.useMutation({
-    onSuccess: (data: TranslationResult) => {
-      if (data.success && data.sourceText && data.translatedText) {
-        const speaker = data.direction === "nurse_to_patient" ? "nurse" : "patient";
+  // tRPC mutations
+  const audioChunkMutation = trpc.audio.chunk.useMutation();
+  const languageIdentifyMutation = trpc.language.identify.useMutation();
+  const translateMutation = trpc.translate.text.useMutation();
 
-        const newMessage: ConversationMessage = {
-          id: messageIdRef.current++,
-          speaker,
-          originalText: data.sourceText,
-          translatedText: data.translatedText,
-          detectedLanguage: data.sourceLang || "unknown",
-          timestamp: new Date(),
-        };
+  // Check audio level (VAD)
+  const checkAudioLevel = useCallback(() => {
+    if (!analyserRef.current) return false;
 
-        setConversations((prev) => [...prev, newMessage]);
-        setProcessingStatus("listening");
-        
-        // Auto-scroll to latest message
-        setTimeout(() => {
-          if (speaker === "nurse" && nurseScrollRef.current) {
-            nurseScrollRef.current.scrollTop = nurseScrollRef.current.scrollHeight;
-          } else if (speaker === "patient" && patientScrollRef.current) {
-            patientScrollRef.current.scrollTop = patientScrollRef.current.scrollHeight;
+    const analyser = analyserRef.current;
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteTimeDomainData(dataArray);
+
+    // Calculate RMS
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+      const normalized = (dataArray[i] - 128) / 128;
+      sum += normalized * normalized;
+    }
+    const rms = Math.sqrt(sum / dataArray.length);
+
+    // Update audio level display
+    setAudioLevel(rms / RMS_THRESHOLD);
+
+    return rms > RMS_THRESHOLD;
+  }, []);
+
+  // Process audio chunk
+  const processAudioChunk = useCallback(
+    async (audioBlob: Blob) => {
+      if (audioBlob.size < 1000) {
+        console.log("Audio chunk too small, skipping...");
+        return;
+      }
+
+      setProcessingStatus("recognizing");
+
+      try {
+        // Step 1: Whisper transcription
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(",")[1];
+          if (!base64Audio) return;
+
+          const transcriptResult = await audioChunkMutation.mutateAsync({
+            audioBase64: base64Audio,
+            filename: `audio-${Date.now()}.webm`,
+          });
+
+          if (!transcriptResult.success || !transcriptResult.text) {
+            setProcessingStatus("listening");
+            return;
           }
-        }, 100);
-      } else if (data.error) {
-        console.log("Translation error:", data.error);
+
+          const sourceText = transcriptResult.text;
+
+          // Step 2: Language identification
+          setProcessingStatus("translating");
+          const langResult = await languageIdentifyMutation.mutateAsync({
+            text: sourceText,
+          });
+
+          const detectedLanguage = langResult.language || "zh";
+
+          // Step 3: Determine direction
+          const isNurse = ["zh", "zh-tw", "zh-cn", "cmn", "yue", "chinese"].includes(
+            detectedLanguage.toLowerCase()
+          );
+          const speaker = isNurse ? "nurse" : "patient";
+          const sourceLang = isNurse ? "zh" : detectedLanguage;
+          const targetLang = isNurse ? targetLanguage : "zh";
+
+          // Step 4: Translate
+          const translateResult = await translateMutation.mutateAsync({
+            text: sourceText,
+            sourceLang,
+            targetLang,
+          });
+
+          if (!translateResult.success || !translateResult.translatedText) {
+            setProcessingStatus("listening");
+            return;
+          }
+
+          // Add to conversation
+          const newMessage: ConversationMessage = {
+            id: messageIdRef.current++,
+            speaker,
+            originalText: sourceText,
+            translatedText: translateResult.translatedText,
+            detectedLanguage,
+            timestamp: new Date(),
+          };
+
+          setConversations((prev) => [...prev, newMessage]);
+          setProcessingStatus("listening");
+
+          // Auto-scroll
+          setTimeout(() => {
+            if (speaker === "nurse" && nurseScrollRef.current) {
+              nurseScrollRef.current.scrollTop = nurseScrollRef.current.scrollHeight;
+            } else if (speaker === "patient" && patientScrollRef.current) {
+              patientScrollRef.current.scrollTop = patientScrollRef.current.scrollHeight;
+            }
+          }, 100);
+        };
+        reader.readAsDataURL(audioBlob);
+      } catch (error: any) {
+        console.error("[processAudioChunk] Error:", error);
+        toast.error("處理失敗：" + error.message);
         setProcessingStatus("listening");
       }
     },
-    onError: (error) => {
-      toast.error("翻譯失敗：" + error.message);
-      setProcessingStatus("listening");
-    },
-  });
-
-  const sendToWhisper = useCallback(
-    (audioBlob: Blob) => {
-      setProcessingStatus("recognizing");
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64Audio = (reader.result as string).split(",")[1];
-        if (base64Audio) {
-          setProcessingStatus("translating");
-          autoTranslateMutation.mutate({
-            audioBase64: base64Audio,
-            filename: `audio-${Date.now()}.wav`,
-            preferredTargetLang: targetLanguage,
-          });
-        }
-      };
-      reader.readAsDataURL(audioBlob);
-    },
-    [autoTranslateMutation, targetLanguage]
+    [audioChunkMutation, languageIdentifyMutation, translateMutation, targetLanguage]
   );
 
-  const startRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+  // VAD monitoring loop
+  const startVADMonitoring = useCallback(() => {
+    vadIntervalRef.current = window.setInterval(() => {
+      const isSpeaking = checkAudioLevel();
+      const now = Date.now();
 
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(AUDIO_PROCESS_BUFFER_SIZE, 1, 1);
-
-      audioContextRef.current = audioContext;
-      processorRef.current = processor;
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-
-      processor.onaudioprocess = (e) => {
-        const data = e.inputBuffer.getChannelData(0);
-        const dataCopy = new Float32Array(data);
-
-        // 計算 RMS 並更新音量顯示
-        let sum = 0;
-        for (let i = 0; i < dataCopy.length; i++) {
-          sum += dataCopy[i] * dataCopy[i];
+      if (isSpeaking) {
+        // Speech detected
+        lastSpeechTimeRef.current = now;
+        if (!isSpeakingRef.current) {
+          isSpeakingRef.current = true;
+          setProcessingStatus("vad-detected");
+          console.log("🔵 Speech started");
         }
-        const rms = Math.sqrt(sum / dataCopy.length);
-        setAudioLevel(rms / RMS_THRESHOLD); // 正規化顯示
+      } else {
+        // Silence
+        if (isSpeakingRef.current) {
+          const silenceDuration = now - lastSpeechTimeRef.current;
+          if (silenceDuration >= SILENCE_DURATION_MS) {
+            // Speech ended, process audio
+            isSpeakingRef.current = false;
+            setProcessingStatus("listening");
+            console.log("🟢 Speech ended, processing audio...");
 
-        // VAD 判斷
-        if (isSpeaking(dataCopy)) {
-          speakingRef.current = true;
-          silenceFramesRef.current = 0;
-          currentSpeechBufferRef.current.push(dataCopy);
-        } else {
-          if (speakingRef.current) {
-            silenceFramesRef.current++;
-            if (silenceFramesRef.current > SILENCE_FRAMES_THRESHOLD) {
-              // 語音結束，發送到 Whisper
-              speakingRef.current = false;
-              const wavBlob = encodeWAV(
-                currentSpeechBufferRef.current,
-                audioContext.sampleRate
-              );
-              
-              // 檢查 WAV 大小
-              if (wavBlob.size > 1000) {
-                sendToWhisper(wavBlob);
-              } else {
-                console.log("Speech too short, skipping...");
-              }
-
-              currentSpeechBufferRef.current = [];
-              silenceFramesRef.current = 0;
+            if (audioChunksRef.current.length > 0) {
+              const audioBlob = new Blob(audioChunksRef.current, {
+                type: "audio/webm",
+              });
+              processAudioChunk(audioBlob);
+              audioChunksRef.current = [];
             }
           }
         }
+      }
+    }, 100);
+  }, [checkAudioLevel, processAudioChunk]);
+
+  // Stop VAD monitoring
+  const stopVADMonitoring = useCallback(() => {
+    if (vadIntervalRef.current !== null) {
+      window.clearInterval(vadIntervalRef.current);
+      vadIntervalRef.current = null;
+    }
+  }, []);
+
+  // Start recording
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      streamRef.current = stream;
+
+      // Setup Web Audio API for VAD
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      // Setup MediaRecorder (WebM Opus)
+      const mimeType = "audio/webm;codecs=opus";
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        throw new Error("WebM Opus format not supported");
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType,
+        audioBitsPerSecond: 48000,
+      });
+
+      mediaRecorderRef.current = mediaRecorder;
+
+      // Collect audio chunks
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
+
+      // Start recording with chunk interval (300-800ms)
+      mediaRecorder.start(CHUNK_INTERVAL_MS);
+
+      // Start VAD monitoring
+      startVADMonitoring();
 
       setIsRecording(true);
       setProcessingStatus("listening");
@@ -237,12 +275,15 @@ export default function Home() {
     } catch (error) {
       toast.error("無法啟動麥克風：" + (error as Error).message);
     }
-  }, [sendToWhisper]);
+  }, [startVADMonitoring]);
 
+  // Stop recording
   const stopRecording = useCallback(() => {
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
+    stopVADMonitoring();
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
     }
 
     if (audioContextRef.current) {
@@ -255,22 +296,25 @@ export default function Home() {
       streamRef.current = null;
     }
 
-    currentSpeechBufferRef.current = [];
-    speakingRef.current = false;
-    silenceFramesRef.current = 0;
+    audioChunksRef.current = [];
+    isSpeakingRef.current = false;
+    lastSpeechTimeRef.current = 0;
+    analyserRef.current = null;
 
     setIsRecording(false);
     setAudioLevel(0);
     setProcessingStatus("idle");
-    toast.success("結束對話");
-  }, []);
+    toast.info("結束對話");
+  }, [stopVADMonitoring]);
 
+  // Clear conversations
   const clearConversations = useCallback(() => {
     setConversations([]);
     messageIdRef.current = 0;
-    toast.success("已清除對話記錄");
+    toast.success("對話記錄已清除");
   }, []);
 
+  // Export conversations
   const exportConversations = useCallback(() => {
     if (conversations.length === 0) {
       toast.error("沒有對話記錄可匯出");
@@ -281,7 +325,8 @@ export default function Home() {
       .map((msg) => {
         const speaker = msg.speaker === "nurse" ? "台灣人" : "外國人";
         const time = msg.timestamp.toLocaleTimeString("zh-TW");
-        return `[${time}] ${speaker}\n原文: ${msg.originalText}\n譯文: ${msg.translatedText}\n`;
+        const lang = msg.detectedLanguage.toUpperCase();
+        return `[${time}] ${speaker} (${lang})\n原文: ${msg.originalText}\n譯文: ${msg.translatedText}\n`;
       })
       .join("\n");
 
@@ -289,43 +334,41 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `translation-${Date.now()}.txt`;
+    a.download = `對話記錄_${new Date().toISOString().slice(0, 10)}.txt`;
     a.click();
     URL.revokeObjectURL(url);
 
     toast.success("對話記錄已匯出");
   }, [conversations]);
 
+  // Cleanup
   useEffect(() => {
     return () => {
-      if (processorRef.current) {
-        processorRef.current.disconnect();
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
+      stopRecording();
     };
-  }, []);
+  }, [stopRecording]);
+
+  // Status message
+  const getStatusMessage = () => {
+    switch (processingStatus) {
+      case "listening":
+        return "🟢 等待語音...";
+      case "vad-detected":
+        return "🔵 偵測到語音...";
+      case "recognizing":
+        return "🟡 正在辨識...";
+      case "translating":
+        return "🟣 正在翻譯...";
+      case "speaking":
+        return "🔊 播放中...";
+      default:
+        return "";
+    }
+  };
 
   const getLanguageLabel = (code: string) => {
     const lang = LANGUAGE_OPTIONS.find((l) => l.value === code);
     return lang ? lang.label : code;
-  };
-
-  const getStatusMessage = () => {
-    switch (processingStatus) {
-      case "listening":
-        return "🟢 等待說話...";
-      case "recognizing":
-        return "🟡 正在辨識語音...";
-      case "translating":
-        return "🟣 正在翻譯...";
-      default:
-        return "";
-    }
   };
 
   return (
@@ -374,27 +417,27 @@ export default function Home() {
           點擊「開始對話」後，系統將持續偵測語音並即時翻譯
         </p>
 
-        {/* 處理狀態指示器 */}
+        {/* Processing status indicator */}
         {processingStatus !== "idle" && (
           <div className="fixed top-20 right-6 bg-black/70 backdrop-blur-sm px-6 py-3 rounded-lg border border-white/20 text-lg">
             {getStatusMessage()}
           </div>
         )}
 
-        {/* 音量指示器 */}
+        {/* Audio level indicator */}
         {isRecording && (
           <div className="mb-6 flex items-center justify-center gap-4">
             <span className="text-sm text-white/60">音量:</span>
             <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden">
               <div
                 className={`h-full transition-all duration-100 ${
-                  speakingRef.current ? "bg-green-500" : "bg-white/30"
+                  isSpeakingRef.current ? "bg-green-500" : "bg-white/30"
                 }`}
                 style={{ width: `${Math.min(audioLevel * 100, 100)}%` }}
               />
             </div>
             <span className="text-sm text-white/60">
-              {speakingRef.current ? "偵測到語音" : "靜音"}
+              {isSpeakingRef.current ? "偵測到語音" : "靜音"}
             </span>
           </div>
         )}
@@ -456,9 +499,9 @@ export default function Home() {
             <Button
               onClick={stopRecording}
               size="lg"
-              variant="destructive"
-              className="px-8 py-6 text-lg"
+              className="bg-red-600 hover:bg-red-700 text-white px-8 py-6 text-lg"
             >
+              <Mic className="mr-2 h-5 w-5" />
               結束對話
             </Button>
           )}

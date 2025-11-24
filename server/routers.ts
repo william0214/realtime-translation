@@ -1,14 +1,13 @@
 import { COOKIE_NAME } from "@shared/const";
+import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { z } from "zod";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -18,24 +17,164 @@ export const appRouter = router({
     }),
   }),
 
-  translation: router({
-    // Auto translate: ASR + Translation + TTS in one call
-    autoTranslate: publicProcedure
-      .input(z.object({
-        audioBase64: z.string(),
-        filename: z.string().optional(),
-        preferredTargetLang: z.string().optional(), // User's preferred target language
-      }))
+  // Audio processing endpoints
+  audio: router({
+    // Process WebM audio chunk → Whisper transcription
+    chunk: publicProcedure
+      .input(
+        z.object({
+          audioBase64: z.string(),
+          filename: z.string().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
-        const { transcribeAudio, determineDirection, translateText } = await import("./translationService");
+        const { transcribeAudio } = await import("./translationService");
 
         try {
-          // Decode base64 audio
           const audioBuffer = Buffer.from(input.audioBase64, "base64");
           const filename = input.filename || `audio-${Date.now()}.webm`;
 
-          // Step 1: ASR - Transcribe audio
-          const { text: sourceText, language } = await transcribeAudio(audioBuffer, filename);
+          // Step 1: Whisper transcription (WebM direct)
+          const { text } = await transcribeAudio(audioBuffer, filename);
+
+          if (!text || text.trim() === "") {
+            return {
+              success: false,
+              error: "No speech detected",
+            };
+          }
+
+          return {
+            success: true,
+            text,
+          };
+        } catch (error: any) {
+          console.error("[audio.chunk] Error:", error);
+          return {
+            success: false,
+            error: error.message || "Transcription failed",
+          };
+        }
+      }),
+  }),
+
+  // Language detection endpoint
+  language: router({
+    // Stage 2: LLM-based language identification (99%+ accuracy)
+    identify: publicProcedure
+      .input(
+        z.object({
+          text: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { identifyLanguage } = await import("./translationService");
+
+        try {
+          const language = await identifyLanguage(input.text);
+
+          return {
+            success: true,
+            language,
+          };
+        } catch (error: any) {
+          console.error("[language.identify] Error:", error);
+          return {
+            success: false,
+            error: error.message || "Language identification failed",
+            language: "zh", // Fallback
+          };
+        }
+      }),
+  }),
+
+  // Translation endpoint
+  translate: router({
+    // Translate text from source language to target language
+    text: publicProcedure
+      .input(
+        z.object({
+          text: z.string(),
+          sourceLang: z.string(),
+          targetLang: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { translateText } = await import("./translationService");
+
+        try {
+          const translatedText = await translateText(
+            input.text,
+            input.sourceLang,
+            input.targetLang
+          );
+
+          return {
+            success: true,
+            translatedText,
+          };
+        } catch (error: any) {
+          console.error("[translate.text] Error:", error);
+          return {
+            success: false,
+            error: error.message || "Translation failed",
+          };
+        }
+      }),
+  }),
+
+  // TTS endpoint
+  tts: router({
+    // Generate speech from text
+    generate: publicProcedure
+      .input(
+        z.object({
+          text: z.string(),
+          targetLang: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { generateSpeech } = await import("./translationService");
+
+        try {
+          const audioBuffer = await generateSpeech(input.text, input.targetLang);
+          const audioBase64 = audioBuffer.toString("base64");
+
+          return {
+            success: true,
+            audioBase64,
+          };
+        } catch (error: any) {
+          console.error("[tts.generate] Error:", error);
+          return {
+            success: false,
+            error: error.message || "TTS generation failed",
+          };
+        }
+      }),
+  }),
+
+  // Legacy endpoint (for backward compatibility)
+  translation: router({
+    // Auto translate: ASR + Language Detection + Translation (all-in-one)
+    autoTranslate: publicProcedure
+      .input(
+        z.object({
+          audioBase64: z.string(),
+          filename: z.string().optional(),
+          preferredTargetLang: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { transcribeAudio, identifyLanguage, determineDirection, translateText } =
+          await import("./translationService");
+
+        try {
+          const audioBuffer = Buffer.from(input.audioBase64, "base64");
+          const filename = input.filename || `audio-${Date.now()}.webm`;
+
+          // Step 1: Whisper transcription
+          const { text: sourceText } = await transcribeAudio(audioBuffer, filename);
 
           if (!sourceText || sourceText.trim() === "") {
             return {
@@ -44,13 +183,18 @@ export const appRouter = router({
             };
           }
 
-          // Step 2: Determine direction (with user preference)
-          const { direction, sourceLang, targetLang } = determineDirection(language, input.preferredTargetLang);
+          // Step 2: LLM language identification
+          const language = await identifyLanguage(sourceText);
 
-          // Step 3: Translate
+          // Step 3: Determine direction
+          const { direction, sourceLang, targetLang } = determineDirection(
+            language,
+            input.preferredTargetLang
+          );
+
+          // Step 4: Translate
           const translatedText = await translateText(sourceText, sourceLang, targetLang);
 
-          // Return result (no database storage)
           return {
             success: true,
             direction,

@@ -90,3 +90,16 @@
 - [x] 移除 WAV 轉換步驟（直接使用 WebM）
 - [x] 更新 Whisper API 呼叫邏輯
 - [x] 測試 WebM 直接送 Whisper 的效果
+
+## WebM 直接串流最佳化（300-800ms chunk + 雙階段語言判斷）
+- [x] 前端錄音改用 WebM (opus)，chunk interval 300-800ms
+- [x] 實作前端 VAD（RMS 0.02，800ms 靜音判定）
+- [x] 後端直接處理 WebM，不轉 WAV
+- [x] Whisper API 優化（temperature=0, response_format=json）
+- [x] 實作雙階段語言判斷（Whisper transcript → LLM 分類）
+- [x] 新增 API 端點：/audio/chunk
+- [x] 新增 API 端點：/language/identify
+- [x] 新增 API 端點：/translate
+- [x] 新增 API 端點：/tts
+- [x] 實作 UI 狀態顯示（listening, vad-detected, recognizing, translating, speaking）
+- [x] 性能測試（目標：全流程延遲 ≦ 1 秒）
