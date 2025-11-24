@@ -22,7 +22,7 @@ export function determineDirection(language: string): {
     return {
       direction: "nurse_to_patient",
       sourceLang: normalizedLang,
-      targetLang: "vi", // Default to Vietnamese for patient
+      targetLang: "vi", // Default to Vietnamese for foreigner
     };
   }
 
@@ -30,7 +30,7 @@ export function determineDirection(language: string): {
   return {
     direction: "patient_to_nurse",
     sourceLang: normalizedLang,
-    targetLang: "zh", // Default to Chinese for nurse
+    targetLang: "zh", // Default to Chinese for Taiwanese
   };
 }
 

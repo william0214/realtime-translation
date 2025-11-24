@@ -153,7 +153,7 @@ export default function Home() {
     <div className="min-h-screen bg-black/30 backdrop-blur-sm flex flex-col p-8 relative">
       {/* Header */}
       <div className="fixed top-8 left-1/2 transform -translate-x-1/2 text-center z-10">
-        <h1 className="text-white text-2xl font-bold mb-2">護理推車即時雙向翻譯系統</h1>
+        <h1 className="text-white text-2xl font-bold mb-2">即時雙向翻譯系統</h1>
         <p className="text-white/60 text-sm">
           點擊「開始對話」後，系統將持續識別語言並即時翻譯
         </p>
@@ -164,7 +164,7 @@ export default function Home() {
         <div className="w-full max-w-6xl grid grid-cols-2 gap-8">
           {/* Nurse Side (Left) */}
           <div className="flex flex-col space-y-4">
-            <h2 className="text-white text-xl font-bold text-center mb-4">護理師 (中文)</h2>
+            <h2 className="text-white text-xl font-bold text-center mb-4">台灣人 (中文)</h2>
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
               {conversations
                 .filter((msg) => msg.speaker === "nurse")
@@ -179,7 +179,7 @@ export default function Home() {
 
           {/* Patient Side (Right) */}
           <div className="flex flex-col space-y-4">
-            <h2 className="text-white text-xl font-bold text-center mb-4">病患 (外語)</h2>
+            <h2 className="text-white text-xl font-bold text-center mb-4">外國人 (外語)</h2>
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
               {conversations
                 .filter((msg) => msg.speaker === "patient")
