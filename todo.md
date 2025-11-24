@@ -115,3 +115,8 @@
 - [x] VAD 偵測語音段落結束時觸發合併
 - [x] 完整 WebM 送 Whisper API（temperature=0, response_format=json）
 - [x] 測試 pseudo-streaming 效能（延遲 < 1 秒）
+
+## Bug 修復 v2
+- [x] 診斷「並無字幕產生」問題（ffmpeg concat 失敗）
+- [x] 修復 chunk 合併邏輯（改用 Buffer.concat）
+- [x] 測試字幕顯示功能

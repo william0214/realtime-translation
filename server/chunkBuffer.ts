@@ -1,9 +1,5 @@
 import { promises as fs } from "fs";
-import { exec } from "child_process";
-import { promisify } from "util";
 import path from "path";
-
-const execAsync = promisify(exec);
 
 // Session buffer storage
 const sessionBuffers = new Map<string, Buffer[]>();
@@ -23,8 +19,12 @@ export function addChunkToSession(sessionId: string, chunkBuffer: Buffer): void 
 }
 
 /**
- * Merge all chunks in a session and create a complete WebM file using ffmpeg
+ * Merge all chunks in a session by concatenating buffers
  * Returns the path to the merged WebM file
+ * 
+ * Note: This simple concatenation works for WebM chunks from MediaRecorder
+ * because they share the same codec and format. For production use, consider
+ * using a proper WebM muxer library for better reliability.
  */
 export async function mergeSessionChunks(sessionId: string): Promise<string> {
   const chunks = sessionBuffers.get(sessionId);
@@ -34,54 +34,22 @@ export async function mergeSessionChunks(sessionId: string): Promise<string> {
 
   console.log(`[chunkBuffer] Merging ${chunks.length} chunks for session: ${sessionId}`);
 
+  // Calculate total size
+  const totalSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  console.log(`[chunkBuffer] Total size: ${totalSize} bytes`);
+
+  // Concatenate all chunks into a single buffer
+  const mergedBuffer = Buffer.concat(chunks);
+
+  // Write to temporary file
   const tempDir = "/tmp/webm-chunks";
   await fs.mkdir(tempDir, { recursive: true });
-
-  // Write all chunks to temporary files
-  const chunkFiles: string[] = [];
-  for (let i = 0; i < chunks.length; i++) {
-    const chunkPath = path.join(tempDir, `${sessionId}-chunk-${i}.webm`);
-    await fs.writeFile(chunkPath, chunks[i]);
-    chunkFiles.push(chunkPath);
-  }
-
-  // Create concat file list for ffmpeg
-  const concatListPath = path.join(tempDir, `${sessionId}-concat.txt`);
-  const concatContent = chunkFiles.map((f) => `file '${f}'`).join("\n");
-  await fs.writeFile(concatListPath, concatContent);
-
-  // Output merged file path
   const outputPath = path.join(tempDir, `${sessionId}-merged.webm`);
+  await fs.writeFile(outputPath, mergedBuffer);
 
-  try {
-    // Use ffmpeg to concatenate chunks
-    // -f concat: use concat demuxer
-    // -safe 0: allow absolute paths
-    // -i: input concat list
-    // -c copy: copy streams without re-encoding (fast!)
-    const ffmpegCmd = `ffmpeg -f concat -safe 0 -i "${concatListPath}" -c copy "${outputPath}" -y`;
-    console.log(`[chunkBuffer] Running ffmpeg: ${ffmpegCmd}`);
+  console.log(`[chunkBuffer] Merged file created: ${outputPath}, size: ${mergedBuffer.length} bytes`);
 
-    const { stdout, stderr } = await execAsync(ffmpegCmd);
-    if (stderr) {
-      console.log(`[chunkBuffer] ffmpeg stderr: ${stderr}`);
-    }
-
-    // Verify output file exists
-    const stats = await fs.stat(outputPath);
-    console.log(`[chunkBuffer] Merged file created: ${outputPath}, size: ${stats.size} bytes`);
-
-    // Clean up chunk files
-    for (const chunkFile of chunkFiles) {
-      await fs.unlink(chunkFile).catch(() => {});
-    }
-    await fs.unlink(concatListPath).catch(() => {});
-
-    return outputPath;
-  } catch (error: any) {
-    console.error(`[chunkBuffer] ffmpeg error:`, error);
-    throw new Error(`Failed to merge chunks: ${error.message}`);
-  }
+  return outputPath;
 }
 
 /**
