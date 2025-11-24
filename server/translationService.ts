@@ -1,4 +1,5 @@
 import { invokeLLM } from "./_core/llm";
+import FormData from "form-data";
 
 /**
  * Language role mapping
@@ -45,7 +46,6 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
   }
 
   // Use node-fetch compatible FormData
-  const FormData = require("form-data");
   const formData = new FormData();
   
   // Append buffer as a stream with proper options

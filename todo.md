@@ -37,4 +37,5 @@
 - [x] 修正 Whisper API multipart form 解析錯誤
 - [x] 修正 React useEffect 清理函數錯誤
 - [x] 修正 React DOM insertBefore 錯誤（重構錄音邏輯）
+- [x] 修正 require is not defined 錯誤（改用 ES Module import）
 - [x] 測試語音識別功能
