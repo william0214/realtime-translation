@@ -1,6 +1,13 @@
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Download, Mic, MicOff, Trash2 } from "lucide-react";
+import { Download, Languages, Mic, MicOff, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -24,9 +31,21 @@ interface ConversationMessage {
   timestamp: Date;
 }
 
+const SUPPORTED_LANGUAGES = [
+  { code: "vi", name: "越南語" },
+  { code: "id", name: "印尼語" },
+  { code: "tl", name: "菲律賓語" },
+  { code: "en", name: "英文" },
+  { code: "it", name: "義大利語" },
+  { code: "ja", name: "日文" },
+  { code: "ko", name: "韓文" },
+  { code: "th", name: "泰文" },
+];
+
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [conversations, setConversations] = useState<ConversationMessage[]>([]);
+  const [targetLanguage, setTargetLanguage] = useState<string>("vi"); // Default to Vietnamese
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -67,11 +86,12 @@ export default function Home() {
         autoTranslateMutation.mutate({
           audioBase64: base64Audio,
           filename: `audio-${Date.now()}.webm`,
+          preferredTargetLang: targetLanguage, // Pass user's language preference
         });
       }
     };
     reader.readAsDataURL(audioBlob);
-  }, [autoTranslateMutation]);
+  }, [autoTranslateMutation, targetLanguage]);
 
   const startRecording = useCallback(async () => {
     try {
@@ -156,6 +176,10 @@ export default function Home() {
       tl: "他加祿語",
       fil: "菲律賓語",
       en: "英文",
+      it: "義大利語",
+      ja: "日文",
+      ko: "韓文",
+      th: "泰文",
     };
 
     let content = "即時雙向翻譯系統 - 對話記錄\n";
@@ -192,6 +216,10 @@ export default function Home() {
       tl: "他加祿語",
       fil: "菲律賓語",
       en: "英文",
+      it: "義大利語",
+      ja: "日文",
+      ko: "韓文",
+      th: "泰文",
     };
     return languageNames[langCode] || langCode;
   };
@@ -217,8 +245,28 @@ export default function Home() {
       <div className="fixed top-8 left-1/2 transform -translate-x-1/2 text-center z-10">
         <h1 className="text-white text-2xl font-bold mb-2">即時雙向翻譯系統</h1>
         <p className="text-white/60 text-sm">
-          點擊「開始對話」後,系統將持續識別語言並即時翻譯
+          點擊「開始對話」後，系統將持續識別語言並即時翻譯
         </p>
+      </div>
+
+      {/* Language Selector (top left) */}
+      <div className="fixed top-8 left-8 z-10">
+        <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-md rounded-lg px-4 py-2">
+          <Languages className="w-5 h-5 text-white" />
+          <span className="text-white text-sm">目標語言：</span>
+          <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>
+            <SelectTrigger className="w-32 bg-white/20 border-white/30 text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <SelectItem key={lang.code} value={lang.code}>
+                  {lang.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Action buttons (top right) */}

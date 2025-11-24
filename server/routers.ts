@@ -24,6 +24,7 @@ export const appRouter = router({
       .input(z.object({
         audioBase64: z.string(),
         filename: z.string().optional(),
+        preferredTargetLang: z.string().optional(), // User's preferred target language
       }))
       .mutation(async ({ input }) => {
         const { transcribeAudio, determineDirection, translateText } = await import("./translationService");
@@ -44,8 +45,8 @@ export const appRouter = router({
           };
         }
 
-        // Step 2: Determine direction
-        const { direction, sourceLang, targetLang } = determineDirection(language);
+        // Step 2: Determine direction (with user preference)
+        const { direction, sourceLang, targetLang } = determineDirection(language, input.preferredTargetLang);
 
         // Step 3: Translate
         const translatedText = await translateText(sourceText, sourceLang, targetLang);

@@ -10,8 +10,13 @@ const PATIENT_LANGUAGES = ["vi", "id", "tl", "fil", "en"];
 
 /**
  * Determine translation direction based on detected language
+ * @param language - Detected language code
+ * @param preferredTargetLang - User's preferred target language (optional)
  */
-export function determineDirection(language: string): {
+export function determineDirection(
+  language: string,
+  preferredTargetLang?: string
+): {
   direction: "nurse_to_patient" | "patient_to_nurse";
   sourceLang: string;
   targetLang: string;
@@ -22,7 +27,7 @@ export function determineDirection(language: string): {
     return {
       direction: "nurse_to_patient",
       sourceLang: normalizedLang,
-      targetLang: "vi", // Default to Vietnamese for foreigner
+      targetLang: preferredTargetLang || "vi", // Use user preference or default to Vietnamese
     };
   }
 
@@ -30,7 +35,7 @@ export function determineDirection(language: string): {
   return {
     direction: "patient_to_nurse",
     sourceLang: normalizedLang,
-    targetLang: "zh", // Default to Chinese for Taiwanese
+    targetLang: "zh", // Always translate to Chinese for Taiwanese
   };
 }
 
