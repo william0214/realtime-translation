@@ -36,4 +36,5 @@
 ## Bug 修正
 - [x] 修正 Whisper API multipart form 解析錯誤
 - [x] 修正 React useEffect 清理函數錯誤
-- [ ] 測試語音識別功能
+- [x] 修正 React DOM insertBefore 錯誤（重構錄音邏輯）
+- [x] 測試語音識別功能

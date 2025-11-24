@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Mic, MicOff, Volume2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 interface TranslationResult {
@@ -23,8 +23,9 @@ export default function Home() {
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingIntervalRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const autoTranslateMutation = trpc.translation.autoTranslate.useMutation({
     onSuccess: (data: TranslationResult) => {
@@ -58,9 +59,26 @@ export default function Home() {
     },
   });
 
-  const startRecording = async () => {
+  const processAudioChunk = useCallback((audioBlob: Blob) => {
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64Audio = (reader.result as string).split(",")[1];
+      if (base64Audio) {
+        autoTranslateMutation.mutate({
+          audioBase64: base64Audio,
+          filename: `audio-${Date.now()}.webm`,
+        });
+      }
+    };
+    reader.readAsDataURL(audioBlob);
+  }, [autoTranslateMutation]);
+
+  const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: "audio/webm",
       });
@@ -74,22 +92,10 @@ export default function Home() {
         }
       };
 
-      mediaRecorder.onstop = async () => {
+      mediaRecorder.onstop = () => {
         if (audioChunksRef.current.length > 0) {
           const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-          
-          // Convert to base64
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64Audio = (reader.result as string).split(",")[1];
-            if (base64Audio) {
-              autoTranslateMutation.mutate({
-                audioBase64: base64Audio,
-                filename: `audio-${Date.now()}.webm`,
-              });
-            }
-          };
-          reader.readAsDataURL(audioBlob);
+          processAudioChunk(audioBlob);
         }
         audioChunksRef.current = [];
       };
@@ -98,45 +104,50 @@ export default function Home() {
       setIsRecording(true);
 
       // Record in 2-second chunks
-      recordingIntervalRef.current = setInterval(() => {
+      const intervalId = window.setInterval(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
           mediaRecorderRef.current.stop();
           mediaRecorderRef.current.start();
         }
       }, 2000);
 
+      recordingIntervalRef.current = intervalId;
       toast.success("開始錄音");
     } catch (error) {
       toast.error("無法啟動麥克風：" + (error as Error).message);
     }
-  };
+  }, [processAudioChunk]);
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
 
     if (recordingIntervalRef.current) {
-      clearInterval(recordingIntervalRef.current);
+      window.clearInterval(recordingIntervalRef.current);
       recordingIntervalRef.current = null;
     }
 
     setIsRecording(false);
     toast.info("停止錄音");
-  };
+  }, []);
 
   useEffect(() => {
     // Cleanup on unmount
     return () => {
+      if (recordingIntervalRef.current) {
+        window.clearInterval(recordingIntervalRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
         mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
-      }
-
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-        recordingIntervalRef.current = null;
       }
     };
   }, []);
