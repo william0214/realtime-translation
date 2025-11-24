@@ -10,7 +10,6 @@ import { trpc } from "@/lib/trpc";
 import { Download, Mic, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Muxer, ArrayBufferTarget } from "webm-muxer";
 
 type ConversationMessage = {
   id: number;
@@ -34,9 +33,10 @@ const LANGUAGE_OPTIONS = [
   { value: "th", label: "泰文" },
 ];
 
-// VAD Settings
+// Settings
 const RMS_THRESHOLD = 0.02; // Voice activity detection threshold
-const SILENCE_DURATION_MS = 800; // Silence duration to end speech segment
+const SILENCE_DURATION_MS = 800; // Silence duration to end speech segment (for translation)
+const MAX_SEGMENT_DURATION = 1.0; // Maximum segment duration in seconds (for Whisper)
 const SAMPLE_RATE = 48000; // 48kHz
 
 export default function Home() {
@@ -45,6 +45,7 @@ export default function Home() {
   const [targetLanguage, setTargetLanguage] = useState<string>("vi");
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
+  const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
 
   // Refs
   const streamRef = useRef<MediaStream | null>(null);
@@ -55,16 +56,19 @@ export default function Home() {
   const nurseScrollRef = useRef<HTMLDivElement>(null);
   const patientScrollRef = useRef<HTMLDivElement>(null);
 
-  // VAD + WebM Muxer state
-  const muxerRef = useRef<Muxer<ArrayBufferTarget> | null>(null);
-  const videoEncoderRef = useRef<any>(null);
+  // Track 1: 1-second chunks for immediate subtitles
+  const chunkStartTimeRef = useRef<number>(0);
+  const currentChunkBufferRef = useRef<Float32Array[]>([]);
+
+  // Track 2: VAD-based segments for translation
   const lastSpeechTimeRef = useRef<number>(0);
   const isSpeakingRef = useRef<boolean>(false);
   const vadIntervalRef = useRef<number | null>(null);
-  const pcmBufferRef = useRef<Float32Array[]>([]);
+  const sentenceBufferRef = useRef<Float32Array[]>([]);
 
   // tRPC mutations
   const translateMutation = trpc.translation.autoTranslate.useMutation();
+  const ttsMutation = trpc.tts.generate.useMutation();
 
   // Check audio level (VAD)
   const checkAudioLevel = useCallback(() => {
@@ -88,52 +92,15 @@ export default function Home() {
     return rms > RMS_THRESHOLD;
   }, []);
 
-  // Start new speech segment (create new muxer)
-  const startNewSegment = useCallback(async () => {
-    console.log("[startNewSegment] Creating new WebM muxer");
+  // Process 1-second chunk for immediate subtitle
+  const processChunkForSubtitle = useCallback(async (pcmBuffer: Float32Array[]) => {
+    if (pcmBuffer.length === 0) return;
 
-    // Create new muxer for this segment
-    const target = new ArrayBufferTarget();
-    const muxer = new Muxer({
-      target,
-      video: {
-        codec: "V_VP9",
-        width: 1,
-        height: 1,
-      },
-      audio: {
-        codec: "A_OPUS",
-        numberOfChannels: 1,
-        sampleRate: SAMPLE_RATE,
-      },
-      firstTimestampBehavior: "offset",
-    });
-
-    muxerRef.current = muxer;
-    pcmBufferRef.current = [];
-    console.log("[startNewSegment] Muxer created");
-  }, []);
-
-  // Finalize speech segment (finalize muxer and send to Whisper)
-  const finalizeSpeechSegment = useCallback(async () => {
-    const muxer = muxerRef.current;
-    const pcmBuffer = pcmBufferRef.current;
-
-    if (!muxer || pcmBuffer.length === 0) {
-      console.log("[finalizeSpeechSegment] No data to process");
-      return;
-    }
-
-    console.log(`[finalizeSpeechSegment] Finalizing segment with ${pcmBuffer.length} PCM buffers`);
+    console.log(`[Subtitle] Processing chunk with ${pcmBuffer.length} PCM buffers`);
     setProcessingStatus("recognizing");
 
     try {
-      // Encode PCM to Opus and add to muxer
-      // Note: webm-muxer expects encoded audio data
-      // For simplicity, we'll use a workaround: encode via MediaRecorder
-      // In production, use a proper Opus encoder
-
-      // Concatenate all PCM buffers
+      // Concatenate PCM buffers
       const totalLength = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
       const concatenated = new Float32Array(totalLength);
       let offset = 0;
@@ -146,7 +113,7 @@ export default function Home() {
       const audioBuffer = audioContextRef.current!.createBuffer(1, concatenated.length, SAMPLE_RATE);
       audioBuffer.copyToChannel(concatenated, 0);
 
-      // Convert AudioBuffer to WebM using MediaRecorder (workaround)
+      // Convert to WebM using MediaRecorder
       const tempContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: SAMPLE_RATE });
       const source = tempContext.createBufferSource();
       source.buffer = audioBuffer;
@@ -168,7 +135,7 @@ export default function Home() {
 
       mediaRecorder.onstop = async () => {
         const webmBlob = new Blob(chunks, { type: "audio/webm" });
-        console.log(`[finalizeSpeechSegment] Created WebM blob, size: ${webmBlob.size} bytes`);
+        console.log(`[Subtitle] Created WebM blob, size: ${webmBlob.size} bytes`);
 
         // Convert to base64 and send to Whisper
         const reader = new FileReader();
@@ -176,10 +143,88 @@ export default function Home() {
           const base64Audio = (reader.result as string).split(",")[1];
 
           try {
-            setProcessingStatus("translating");
             const result = await translateMutation.mutateAsync({
               audioBase64: base64Audio,
-              filename: `audio-${Date.now()}.webm`,
+              filename: `subtitle-${Date.now()}.webm`,
+              preferredTargetLang: targetLanguage,
+            });
+
+            if (result.success && result.sourceText) {
+              // Display subtitle immediately
+              setCurrentSubtitle(result.sourceText);
+              console.log(`[Subtitle] ${result.sourceText}`);
+            }
+          } catch (error: any) {
+            console.error("[Subtitle] Error:", error);
+          } finally {
+            setProcessingStatus("listening");
+          }
+        };
+        reader.readAsDataURL(webmBlob);
+      };
+
+      mediaRecorder.start();
+      setTimeout(() => mediaRecorder.stop(), (audioBuffer.length / SAMPLE_RATE) * 1000 + 100);
+    } catch (error: any) {
+      console.error("[Subtitle] Error:", error);
+      setProcessingStatus("listening");
+    }
+  }, [targetLanguage, translateMutation]);
+
+  // Process VAD-based sentence for translation
+  const processSentenceForTranslation = useCallback(async (pcmBuffer: Float32Array[]) => {
+    if (pcmBuffer.length === 0) return;
+
+    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers`);
+    setProcessingStatus("translating");
+
+    try {
+      // Concatenate PCM buffers
+      const totalLength = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
+      const concatenated = new Float32Array(totalLength);
+      let offset = 0;
+      for (const buf of pcmBuffer) {
+        concatenated.set(buf, offset);
+        offset += buf.length;
+      }
+
+      // Create AudioBuffer
+      const audioBuffer = audioContextRef.current!.createBuffer(1, concatenated.length, SAMPLE_RATE);
+      audioBuffer.copyToChannel(concatenated, 0);
+
+      // Convert to WebM using MediaRecorder
+      const tempContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+      const source = tempContext.createBufferSource();
+      source.buffer = audioBuffer;
+      const dest = tempContext.createMediaStreamDestination();
+      source.connect(dest);
+      source.start();
+
+      const mediaRecorder = new MediaRecorder(dest.stream, {
+        mimeType: "audio/webm;codecs=opus",
+        audioBitsPerSecond: 48000,
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const webmBlob = new Blob(chunks, { type: "audio/webm" });
+        console.log(`[Translation] Created WebM blob, size: ${webmBlob.size} bytes`);
+
+        // Convert to base64 and send for translation
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(",")[1];
+
+          try {
+            const result = await translateMutation.mutateAsync({
+              audioBase64: base64Audio,
+              filename: `translation-${Date.now()}.webm`,
               preferredTargetLang: targetLanguage,
             });
 
@@ -195,15 +240,46 @@ export default function Home() {
               };
 
               setConversations((prev) => [...prev, newMessage]);
-              console.log(`[finalizeSpeechSegment] Added message:`, newMessage);
+              setCurrentSubtitle(""); // Clear subtitle after translation
+              console.log(`[Translation] Added message:`, newMessage);
+
+              // Play TTS audio
+              setProcessingStatus("speaking");
+              try {
+                const ttsResult = await ttsMutation.mutateAsync({
+                  text: result.translatedText,
+                  language: result.targetLang || "vi",
+                });
+
+                if (ttsResult.success && ttsResult.audioBase64) {
+                  const audioBlob = new Blob(
+                    [Uint8Array.from(atob(ttsResult.audioBase64), (c) => c.charCodeAt(0))],
+                    { type: "audio/mp3" }
+                  );
+                  const audioUrl = URL.createObjectURL(audioBlob);
+                  const audio = new Audio(audioUrl);
+                  audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                    setProcessingStatus("listening");
+                  };
+                  await audio.play();
+                  console.log(`[TTS] Playing audio for: "${result.translatedText}"`);
+                } else {
+                  console.error("[TTS] Failed:", ttsResult.error);
+                  setProcessingStatus("listening");
+                }
+              } catch (ttsError: any) {
+                console.error("[TTS] Error:", ttsError);
+                setProcessingStatus("listening");
+              }
             } else {
-              console.error("[finalizeSpeechSegment] Translation failed:", result.error);
+              console.error("[Translation] Translation failed:", result.error);
               if (result.error && !result.error.includes("No speech detected")) {
                 toast.error(result.error);
               }
             }
           } catch (error: any) {
-            console.error("[finalizeSpeechSegment] Error:", error);
+            console.error("[Translation] Error:", error);
             toast.error("處理語音時發生錯誤");
           } finally {
             setProcessingStatus("listening");
@@ -213,14 +289,9 @@ export default function Home() {
       };
 
       mediaRecorder.start();
-      // Stop after audio buffer duration
       setTimeout(() => mediaRecorder.stop(), (audioBuffer.length / SAMPLE_RATE) * 1000 + 100);
-
-      // Clear buffers
-      muxerRef.current = null;
-      pcmBufferRef.current = [];
     } catch (error: any) {
-      console.error("[finalizeSpeechSegment] Error:", error);
+      console.error("[Translation] Error:", error);
       toast.error("處理語音時發生錯誤");
       setProcessingStatus("listening");
     }
@@ -232,38 +303,51 @@ export default function Home() {
 
     console.log("[VAD] Started VAD monitoring");
     setProcessingStatus("listening");
+    chunkStartTimeRef.current = Date.now();
 
     vadIntervalRef.current = window.setInterval(() => {
       const isSpeaking = checkAudioLevel();
       const now = Date.now();
 
+      // Track 1: 1-second chunks for subtitles
+      const chunkDuration = (now - chunkStartTimeRef.current) / 1000;
+      if (chunkDuration >= MAX_SEGMENT_DURATION) {
+        // Process 1-second chunk for subtitle
+        if (currentChunkBufferRef.current.length > 0) {
+          processChunkForSubtitle([...currentChunkBufferRef.current]);
+          currentChunkBufferRef.current = [];
+        }
+        chunkStartTimeRef.current = now;
+      }
+
+      // Track 2: VAD-based segments for translation
       if (isSpeaking) {
-        // Speech detected
         lastSpeechTimeRef.current = now;
         if (!isSpeakingRef.current) {
-          // Speech segment start (無聲 → 有聲)
+          // Speech segment start
           isSpeakingRef.current = true;
           setProcessingStatus("vad-detected");
           console.log(`🔵 Speech started`);
-          startNewSegment();
         }
       } else {
-        // Silence
         if (isSpeakingRef.current) {
           const silenceDuration = now - lastSpeechTimeRef.current;
           if (silenceDuration >= SILENCE_DURATION_MS) {
-            // Speech segment end (有聲 → 無聲，持續 800ms)
+            // Speech segment end
             isSpeakingRef.current = false;
             setProcessingStatus("listening");
-            console.log(`🟢 Speech ended (silence: ${silenceDuration}ms), processing...`);
+            console.log(`🟢 Speech ended (silence: ${silenceDuration}ms), processing translation...`);
 
-            // Finalize this speech segment
-            finalizeSpeechSegment();
+            // Process sentence for translation
+            if (sentenceBufferRef.current.length > 0) {
+              processSentenceForTranslation([...sentenceBufferRef.current]);
+              sentenceBufferRef.current = [];
+            }
           }
         }
       }
     }, 100);
-  }, [checkAudioLevel, startNewSegment, finalizeSpeechSegment]);
+  }, [checkAudioLevel, processChunkForSubtitle, processSentenceForTranslation]);
 
   // Stop VAD monitoring
   const stopVADMonitoring = useCallback(() => {
@@ -306,9 +390,12 @@ export default function Home() {
       const audioWorkletNode = new AudioWorkletNode(audioContext, "audio-capture-processor");
 
       audioWorkletNode.port.onmessage = (event) => {
-        if (event.data.type === "audioData" && isSpeakingRef.current) {
-          // Collect PCM data during speech
-          pcmBufferRef.current.push(event.data.data);
+        if (event.data.type === "audioData") {
+          // Collect PCM data for both tracks
+          currentChunkBufferRef.current.push(event.data.data);
+          if (isSpeakingRef.current) {
+            sentenceBufferRef.current.push(event.data.data);
+          }
         }
       };
 
@@ -349,10 +436,11 @@ export default function Home() {
     }
 
     // Clear buffers
-    muxerRef.current = null;
-    pcmBufferRef.current = [];
+    currentChunkBufferRef.current = [];
+    sentenceBufferRef.current = [];
     isSpeakingRef.current = false;
     setAudioLevel(0);
+    setCurrentSubtitle("");
     setProcessingStatus("idle");
     setIsRecording(false);
     toast.success("停止錄音");
@@ -470,6 +558,12 @@ export default function Home() {
                   style={{ width: `${Math.min(audioLevel * 100, 100)}%` }}
                 />
               </div>
+            </div>
+          )}
+          {currentSubtitle && (
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-400">即時字幕:</span>
+              <span className="text-white">{currentSubtitle}</span>
             </div>
           )}
         </div>

@@ -86,6 +86,36 @@ export const appRouter = router({
       }),
   }),
 
+  // TTS endpoint
+  tts: router({
+    generate: publicProcedure
+      .input(
+        z.object({
+          text: z.string(),
+          language: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { generateSpeech } = await import("./ttsService");
+
+        try {
+          const audioBuffer = await generateSpeech(input.text, input.language);
+          const audioBase64 = audioBuffer.toString("base64");
+
+          return {
+            success: true,
+            audioBase64,
+          };
+        } catch (error: any) {
+          console.error("[TTS] Error:", error);
+          return {
+            success: false,
+            error: error.message || "TTS generation failed",
+          };
+        }
+      }),
+  }),
+
   // Language detection endpoint
   language: router({
     // LLM-based language identification (99%+ accuracy)
@@ -147,24 +177,6 @@ export const appRouter = router({
       }),
   }),
 
-  // TTS endpoint
-  tts: router({
-    // Generate speech from text
-    generate: publicProcedure
-      .input(
-        z.object({
-          text: z.string(),
-          lang: z.string().optional(),
-        })
-      )
-      .mutation(async ({ input }) => {
-        // TTS implementation placeholder
-        return {
-          success: true,
-          audioUrl: "", // TODO: Implement TTS
-        };
-      }),
-  }),
 });
 
 export type AppRouter = typeof appRouter;

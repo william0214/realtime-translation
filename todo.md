@@ -148,3 +148,12 @@
 - [x] 移除 MediaRecorder chunks 合併邏輯
 - [x] 測試 Whisper API 可正確解析完整 WebM
 - [x] 驗證無 "Invalid file format" 錯誤
+
+## 雙軌處理架構（即時字幕 + 完整翻譯 + TTS）
+- [x] 設定 MAX_SEGMENT_DURATION = 1.0 秒
+- [x] 實作 1 秒 chunk 即時字幕（Whisper, temperature=0, response_format=json）
+- [x] 實作 VAD 語句級切段（完整句子）
+- [x] 實作翻譯 API（gpt-4o-mini）
+- [x] 實作 TTS API（gpt-4o-mini-tts）
+- [x] 整合雙軌處理流程
+- [x] 測試全流程速度（目標 0.8-1.3 秒）

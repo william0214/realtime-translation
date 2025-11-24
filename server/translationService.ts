@@ -145,6 +145,7 @@ export async function translateText(
 
   const systemPrompt = `你是專業翻譯。將${sourceLanguageName}翻譯成${targetLanguageName}。只回傳翻譯結果，不要解釋。`;
 
+  // Note: invokeLLM uses default model (gpt-4o-mini equivalent)
   const response = await invokeLLM({
     messages: [
       { role: "system", content: systemPrompt },
