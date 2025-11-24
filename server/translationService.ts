@@ -4,12 +4,16 @@ import FormData from "form-data";
 
 /**
  * Language role mapping
+ * Chinese variants are ALWAYS Taiwanese (nurse)
+ * All other languages are ALWAYS foreigners (patient)
  */
-const NURSE_LANGUAGES = ["zh", "zh-tw", "zh-cn"];
-const PATIENT_LANGUAGES = ["vi", "id", "tl", "fil", "en"];
+const CHINESE_LANGUAGES = ["zh", "zh-tw", "zh-cn", "cmn", "yue"];
 
 /**
  * Determine translation direction based on detected language
+ * Logic:
+ * 1. If detected language is Chinese → Taiwanese → translate to user's preferred language
+ * 2. If detected language is NOT Chinese → Foreigner → translate to Chinese
  * @param language - Detected language code
  * @param preferredTargetLang - User's preferred target language (optional)
  */
@@ -23,7 +27,8 @@ export function determineDirection(
 } {
   const normalizedLang = language.toLowerCase();
 
-  if (NURSE_LANGUAGES.includes(normalizedLang)) {
+  // Rule 1: Chinese → Taiwanese → translate to preferred language
+  if (CHINESE_LANGUAGES.includes(normalizedLang)) {
     return {
       direction: "nurse_to_patient",
       sourceLang: normalizedLang,
@@ -31,11 +36,11 @@ export function determineDirection(
     };
   }
 
-  // Patient or fallback
+  // Rule 2: Non-Chinese → Foreigner → translate to Chinese
   return {
     direction: "patient_to_nurse",
     sourceLang: normalizedLang,
-    targetLang: "zh", // Always translate to Chinese for Taiwanese
+    targetLang: "zh", // Always translate to Chinese
   };
 }
 
