@@ -38,4 +38,6 @@
 - [x] 修正 React useEffect 清理函數錯誤
 - [x] 修正 React DOM insertBefore 錯誤（重構錄音邏輯）
 - [x] 修正 require is not defined 錯誤（改用 ES Module import）
+- [x] 重寫 Whisper API 呼叫（使用 OpenAI SDK）
+- [x] 改用 axios + form-data 上傳音訊（最穩定方式）
 - [x] 測試語音識別功能

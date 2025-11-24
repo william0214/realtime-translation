@@ -1,4 +1,5 @@
 import { invokeLLM } from "./_core/llm";
+import axios from "axios";
 import FormData from "form-data";
 
 /**
@@ -45,36 +46,38 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
     throw new Error("OPENAI_API_KEY is not configured");
   }
 
-  // Use node-fetch compatible FormData
-  const formData = new FormData();
-  
-  // Append buffer as a stream with proper options
-  formData.append("file", audioBuffer, {
+  // Use form-data with Buffer (most stable way)
+  const form = new FormData();
+  form.append("file", audioBuffer, {
     filename,
     contentType: "audio/webm",
-    knownLength: audioBuffer.length,
   });
-  formData.append("model", "whisper-1");
+  form.append("model", "whisper-1");
 
-  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      ...formData.getHeaders(),
-    },
-    body: formData as any,
-  });
+  try {
+    const response = await axios.post(
+      "https://api.openai.com/v1/audio/transcriptions",
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+          Authorization: `Bearer ${apiKey}`,
+        },
+      }
+    );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Whisper API error: ${response.status} ${errorText}`);
+    return {
+      text: response.data.text || "",
+      language: response.data.language || "unknown",
+    };
+  } catch (error: any) {
+    if (error.response) {
+      throw new Error(
+        `Whisper API error: ${error.response.status} ${JSON.stringify(error.response.data)}`
+      );
+    }
+    throw error;
   }
-
-  const result = await response.json();
-  return {
-    text: result.text || "",
-    language: result.language || "unknown",
-  };
 }
 
 /**
