@@ -35,6 +35,12 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         // Use static imports to ensure singleton diagnosticsStore
 
+        // ===== 時間戳記：收到音訊 =====
+        const receivedAt = new Date();
+        console.log(`\n========================================`);
+        console.log(`[時間戳記] 收到音訊: ${receivedAt.toISOString()} (${receivedAt.getTime()})`);
+        console.log(`========================================\n`);
+
         // Start E2E profiling
         const e2eProfiler = new E2EProfiler();
         e2eProfiler.start("autoTranslate start");
@@ -46,8 +52,13 @@ export const appRouter = router({
           console.log(`[autoTranslate] Processing audio, size: ${audioBuffer.length} bytes`);
 
           // Step 1: Whisper transcription (with language detection)
+          const whisperStartAt = new Date();
+          console.log(`[時間戳記] 開始 Whisper 識別: ${whisperStartAt.toISOString()}`);
           console.log(`[autoTranslate] Transcribing audio...`);
           const { text: sourceText, language: whisperLanguage, asrProfile } = await transcribeAudio(audioBuffer, filename);
+          const whisperEndAt = new Date();
+          const whisperDuration = whisperEndAt.getTime() - whisperStartAt.getTime();
+          console.log(`[時間戳記] Whisper 完成: ${whisperEndAt.toISOString()} (耗時 ${whisperDuration}ms)`);
 
           if (!sourceText || sourceText.trim() === "") {
             return {
@@ -69,12 +80,26 @@ export const appRouter = router({
           console.log(`[autoTranslate] Direction: ${direction}, ${sourceLang} → ${finalTargetLang}`);
 
           // Step 3: Translate
+          const translateStartAt = new Date();
+          console.log(`[時間戳記] 開始翻譯: ${translateStartAt.toISOString()}`);
           console.log(`[autoTranslate] Translating...`);
           const { translatedText, translationProfile } = await translateText(sourceText, sourceLang, finalTargetLang);
+          const translateEndAt = new Date();
+          const translateDuration = translateEndAt.getTime() - translateStartAt.getTime();
+          console.log(`[時間戳記] 翻譯完成: ${translateEndAt.toISOString()} (耗時 ${translateDuration}ms)`);
           console.log(`[autoTranslate] Translation: "${translatedText}"`);
 
           // End E2E profiling
           const e2eProfile = e2eProfiler.end("autoTranslate complete");
+          const completedAt = new Date();
+          const totalDuration = completedAt.getTime() - receivedAt.getTime();
+          
+          console.log(`\n========================================`);
+          console.log(`[時間戳記] 全部完成: ${completedAt.toISOString()}`);
+          console.log(`[時間統計] Whisper: ${whisperDuration}ms`);
+          console.log(`[時間統計] 翻譯: ${translateDuration}ms`);
+          console.log(`[時間統計] 總耗時: ${totalDuration}ms`);
+          console.log(`========================================\n`);
 
           // Create diagnostic report
           const diagnosticReport = {
