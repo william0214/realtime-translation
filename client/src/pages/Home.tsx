@@ -46,6 +46,7 @@ export default function Home() {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
+  const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
 
   // Refs
   const streamRef = useRef<MediaStream | null>(null);
@@ -69,6 +70,9 @@ export default function Home() {
 
   // tRPC mutations
   const translateMutation = trpc.translation.autoTranslate.useMutation();
+  const createConversationMutation = trpc.conversation.create.useMutation();
+  const saveTranslationMutation = trpc.conversation.saveTranslation.useMutation();
+  const endConversationMutation = trpc.conversation.end.useMutation();
 
   // Check audio level (VAD)
   const checkAudioLevel = useCallback(() => {
@@ -256,6 +260,19 @@ export default function Home() {
               setCurrentSubtitle(""); // Clear subtitle after translation
               console.log(`[Translation] Added message:`, newMessage);
               setProcessingStatus("listening");
+
+              // Save translation to database
+              if (currentConversationId) {
+                saveTranslationMutation.mutate({
+                  conversationId: currentConversationId,
+                  direction: result.direction!,
+                  sourceLang: result.sourceLang || "unknown",
+                  targetLang: result.targetLang || targetLanguage,
+                  sourceText: result.sourceText,
+                  translatedText: result.translatedText,
+                });
+                console.log(`[Conversation] Saved translation to conversation ID: ${currentConversationId}`);
+              }
             } else {
               console.error("[Translation] Translation failed:", result.error);
               if (result.error && !result.error.includes("No speech detected")) {
@@ -354,6 +371,20 @@ export default function Home() {
   // Start recording
   const startRecording = useCallback(async () => {
     try {
+      // Create a new conversation session
+      const conversationResult = await createConversationMutation.mutateAsync({
+        targetLanguage,
+        title: `對話 - ${new Date().toLocaleString("zh-TW")}`,
+      });
+
+      if (conversationResult.success && conversationResult.conversationId) {
+        setCurrentConversationId(conversationResult.conversationId);
+        console.log(`[Conversation] Created conversation ID: ${conversationResult.conversationId}`);
+      } else {
+        toast.error("建立對話會話失敗");
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -403,10 +434,10 @@ export default function Home() {
       setIsRecording(true);
       toast.success("開始錄音");
     } catch (error: any) {
-      console.error("[startRecording] Error:", error);
+      console.error("[Recording] Error starting recording:", error);
       toast.error("無法啟動麥克風");
     }
-  }, [startVADMonitoring]);
+  }, [createConversationMutation, targetLanguage, startVADMonitoring]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -436,8 +467,18 @@ export default function Home() {
     setCurrentSubtitle("");
     setProcessingStatus("idle");
     setIsRecording(false);
+
+    // End conversation
+    if (currentConversationId) {
+      endConversationMutation.mutate({
+        conversationId: currentConversationId,
+      });
+      console.log(`[Conversation] Ended conversation ID: ${currentConversationId}`);
+      setCurrentConversationId(null);
+    }
+
     toast.success("停止錄音");
-  }, [stopVADMonitoring]);
+  }, [stopVADMonitoring, currentConversationId, endConversationMutation]);
 
   // Toggle recording
   const toggleRecording = useCallback(() => {
