@@ -15,6 +15,13 @@
       "when": 1763957962674,
       "tag": "0001_cheerful_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1764087208486,
+      "tag": "0002_awesome_psynapse",
+      "breakpoints": true
     }
   ]
 }

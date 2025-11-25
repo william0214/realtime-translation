@@ -26,10 +26,33 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 /**
+ * Conversation sessions table - groups related translations
+ */
+export const conversations = mysqlTable("conversations", {
+  id: int("id").autoincrement().primaryKey(),
+  /** User ID who initiated the conversation (optional) */
+  userId: int("userId"),
+  /** Target language for this conversation */
+  targetLanguage: varchar("targetLanguage", { length: 16 }).notNull(),
+  /** Conversation title (optional, auto-generated from first message) */
+  title: varchar("title", { length: 255 }),
+  /** Conversation start time */
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  /** Conversation end time (null if still active) */
+  endedAt: timestamp("endedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversation = typeof conversations.$inferInsert;
+
+/**
  * Translation records table - stores all translation history
  */
 export const translations = mysqlTable("translations", {
   id: int("id").autoincrement().primaryKey(),
+  /** Conversation ID this translation belongs to */
+  conversationId: int("conversationId"),
   /** Translation direction: nurse_to_patient or patient_to_nurse */
   direction: varchar("direction", { length: 32 }).notNull(),
   /** Source language code (e.g., zh, vi, en) */

@@ -129,6 +129,158 @@ export const appRouter = router({
     }),
   }),
 
+  // Conversation history endpoints
+  conversation: router({
+    // Create a new conversation
+    create: publicProcedure
+      .input(
+        z.object({
+          targetLanguage: z.string(),
+          title: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const { createConversation } = await import("./db");
+
+        try {
+          const conversationId = await createConversation({
+            userId: ctx.user?.id,
+            targetLanguage: input.targetLanguage,
+            title: input.title,
+          });
+
+          return {
+            success: true,
+            conversationId,
+          };
+        } catch (error: any) {
+          console.error("[Conversation] Create error:", error);
+          return {
+            success: false,
+            error: error.message || "Failed to create conversation",
+          };
+        }
+      }),
+
+    // End a conversation
+    end: publicProcedure
+      .input(
+        z.object({
+          conversationId: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { endConversation } = await import("./db");
+
+        try {
+          await endConversation(input.conversationId);
+
+          return {
+            success: true,
+          };
+        } catch (error: any) {
+          console.error("[Conversation] End error:", error);
+          return {
+            success: false,
+            error: error.message || "Failed to end conversation",
+          };
+        }
+      }),
+
+    // Get recent conversations
+    list: publicProcedure
+      .input(
+        z.object({
+          limit: z.number().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getRecentConversations } = await import("./db");
+
+        try {
+          const conversations = await getRecentConversations(input.limit);
+
+          return {
+            success: true,
+            conversations,
+          };
+        } catch (error: any) {
+          console.error("[Conversation] List error:", error);
+          return {
+            success: false,
+            error: error.message || "Failed to get conversations",
+            conversations: [],
+          };
+        }
+      }),
+
+    // Get conversation with translations
+    getWithTranslations: publicProcedure
+      .input(
+        z.object({
+          conversationId: z.number(),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getConversationById, getTranslationsByConversationId } = await import("./db");
+
+        try {
+          const conversation = await getConversationById(input.conversationId);
+          const translations = await getTranslationsByConversationId(input.conversationId);
+
+          return {
+            success: true,
+            conversation,
+            translations,
+          };
+        } catch (error: any) {
+          console.error("[Conversation] Get error:", error);
+          return {
+            success: false,
+            error: error.message || "Failed to get conversation",
+          };
+        }
+      }),
+
+    // Save translation to conversation
+    saveTranslation: publicProcedure
+      .input(
+        z.object({
+          conversationId: z.number().optional(),
+          direction: z.string(),
+          sourceLang: z.string(),
+          targetLang: z.string(),
+          sourceText: z.string(),
+          translatedText: z.string(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const { insertTranslation } = await import("./db");
+
+        try {
+          await insertTranslation({
+            conversationId: input.conversationId,
+            direction: input.direction,
+            sourceLang: input.sourceLang,
+            targetLang: input.targetLang,
+            sourceText: input.sourceText,
+            translatedText: input.translatedText,
+            userId: ctx.user?.id,
+          });
+
+          return {
+            success: true,
+          };
+        } catch (error: any) {
+          console.error("[Conversation] Save translation error:", error);
+          return {
+            success: false,
+            error: error.message || "Failed to save translation",
+          };
+        }
+      }),
+  }),
+
   // TTS endpoint
   tts: router({
     generate: publicProcedure

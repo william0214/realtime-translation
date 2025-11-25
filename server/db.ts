@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, translations, InsertTranslation, languageConfig } from "../drizzle/schema";
+import { InsertUser, users, translations, InsertTranslation, languageConfig, conversations, InsertConversation } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -133,4 +133,63 @@ export async function getLanguageByCode(code: string) {
 
   const result = await db.select().from(languageConfig).where(eq(languageConfig.code, code)).limit(1);
   return result.length > 0 ? result[0] : undefined;
+}
+
+// Conversation queries
+export async function createConversation(conversation: InsertConversation) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot create conversation: database not available");
+    return undefined;
+  }
+
+  const result = await db.insert(conversations).values(conversation);
+  // Get the last inserted ID
+  const inserted = await db.select().from(conversations).orderBy(desc(conversations.id)).limit(1);
+  return inserted.length > 0 ? inserted[0].id : undefined;
+}
+
+export async function endConversation(conversationId: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot end conversation: database not available");
+    return;
+  }
+
+  await db.update(conversations)
+    .set({ endedAt: new Date() })
+    .where(eq(conversations.id, conversationId));
+}
+
+export async function getConversationById(conversationId: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get conversation: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getRecentConversations(limit: number = 20) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get conversations: database not available");
+    return [];
+  }
+
+  const result = await db.select().from(conversations).orderBy(desc(conversations.startedAt)).limit(limit);
+  return result;
+}
+
+export async function getTranslationsByConversationId(conversationId: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get translations: database not available");
+    return [];
+  }
+
+  const result = await db.select().from(translations).where(eq(translations.conversationId, conversationId));
+  return result;
 }

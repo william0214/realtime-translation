@@ -491,21 +491,21 @@ export default function Home() {
     }
   }, [conversations]);
 
-  // Get status display
+  // Get status display with color and animation
   const getStatusDisplay = () => {
     switch (processingStatus) {
       case "listening":
-        return "🔵 等待語音...";
+        return { text: "等待語音", color: "text-blue-400", icon: "🔵" };
       case "vad-detected":
-        return "🟢 偵測到語音...";
+        return { text: "偵測到語音", color: "text-green-400 animate-pulse", icon: "🟢" };
       case "recognizing":
-        return "🟡 正在辨識...";
+        return { text: "正在辨識", color: "text-yellow-400 animate-pulse", icon: "🟡" };
       case "translating":
-        return "🟣 正在翻譯...";
+        return { text: "正在翻譯", color: "text-purple-400 animate-pulse", icon: "🟣" };
       case "speaking":
-        return "🔊 播放中...";
+        return { text: "播放中", color: "text-pink-400 animate-pulse", icon: "🔊" };
       default:
-        return "閒置";
+        return { text: "閒置", color: "text-gray-500", icon: "⚪" };
     }
   };
 
@@ -539,9 +539,12 @@ export default function Home() {
       </header>
 
       {/* Status Bar */}
-      <div className="bg-gray-900 p-3 text-center text-sm">
+      <div className="bg-gray-900 p-3 text-center text-sm border-b border-gray-800">
         <div className="container mx-auto flex items-center justify-center gap-4">
-          <span>{getStatusDisplay()}</span>
+          <div className={`flex items-center gap-2 font-medium ${getStatusDisplay().color}`}>
+            <span className="text-xl">{getStatusDisplay().icon}</span>
+            <span>{getStatusDisplay().text}</span>
+          </div>
           {isRecording && (
             <div className="flex items-center gap-2">
               <span className="text-gray-400">音量:</span>
