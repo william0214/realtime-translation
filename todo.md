@@ -243,3 +243,32 @@
 - [x] 調整對話框方向（外國人框 rotate-180，桌面版恢復 md:rotate-0）
 - [x] 優化 Header、狀態列、按鈕的響應式設計
 - [x] 測試手機版顯示效果（使用開發者工具設備模擬）
+
+## 前端連接 Go 後端（進行中）
+- [x] 建立完整的 Go 後端整合指南（GO_BACKEND_INTEGRATION_GUIDE.md）
+- [x] 提供 REST API 整合範例
+- [x] 提供 WebSocket 整合範例
+- [x] 建立 PostgreSQL Docker Compose 配置
+- [x] 建立 Go 後端 README
+- [ ] 建立 WebSocket 客戶端服務
+- [ ] 修改 Home.tsx 使用 WebSocket
+- [ ] 移除 tRPC 相關程式碼
+- [ ] 測試前後端整合
+
+## Node.js 開發伺服器修復
+- [x] 修復 server/db.ts 語法錯誤（重啟伺服器清除快取）
+- [x] 驗證 TypeScript 編譯無誤
+- [x] 驗證開發伺服器正常運行
+
+## Go 後端開發（Phase 1 完成）
+- [x] 建立 Go 專案結構（backend-go/）
+- [x] 實作資料庫模型（Device, ClientPlan, Session, Transcript, Translation, Diagnostic）
+- [x] 設定 GORM AutoMigrate
+- [x] 實作 ASR 服務（OpenAI Whisper）
+- [x] 實作翻譯服務（GPT-4o-mini + 語言偵測）
+- [x] 實作 TTS 服務（OpenAI TTS-1）
+- [x] 實作 REST API（POST /api/v1/asr/segment）
+- [x] 實作 WebSocket API（GET /ws/asr/stream）
+- [x] 實作中介軟體（CORS, RequestID, Logger）
+- [x] 實作診斷系統（延遲追蹤）
+- [x] 編譯測試（server 成功啟動在 port 8080）
