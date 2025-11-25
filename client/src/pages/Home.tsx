@@ -512,12 +512,12 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
       {/* Header */}
-      <header className="border-b border-gray-800 p-4">
+      <header className="border-b border-gray-800 p-3 md:p-4">
         <div className="container mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold">即時雙向翻譯系統</h1>
-          <div className="flex items-center gap-4">
+          <h1 className="text-lg md:text-2xl font-bold">即時雙向翻譯系統</h1>
+          <div className="flex items-center gap-2 md:gap-4">
             <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>
-              <SelectTrigger className="w-[180px] bg-gray-900 border-gray-700">
+              <SelectTrigger className="w-[120px] md:w-[180px] bg-gray-900 border-gray-700 text-sm md:text-base">
                 <SelectValue placeholder="選擇語言" />
               </SelectTrigger>
               <SelectContent className="bg-gray-900 border-gray-700">
@@ -528,27 +528,27 @@ export default function Home() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={exportConversations} disabled={conversations.length === 0}>
-              <Download className="h-4 w-4" />
+            <Button variant="outline" size="icon" onClick={exportConversations} disabled={conversations.length === 0} className="h-8 w-8 md:h-10 md:w-10">
+              <Download className="h-3 w-3 md:h-4 md:w-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={clearConversations} disabled={conversations.length === 0}>
-              <Trash2 className="h-4 w-4" />
+            <Button variant="outline" size="icon" onClick={clearConversations} disabled={conversations.length === 0} className="h-8 w-8 md:h-10 md:w-10">
+              <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
             </Button>
           </div>
         </div>
       </header>
 
       {/* Status Bar */}
-      <div className="bg-gray-900 p-3 text-center text-sm border-b border-gray-800">
-        <div className="container mx-auto flex items-center justify-center gap-4">
+      <div className="bg-gray-900 p-2 md:p-3 text-center text-xs md:text-sm border-b border-gray-800">
+        <div className="container mx-auto flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4">
           <div className={`flex items-center gap-2 font-medium ${getStatusDisplay().color}`}>
-            <span className="text-xl">{getStatusDisplay().icon}</span>
+            <span className="text-lg md:text-xl">{getStatusDisplay().icon}</span>
             <span>{getStatusDisplay().text}</span>
           </div>
           {isRecording && (
             <div className="flex items-center gap-2">
               <span className="text-gray-400">音量:</span>
-              <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="w-24 md:w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all ${audioLevel > 1 ? "bg-green-500" : "bg-gray-600"}`}
                   style={{ width: `${Math.min(audioLevel * 100, 100)}%` }}
@@ -557,48 +557,50 @@ export default function Home() {
             </div>
           )}
           {currentSubtitle && (
-            <div className="flex items-center gap-2">
-              <span className="text-yellow-400">即時字幕:</span>
-              <span className="text-white">{currentSubtitle}</span>
+            <div className="flex items-center gap-2 max-w-full">
+              <span className="text-yellow-400 flex-shrink-0">即時字幕:</span>
+              <span className="text-white truncate">{currentSubtitle}</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto p-6">
-        <div className="text-center mb-6 text-gray-400">
+      <main className="flex-1 container mx-auto p-4 md:p-6">
+        <div className="text-center mb-4 md:mb-6 text-gray-400 text-sm md:text-base">
           點擊「開始對話」後，系統將持續偵測語音並即時翻譯
         </div>
 
-        <div className="grid grid-cols-2 gap-6 mb-6">
-          {/* Nurse (Chinese) */}
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h2 className="text-xl font-semibold mb-4 text-center">台灣人 (中文)</h2>
-            <div ref={nurseScrollRef} className="h-[400px] overflow-y-auto space-y-3">
+        {/* Desktop: Side by side (left-right) */}
+        {/* Mobile: Stacked (top-bottom, both facing outward) */}
+        <div className="flex flex-col md:grid md:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
+          {/* Nurse (Chinese) - Top on mobile, Left on desktop */}
+          <div className="bg-gray-900 rounded-lg p-3 md:p-4">
+            <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">台灣人 (中文)</h2>
+            <div ref={nurseScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
               {conversations
                 .filter((msg) => msg.speaker === "nurse")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800 p-3 rounded">
-                    <div className="text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium mb-1">{msg.originalText}</div>
-                    <div className="text-gray-400 text-sm">→ {msg.translatedText}</div>
+                  <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
+                    <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
+                    <div className="font-medium mb-1 text-sm md:text-base">{msg.originalText}</div>
+                    <div className="text-gray-400 text-xs md:text-sm">→ {msg.translatedText}</div>
                   </div>
                 ))}
             </div>
           </div>
 
-          {/* Patient (Foreign Language) */}
-          <div className="bg-gray-900 rounded-lg p-4">
-            <h2 className="text-xl font-semibold mb-4 text-center">外國人 (外語)</h2>
-            <div ref={patientScrollRef} className="h-[400px] overflow-y-auto space-y-3">
+          {/* Patient (Foreign Language) - Bottom on mobile (rotated 180deg), Right on desktop */}
+          <div className="bg-gray-900 rounded-lg p-3 md:p-4 md:rotate-0 rotate-180">
+            <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">外國人 (外語)</h2>
+            <div ref={patientScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
               {conversations
                 .filter((msg) => msg.speaker === "patient")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800 p-3 rounded">
-                    <div className="text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium mb-1">{msg.originalText}</div>
-                    <div className="text-gray-400 text-sm">→ {msg.translatedText}</div>
+                  <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
+                    <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
+                    <div className="font-medium mb-1 text-sm md:text-base">{msg.originalText}</div>
+                    <div className="text-gray-400 text-xs md:text-sm">→ {msg.translatedText}</div>
                   </div>
                 ))}
             </div>
@@ -610,13 +612,13 @@ export default function Home() {
           <Button
             size="lg"
             onClick={toggleRecording}
-            className={`px-8 py-6 text-lg ${
+            className={`px-6 md:px-8 py-4 md:py-6 text-base md:text-lg ${
               isRecording
                 ? "bg-red-600 hover:bg-red-700"
                 : "bg-green-600 hover:bg-green-700"
             }`}
           >
-            <Mic className="mr-2 h-5 w-5" />
+            <Mic className="mr-2 h-4 md:h-5 w-4 md:w-5" />
             {isRecording ? "結束對話" : "開始對話"}
           </Button>
         </div>
