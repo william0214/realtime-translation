@@ -621,8 +621,8 @@ export default function Home() {
         {/* Desktop: Side by side (left-right) */}
         {/* Mobile: Stacked (外國人 top, 台灣人 bottom, both facing outward) */}
         <div className="flex flex-col-reverse md:grid md:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
-          {/* Nurse (Chinese) - Bottom on mobile, Left on desktop */}
-          <div className="bg-gray-900 rounded-lg p-3 md:p-4">
+          {/* Nurse (Chinese) - Bottom on mobile (rotated 180deg to face up), Left on desktop */}
+          <div className="bg-gray-900 rounded-lg p-3 md:p-4 md:rotate-0 rotate-180">
             <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">台灣人 (中文)</h2>
             <div ref={nurseScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
               {conversations
@@ -637,8 +637,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Patient (Foreign Language) - Top on mobile (rotated 180deg), Right on desktop */}
-          <div className="bg-gray-900 rounded-lg p-3 md:p-4 md:rotate-0 rotate-180">
+          {/* Patient (Foreign Language) - Top on mobile (normal, facing down), Right on desktop */}
+          <div className="bg-gray-900 rounded-lg p-3 md:p-4">
             <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">外國人 (外語)</h2>
             <div ref={patientScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
               {conversations
