@@ -279,14 +279,18 @@ export default function Home() {
       const isSpeaking = checkAudioLevel();
       const now = Date.now();
 
-      // Track 1: 1-second chunks for subtitles
+      // Track 1: 1-second chunks for subtitles (only when speaking)
       const chunkDuration = (now - chunkStartTimeRef.current) / 1000;
-      if (chunkDuration >= MAX_SEGMENT_DURATION) {
-        // Process 1-second chunk for subtitle
+      if (chunkDuration >= MAX_SEGMENT_DURATION && isSpeakingRef.current) {
+        // Process 1-second chunk for subtitle (only if there's actual speech)
         if (currentChunkBufferRef.current.length > 0) {
           processChunkForSubtitle([...currentChunkBufferRef.current]);
           currentChunkBufferRef.current = [];
         }
+        chunkStartTimeRef.current = now;
+      } else if (chunkDuration >= MAX_SEGMENT_DURATION && !isSpeakingRef.current) {
+        // Reset chunk timer if no speech (prevent accumulation)
+        currentChunkBufferRef.current = [];
         chunkStartTimeRef.current = now;
       }
 

@@ -173,3 +173,12 @@
 - [x] 建立前端 Diagnostic Dashboard（可視化）
 - [x] 串接 Profiler 到實際流程（VAD、Whisper、翻譯、TTS）
 - [x] 測試診斷模組功能
+
+## 速度瓶頸診斷
+- [x] 觸發翻譯流程產生診斷數據（建立診斷查看工具）
+- [ ] 查看診斷報告分析瓶頸
+- [ ] 提供優化建議
+
+## Bug 修復 v3
+- [x] 修復 Whisper 幻覚問題（靜音時出現 thank you/bye）
+- [x] 加入 VAD 過濾（只在真正有聲音時才送 Whisper）
