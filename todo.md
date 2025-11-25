@@ -182,3 +182,6 @@
 ## Bug 修復 v3
 - [x] 修復 Whisper 幻覚問題（靜音時出現 thank you/bye）
 - [x] 加入 VAD 過濾（只在真正有聲音時才送 Whisper）
+
+## VAD 閾值優化
+- [x] 調高 VAD 音量閾值（0.02 → 0.04）改善語音段落切割

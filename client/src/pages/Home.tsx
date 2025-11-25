@@ -34,7 +34,7 @@ const LANGUAGE_OPTIONS = [
 ];
 
 // Settings
-const RMS_THRESHOLD = 0.02; // Voice activity detection threshold
+const RMS_THRESHOLD = 0.04; // Voice activity detection threshold (increased for better segment detection)
 const SILENCE_DURATION_MS = 800; // Silence duration to end speech segment (for translation)
 const MAX_SEGMENT_DURATION = 1.0; // Maximum segment duration in seconds (for Whisper)
 const SAMPLE_RATE = 48000; // 48kHz
