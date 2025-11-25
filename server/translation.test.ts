@@ -34,24 +34,24 @@ describe("Translation Service", () => {
 
   describe("translateText", () => {
     it("should translate Chinese to Vietnamese", async () => {
-      const result = await translateText("你好", "zh", "vi");
-      expect(result).toBeDefined();
-      expect(result.length).toBeGreaterThan(0);
-      expect(typeof result).toBe("string");
+      const { translatedText } = await translateText("你好", "zh", "vi");
+      expect(translatedText).toBeDefined();
+      expect(translatedText.length).toBeGreaterThan(0);
+      expect(typeof translatedText).toBe("string");
     }, 30000);
 
     it("should translate Vietnamese to Chinese", async () => {
-      const result = await translateText("Xin chào", "vi", "zh");
-      expect(result).toBeDefined();
-      expect(result.length).toBeGreaterThan(0);
-      expect(typeof result).toBe("string");
+      const { translatedText } = await translateText("Xin ch\u00e0o", "vi", "zh");
+      expect(translatedText).toBeDefined();
+      expect(translatedText.length).toBeGreaterThan(0);
+      expect(typeof translatedText).toBe("string");
     }, 30000);
 
     it("should translate English to Chinese", async () => {
-      const result = await translateText("Hello", "en", "zh");
-      expect(result).toBeDefined();
-      expect(result.length).toBeGreaterThan(0);
-      expect(typeof result).toBe("string");
+      const { translatedText } = await translateText("Hello", "en", "zh");
+      expect(translatedText).toBeDefined();
+      expect(translatedText.length).toBeGreaterThan(0);
+      expect(typeof translatedText).toBe("string");
     }, 30000);
   });
 });

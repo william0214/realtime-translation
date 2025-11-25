@@ -76,13 +76,22 @@ export async function identifyLanguage(text: string): Promise<string> {
  * - temperature=0 for consistency
  * - response_format=json for faster processing
  */
-export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<{
+export async function transcribeAudio(
+  audioBuffer: Buffer,
+  filename: string
+): Promise<{
   text: string;
+  asrProfile?: any;
 }> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
+
+  // Start ASR profiling
+  const { ASRProfiler } = await import("./profiler/asrProfiler");
+  const profiler = new ASRProfiler();
+  profiler.start();
 
   const form = new FormData();
   form.append("file", audioBuffer, {
@@ -108,7 +117,12 @@ export async function transcribeAudio(audioBuffer: Buffer, filename: string): Pr
     const text = response.data.text || "";
     console.log(`[Whisper] Transcript: "${text}"`);
 
-    return { text };
+    // End ASR profiling
+    const audioDuration = 1.0; // Estimated, can be calculated from buffer if needed
+    const asrProfile = profiler.end(audioDuration, audioBuffer.length, "whisper-1");
+    console.log(`[ASR Profiler] Duration: ${asrProfile.duration.toFixed(0)}ms`);
+
+    return { text, asrProfile };
   } catch (error: any) {
     if (error.response) {
       throw new Error(
@@ -126,7 +140,7 @@ export async function translateText(
   text: string,
   sourceLang: string,
   targetLang: string
-): Promise<string> {
+): Promise<{ translatedText: string; translationProfile?: any }> {
   const languageNames: Record<string, string> = {
     zh: "中文",
     vi: "越南語",
@@ -145,6 +159,11 @@ export async function translateText(
 
   const systemPrompt = `你是專業翻譯。將${sourceLanguageName}翻譯成${targetLanguageName}。只回傳翻譯結果，不要解釋。`;
 
+  // Start Translation profiling
+  const { TranslationProfiler } = await import("./profiler/translationProfiler");
+  const profiler = new TranslationProfiler();
+  profiler.start();
+
   // Note: invokeLLM uses default model (gpt-4o-mini equivalent)
   const response = await invokeLLM({
     messages: [
@@ -155,7 +174,12 @@ export async function translateText(
 
   const content = response.choices[0]?.message?.content;
   const translatedText = typeof content === "string" ? content : "";
-  return translatedText.trim();
+
+  // End Translation profiling
+  const translationProfile = profiler.end(text, sourceLang, targetLang, "gpt-4o-mini");
+  console.log(`[Translation Profiler] Duration: ${translationProfile.duration.toFixed(0)}ms`);
+
+  return { translatedText: translatedText.trim(), translationProfile };
 }
 
 /**

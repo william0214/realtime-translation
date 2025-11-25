@@ -160,3 +160,16 @@
 
 ## 功能調整
 - [x] 關閉 TTS 自動播放功能
+
+## 自動化延遲分析與瓶頸診斷模組
+- [x] 建立 Profiler 架構（/server/profiler/）
+- [x] 實作 ASR Profiler（Whisper API 延遲）
+- [x] 實作 Translation Profiler（翻譯 API 延遲）
+- [x] 實作 TTS Profiler（TTS API 延遲）
+- [x] 實作 Chunk Profiler（chunk 大小與時長）
+- [x] 實作 E2E Profiler（端到端總延遲）
+- [x] 實作 Bottleneck 檢測器（自動判斷瓶頸）
+- [x] 建立後端 /diagnostics/report API
+- [x] 建立前端 Diagnostic Dashboard（可視化）
+- [x] 串接 Profiler 到實際流程（VAD、Whisper、翻譯、TTS）
+- [x] 測試診斷模組功能

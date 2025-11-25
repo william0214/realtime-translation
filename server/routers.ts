@@ -32,6 +32,13 @@ export const appRouter = router({
         const { transcribeAudio, identifyLanguage, translateText, determineDirection } = await import(
           "./translationService"
         );
+        const { E2EProfiler } = await import("./profiler/e2eProfiler");
+        const { BottleneckDetector } = await import("./profiler/bottleneckDetector");
+        const { diagnosticsStore } = await import("./profiler/diagnosticsStore");
+
+        // Start E2E profiling
+        const e2eProfiler = new E2EProfiler();
+        e2eProfiler.start("autoTranslate start");
 
         try {
           const audioBuffer = Buffer.from(input.audioBase64, "base64");
@@ -41,7 +48,7 @@ export const appRouter = router({
 
           // Step 1: Whisper transcription
           console.log(`[autoTranslate] Transcribing audio...`);
-          const { text: sourceText } = await transcribeAudio(audioBuffer, filename);
+          const { text: sourceText, asrProfile } = await transcribeAudio(audioBuffer, filename);
 
           if (!sourceText || sourceText.trim() === "") {
             return {
@@ -65,8 +72,27 @@ export const appRouter = router({
 
           // Step 4: Translate
           console.log(`[autoTranslate] Translating...`);
-          const translatedText = await translateText(sourceText, sourceLang, finalTargetLang);
+          const { translatedText, translationProfile } = await translateText(sourceText, sourceLang, finalTargetLang);
           console.log(`[autoTranslate] Translation: "${translatedText}"`);
+
+          // End E2E profiling
+          const e2eProfile = e2eProfiler.end("autoTranslate complete");
+
+          // Create diagnostic report
+          const diagnosticReport = {
+            asr: asrProfile,
+            translation: translationProfile,
+            e2e: e2eProfile,
+            bottleneck: BottleneckDetector.detect({
+              asr: asrProfile,
+              translation: translationProfile,
+              e2e: e2eProfile,
+            }),
+            timestamp: Date.now(),
+          };
+
+          // Save to diagnostics store
+          diagnosticsStore.setReport(diagnosticReport);
 
           return {
             success: true,
@@ -84,6 +110,26 @@ export const appRouter = router({
           };
         }
       }),
+  }),
+
+  // Diagnostics endpoint
+  diagnostics: router({
+    report: publicProcedure.query(() => {
+      const { diagnosticsStore } = require("./profiler/diagnosticsStore");
+      const report = diagnosticsStore.getReport();
+
+      if (!report) {
+        return {
+          success: false,
+          error: "No diagnostic data available",
+        };
+      }
+
+      return {
+        success: true,
+        data: report,
+      };
+    }),
   }),
 
   // TTS endpoint
