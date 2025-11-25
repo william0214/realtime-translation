@@ -7,9 +7,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Download, Mic, Trash2 } from "lucide-react";
+import { Download, History as HistoryIcon, Mic, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Link } from "wouter";
 
 type ConversationMessage = {
   id: number;
@@ -569,6 +570,11 @@ export default function Home() {
                 ))}
               </SelectContent>
             </Select>
+            <Link href="/history">
+              <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
+                <HistoryIcon className="h-3 w-3 md:h-4 md:w-4" />
+              </Button>
+            </Link>
             <Button variant="outline" size="icon" onClick={exportConversations} disabled={conversations.length === 0} className="h-8 w-8 md:h-10 md:w-10">
               <Download className="h-3 w-3 md:h-4 md:w-4" />
             </Button>

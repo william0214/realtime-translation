@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, translations, InsertTranslation, languageConfig, conversations, InsertConversation } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -180,7 +180,23 @@ export async function getRecentConversations(limit: number = 20) {
   }
 
   const result = await db.select().from(conversations).orderBy(desc(conversations.startedAt)).limit(limit);
-  return result;
+  
+  // Add translation count for each conversation
+  const conversationsWithCount = await Promise.all(
+    result.map(async (conv) => {
+      const translationCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(translations)
+        .where(eq(translations.conversationId, conv.id));
+      
+      return {
+        ...conv,
+        translationCount: Number(translationCount[0]?.count || 0),
+      };
+    })
+  );
+  
+  return conversationsWithCount;
 }
 
 export async function getTranslationsByConversationId(conversationId: number) {
