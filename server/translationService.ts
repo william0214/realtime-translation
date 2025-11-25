@@ -81,6 +81,7 @@ export async function transcribeAudio(
   filename: string
 ): Promise<{
   text: string;
+  language?: string;
   asrProfile?: any;
 }> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -115,14 +116,15 @@ export async function transcribeAudio(
     );
 
     const text = response.data.text || "";
-    console.log(`[Whisper] Transcript: "${text}"`);
+    const language = response.data.language || "zh"; // Whisper returns ISO-639-1 language code
+    console.log(`[Whisper] Transcript: "${text}", Language: ${language}`);
 
     // End ASR profiling
     const audioDuration = 1.0; // Estimated, can be calculated from buffer if needed
     const asrProfile = profiler.end(audioDuration, audioBuffer.length, "whisper-1");
     console.log(`[ASR Profiler] Duration: ${asrProfile.duration.toFixed(0)}ms`);
 
-    return { text, asrProfile };
+    return { text, language, asrProfile };
   } catch (error: any) {
     if (error.response) {
       throw new Error(

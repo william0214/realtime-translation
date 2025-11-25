@@ -3,6 +3,10 @@ import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { diagnosticsStore } from "./profiler/diagnosticsStore";
+import { transcribeAudio, identifyLanguage, translateText, determineDirection } from "./translationService";
+import { E2EProfiler } from "./profiler/e2eProfiler";
+import { BottleneckDetector } from "./profiler/bottleneckDetector";
 
 export const appRouter = router({
   system: systemRouter,
@@ -29,12 +33,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        const { transcribeAudio, identifyLanguage, translateText, determineDirection } = await import(
-          "./translationService"
-        );
-        const { E2EProfiler } = await import("./profiler/e2eProfiler");
-        const { BottleneckDetector } = await import("./profiler/bottleneckDetector");
-        const { diagnosticsStore } = await import("./profiler/diagnosticsStore");
+        // Use static imports to ensure singleton diagnosticsStore
 
         // Start E2E profiling
         const e2eProfiler = new E2EProfiler();
@@ -46,9 +45,9 @@ export const appRouter = router({
 
           console.log(`[autoTranslate] Processing audio, size: ${audioBuffer.length} bytes`);
 
-          // Step 1: Whisper transcription
+          // Step 1: Whisper transcription (with language detection)
           console.log(`[autoTranslate] Transcribing audio...`);
-          const { text: sourceText, asrProfile } = await transcribeAudio(audioBuffer, filename);
+          const { text: sourceText, language: whisperLanguage, asrProfile } = await transcribeAudio(audioBuffer, filename);
 
           if (!sourceText || sourceText.trim() === "") {
             return {
@@ -57,20 +56,19 @@ export const appRouter = router({
             };
           }
 
-          console.log(`[autoTranslate] Transcript: "${sourceText}"`);
+          console.log(`[autoTranslate] Transcript: "${sourceText}", Whisper language: ${whisperLanguage}`);
 
-          // Step 2: LLM language identification
-          console.log(`[autoTranslate] Identifying language...`);
-          const detectedLanguage = await identifyLanguage(sourceText);
-          console.log(`[autoTranslate] Detected language: ${detectedLanguage}`);
+          // Use Whisper's language detection directly (skip LLM language identification for speed)
+          const detectedLanguage = whisperLanguage || "zh";
+          console.log(`[autoTranslate] Using detected language: ${detectedLanguage}`);
 
-          // Step 3: Determine translation direction
+          // Step 2: Determine translation direction
           const targetLang = input.preferredTargetLang || "vi";
           const { direction, sourceLang, targetLang: finalTargetLang } = determineDirection(detectedLanguage, targetLang);
 
           console.log(`[autoTranslate] Direction: ${direction}, ${sourceLang} → ${finalTargetLang}`);
 
-          // Step 4: Translate
+          // Step 3: Translate
           console.log(`[autoTranslate] Translating...`);
           const { translatedText, translationProfile } = await translateText(sourceText, sourceLang, finalTargetLang);
           console.log(`[autoTranslate] Translation: "${translatedText}"`);
@@ -115,7 +113,6 @@ export const appRouter = router({
   // Diagnostics endpoint
   diagnostics: router({
     report: publicProcedure.query(() => {
-      const { diagnosticsStore } = require("./profiler/diagnosticsStore");
       const report = diagnosticsStore.getReport();
 
       if (!report) {
