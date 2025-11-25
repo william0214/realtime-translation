@@ -66,6 +66,7 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  thinking?: { budget_tokens: number } | false; // Enable/disable thinking mode
 };
 
 export type ToolCall = {
@@ -297,8 +298,10 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
+  
+  // Only enable thinking mode if explicitly requested
+  if (params.thinking !== undefined && params.thinking !== false) {
+    payload.thinking = params.thinking;
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({

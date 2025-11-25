@@ -56,6 +56,7 @@ export async function identifyLanguage(text: string): Promise<string> {
         { role: "system", content: systemPrompt },
         { role: "user", content: `「${text}」` },
       ],
+      thinking: false, // Disable thinking mode
     });
 
     const content = response.choices[0]?.message?.content;
@@ -166,12 +167,14 @@ export async function translateText(
   const profiler = new TranslationProfiler();
   profiler.start();
 
-  // Note: invokeLLM uses default model (gpt-4o-mini equivalent)
+  // Note: invokeLLM uses default model (gemini-2.5-flash)
+  // Disable thinking mode for translation (we only need the direct result)
   const response = await invokeLLM({
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: text },
     ],
+    thinking: false, // Disable thinking mode to avoid verbose output
   });
 
   const content = response.choices[0]?.message?.content;

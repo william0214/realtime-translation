@@ -65,6 +65,7 @@ export default function Home() {
   const isSpeakingRef = useRef<boolean>(false);
   const vadIntervalRef = useRef<number | null>(null);
   const sentenceBufferRef = useRef<Float32Array[]>([]);
+  const processSentenceForTranslationRef = useRef<((pcmBuffer: Float32Array[]) => Promise<void>) | null>(null);
 
   // tRPC mutations
   const translateMutation = trpc.translation.autoTranslate.useMutation();
@@ -152,6 +153,19 @@ export default function Home() {
               // Display subtitle immediately
               setCurrentSubtitle(result.sourceText);
               console.log(`[Subtitle] ${result.sourceText}`);
+
+              // Check for sentence-ending punctuation (Chinese and English)
+              const sentenceEndingPattern = /[。？！；，.?!;,]$/;
+              if (sentenceEndingPattern.test(result.sourceText.trim())) {
+                console.log(`[Sentence End Detected] Triggering immediate translation`);
+                // Trigger translation immediately
+                if (processSentenceForTranslationRef.current) {
+                  processSentenceForTranslationRef.current(sentenceBufferRef.current);
+                }
+                // Reset sentence buffer
+                sentenceBufferRef.current = [];
+                lastSpeechTimeRef.current = Date.now();
+              }
             }
           } catch (error: any) {
             console.error("[Subtitle] Error:", error);
@@ -266,6 +280,11 @@ export default function Home() {
       setProcessingStatus("listening");
     }
   }, [targetLanguage, translateMutation]);
+
+  // Update ref for processSentenceForTranslation
+  useEffect(() => {
+    processSentenceForTranslationRef.current = processSentenceForTranslation;
+  }, [processSentenceForTranslation]);
 
   // Start VAD monitoring
   const startVADMonitoring = useCallback(() => {
