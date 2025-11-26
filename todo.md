@@ -363,3 +363,21 @@
 - [x] 不使用 language hint，避免影響外語識別
 - [x] 加入詳細時間日誌（Whisper + LLM + 翻譯）
 - [ ] 測試修復結果（等待用戶測試）
+
+## ✅ Whisper API 音訊太短錯誤（已修復）
+
+**錯誤訊息：**
+```
+Audio file is too short. Minimum audio length is 0.1 seconds.
+```
+
+**問題原因：**
+- VAD 偵測到短促噪音（< 0.1 秒）
+- 系統將短促音訊發送給 Whisper API
+- Whisper API 拒絕處理（最少 0.1 秒）
+
+**解決方案：**
+- [x] 在前端加入音訊長度檢查（< 0.1 秒跳過）
+- [x] 在後端加入音訊大小檢查（< 600 bytes ≈ 0.1 秒）
+- [x] 調整 VAD 最小語音長度（從 300ms 提高到 500ms）
+- [ ] 測試修復結果（等待用戶測試）

@@ -40,7 +40,7 @@ const LANGUAGE_OPTIONS = [
 const RMS_THRESHOLD = 0.08; // Voice activity detection threshold (increased to filter background noise in car)
 const SILENCE_DURATION_MS = 1000; // Silence duration to end speech segment (for translation)
 const MAX_SEGMENT_DURATION = 0.5; // OPTIMIZED: 500ms chunks for faster processing (was 1.0s)
-const MIN_SPEECH_DURATION_MS = 300; // Minimum speech duration to avoid short noise
+const MIN_SPEECH_DURATION_MS = 500; // Minimum speech duration to avoid short noise (increased to prevent Whisper API errors)
 const SAMPLE_RATE = 48000; // 48kHz
 
 export default function Home() {
@@ -253,7 +253,18 @@ export default function Home() {
   const processSentenceForTranslation = useCallback(async (pcmBuffer: Float32Array[]) => {
     if (pcmBuffer.length === 0) return;
 
-    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers`);
+    // Calculate audio duration
+    const totalSamples = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
+    const audioDuration = totalSamples / SAMPLE_RATE;
+    
+    // Skip if audio is too short (Whisper requires minimum 0.1 seconds)
+    if (audioDuration < 0.1) {
+      console.log(`[Translation] Audio too short (${audioDuration.toFixed(3)}s < 0.1s), skipping`);
+      setProcessingStatus("listening");
+      return;
+    }
+
+    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers (duration: ${audioDuration.toFixed(2)}s)`);
     setProcessingStatus("translating");
 
     try {

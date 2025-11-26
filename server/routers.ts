@@ -50,6 +50,16 @@ export const appRouter = router({
           const filename = input.filename || `audio-${Date.now()}.webm`;
 
           console.log(`[autoTranslate] Processing audio, size: ${audioBuffer.length} bytes`);
+          
+          // Estimate audio duration (WebM with Opus: ~6KB per second at 48kbps)
+          // Skip if audio is too short (< 600 bytes ≈ 0.1 seconds)
+          if (audioBuffer.length < 600) {
+            console.log(`[autoTranslate] Audio too short (${audioBuffer.length} bytes < 600 bytes), skipping`);
+            return {
+              success: false,
+              error: "Audio too short (minimum 0.1 seconds required)",
+            };
+          }
 
           // Step 1: Whisper transcription (with language detection)
           const whisperStartAt = new Date();
