@@ -297,3 +297,12 @@
 
 - [x] 台灣人對話框同時顯示中文原文和外語翻譯
 - [x] 保持外國人對話框只顯示翻譯
+
+## ✅ PORT 配置集中管理（已完成）
+
+- [x] 建立 PORT 配置文件（PORTS.md）
+- [x] 記錄所有使用的 port 和說明
+- [x] 建立 TypeScript 配置檔（shared/ports.ts）
+- [x] 建立 Go 配置檔（backend-go/ports.go）
+- [x] 更新 README.md 加入 PORT 說明
+- [x] 提供 port 衝突檢查命令

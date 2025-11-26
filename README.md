@@ -29,6 +29,32 @@
 - MySQL/TiDB（資料庫）
 - OpenAI API（Whisper、GPT、TTS）
 
+## 📋 PORT 配置
+
+**⚠️ 重要：所有 port 配置集中管理於 [`PORTS.md`](./PORTS.md)**
+
+### 當前使用的 Port
+
+| Port | 服務 | 狀態 |
+|------|------|------|
+| 3000 | Node.js App | ✅ 運行中 |
+| 8080 | Hybrid ASR | ⚠️ 保留 |
+| 8081 | Go REST API | ❌ 停用 |
+
+### Port 衝突檢查
+
+```bash
+# 檢查所有已分配的 port
+lsof -i :3000 -i :8080 -i :8081
+
+# 檢查單個 port
+lsof -i :3000
+```
+
+**詳細說明請參閱 [`PORTS.md`](./PORTS.md)**
+
+---
+
 ## 快速開始
 
 ### 環境需求
