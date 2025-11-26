@@ -398,3 +398,21 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 更新時間日誌（移除 LLM 耗時）
 - [ ] 測試中文識別準確度（等待用戶測試）
 - [ ] 測試速度提升（預期減少 0.5-1 秒）
+
+## ✅ 簡化 Smart Language Hint（已完成）
+
+**問題：**
+- 重跑機制導致 524 超時錯誤
+- 短促中文仍被誤識為英文（"Thank you."、"Bye."）
+
+**解決方案：**
+- 移除自動偵測和重跑機制
+- 直接強制 `language: "zh"`
+- 提升速度，避免超時
+
+**實作步驟：**
+- [x] 修改 translationService.ts，直接設定 `language: "zh"`
+- [x] 移除英文短詞檢測和重跑邏輯
+- [x] 簡化日誌輸出
+- [ ] 測試中文識別準確度（等待用戶測試）
+- [ ] 測試速度和穩定性（等待用戶測試）

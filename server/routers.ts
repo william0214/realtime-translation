@@ -107,7 +107,7 @@ export const appRouter = router({
           
           console.log(`\n========================================`);
           console.log(`[時間戳記] 全部完成: ${completedAt.toISOString()}`);
-          console.log(`[時間統計] Whisper (with Smart Hint): ${whisperDuration}ms`);
+          console.log(`[時間統計] Whisper (forced Chinese): ${whisperDuration}ms`);
           console.log(`[時間統計] 翻譯: ${translateDuration}ms`);
           console.log(`[時間統計] 總耗時: ${totalDuration}ms`);
           console.log(`========================================\n`);
