@@ -63,7 +63,9 @@ func NewHandlers(db *gorm.DB, cfg *config.Config) *Handlers {
 // JSONSegmentRequest represents the JSON request body
 type JSONSegmentRequest struct {
 	AudioBase64    string `json:"audio_base64"`
+	AudioData      string `json:"audio_data"` // Alternative field name
 	TargetLanguage string `json:"target_language"`
+	TargetLang     string `json:"target_lang"` // Alternative field name
 	SessionID      string `json:"session_id,omitempty"`
 }
 
@@ -85,17 +87,29 @@ func (h *Handlers) HandleSegment(c *gin.Context) {
 			return
 		}
 
-		// Decode Base64 audio
+		// Decode Base64 audio (support both field names)
 		var err error
-		audioData, err = base64.StdEncoding.DecodeString(req.AudioBase64)
+		audioBase64 := req.AudioBase64
+		if audioBase64 == "" {
+			audioBase64 = req.AudioData
+		}
+		if audioBase64 == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing audio_base64 or audio_data"})
+			return
+		}
+		audioData, err = base64.StdEncoding.DecodeString(audioBase64)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Base64 audio data"})
 			return
 		}
 
+		// Get target language (support both field names)
 		targetLang = req.TargetLanguage
 		if targetLang == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing target_language"})
+			targetLang = req.TargetLang
+		}
+		if targetLang == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing target_language or target_lang"})
 			return
 		}
 

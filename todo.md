@@ -324,3 +324,21 @@
 - [x] 區分不同環節的錯誤（ASR、翻譯、TTS、麥克風、網路）
 - [x] 特殊處理麥克風權限錯誤（NotAllowedError, NotFoundError）
 - [x] 測試各種錯誤情境（頁面正常載入）
+
+## 🐛 翻譯失敗: Failed to fetch（緊急）
+
+- [ ] 檢查開發伺服器運行狀態
+- [ ] 測試 API 端點連線
+- [ ] 檢查瀏覽器控制台詳細錯誤
+- [ ] 診斷網路連線問題
+- [ ] 修復連線問題
+- [ ] 測試修復結果
+
+## ✅ Go 後端翻譯失敗（已修復）
+
+- [x] 檢查 Go API 服務運行狀態（port 8081）
+- [x] 配置 OpenAI API 金鑰（使用真實 OpenAI API）
+- [x] 修復 API 認證問題（設定 OPENAI_BASE_URL 為 https://api.openai.com/v1）
+- [x] 修復 JSON 請求處理（支援 audio_base64 和 audio_data）
+- [x] 測試 Go 後端翻譯功能（成功，總延遲 6.16s）
+- [x] Go API 服務已啟動並暴露於 port 8081
