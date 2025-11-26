@@ -11,6 +11,7 @@ import { Download, History as HistoryIcon, Mic, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
+import { callGoTranslation } from "@/services/goBackend";
 
 type ConversationMessage = {
   id: number;
@@ -48,6 +49,14 @@ export default function Home() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  
+  // Backend selection: "nodejs" or "go"
+  const [backend, setBackend] = useState<"nodejs" | "go">(() => {
+    const saved = localStorage.getItem("translation-backend");
+    return (saved === "go" || saved === "nodejs") ? saved : "nodejs";
+  });
+  const [titleClickCount, setTitleClickCount] = useState(0);
+  const titleClickTimeoutRef = useRef<number | null>(null);
 
   // Refs
   const streamRef = useRef<MediaStream | null>(null);
@@ -69,11 +78,39 @@ export default function Home() {
   const sentenceBufferRef = useRef<Float32Array[]>([]);
   const processSentenceForTranslationRef = useRef<((pcmBuffer: Float32Array[]) => Promise<void>) | null>(null);
 
-  // tRPC mutations
+  // tRPC mutations (for Node.js backend)
   const translateMutation = trpc.translation.autoTranslate.useMutation();
   const createConversationMutation = trpc.conversation.create.useMutation();
   const saveTranslationMutation = trpc.conversation.saveTranslation.useMutation();
   const endConversationMutation = trpc.conversation.end.useMutation();
+
+  // Handle title click for backend switching (3 clicks within 2 seconds)
+  const handleTitleClick = () => {
+    const newCount = titleClickCount + 1;
+    setTitleClickCount(newCount);
+
+    if (titleClickTimeoutRef.current) {
+      clearTimeout(titleClickTimeoutRef.current);
+    }
+
+    if (newCount >= 3) {
+      // Toggle backend
+      const newBackend = backend === "nodejs" ? "go" : "nodejs";
+      setBackend(newBackend);
+      localStorage.setItem("translation-backend", newBackend);
+      toast.success(`已切換到 ${newBackend === "nodejs" ? "Node.js" : "Go"} 後端`);
+      setTitleClickCount(0);
+    } else {
+      titleClickTimeoutRef.current = window.setTimeout(() => {
+        setTitleClickCount(0);
+      }, 2000);
+    }
+  };
+
+  // Show backend indicator
+  useEffect(() => {
+    console.log(`[Backend] Current backend: ${backend}`);
+  }, [backend]);
 
   // Check audio level (VAD)
   const checkAudioLevel = useCallback(() => {
@@ -148,11 +185,18 @@ export default function Home() {
           const base64Audio = (reader.result as string).split(",")[1];
 
           try {
-            const result = await translateMutation.mutateAsync({
-              audioBase64: base64Audio,
-              filename: `subtitle-${Date.now()}.webm`,
-              preferredTargetLang: targetLanguage,
-            });
+            // Call backend based on selection
+            const result = backend === "nodejs"
+              ? await translateMutation.mutateAsync({
+                  audioBase64: base64Audio,
+                  filename: `subtitle-${Date.now()}.webm`,
+                  preferredTargetLang: targetLanguage,
+                })
+              : await callGoTranslation({
+                  audioBase64: base64Audio,
+                  filename: `subtitle-${Date.now()}.webm`,
+                  preferredTargetLang: targetLanguage,
+                });
 
             if (result.success && result.sourceText) {
               // Display subtitle immediately
@@ -240,11 +284,18 @@ export default function Home() {
           const base64Audio = (reader.result as string).split(",")[1];
 
           try {
-            const result = await translateMutation.mutateAsync({
-              audioBase64: base64Audio,
-              filename: `translation-${Date.now()}.webm`,
-              preferredTargetLang: targetLanguage,
-            });
+            // Call backend based on selection
+            const result = backend === "nodejs"
+              ? await translateMutation.mutateAsync({
+                  audioBase64: base64Audio,
+                  filename: `translation-${Date.now()}.webm`,
+                  preferredTargetLang: targetLanguage,
+                })
+              : await callGoTranslation({
+                  audioBase64: base64Audio,
+                  filename: `translation-${Date.now()}.webm`,
+                  preferredTargetLang: targetLanguage,
+                });
 
             if (result.success && result.sourceText && result.translatedText) {
               const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
@@ -556,7 +607,16 @@ export default function Home() {
       {/* Header */}
       <header className="border-b border-gray-800 p-3 md:p-4">
         <div className="container mx-auto flex items-center justify-between">
-          <h1 className="text-lg md:text-2xl font-bold">即時雙向翻譯系統</h1>
+          <h1 
+            className="text-lg md:text-2xl font-bold cursor-pointer select-none relative"
+            onClick={handleTitleClick}
+            title="連點三次切換後端"
+          >
+            即時雙向翻譯系統
+            <span className="ml-2 text-xs opacity-50">
+              {backend === "nodejs" ? "(Node.js)" : "(Go)"}
+            </span>
+          </h1>
           <div className="flex items-center gap-2 md:gap-4">
             <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>
               <SelectTrigger className="w-[120px] md:w-[180px] bg-gray-900 border-gray-700 text-sm md:text-base">
