@@ -255,3 +255,13 @@
 - [x] 優化音訊格式（chunk 從 1.0s 改為 0.5s，已使用 WebM 而非 WAV）
 - [x] 測試優化後的延遲（目標：< 2-3 秒）
 - [x] 驗證效能提升：總延遲從 4.4s 降至 2.0-2.3s，翻譯從 3.8-4.2s 降至 1.0-1.5s（減少 50-60%）
+
+## 🐛 Hybrid ASR WebSocket 連線錯誤修復（緊急）
+- [x] 檢查 Go 後端伺服器狀態（正常運行）
+- [x] 檢查 WebSocket 端點配置（/ws/hybrid-asr）
+- [x] 檢查前端 WebSocket URL（硬編碼 localhost）
+- [x] 暴露 Go 後端 port 8080
+- [x] 設定 VITE_HYBRID_ASR_WS_URL 環境變數
+- [x] 修改 Home.tsx 使用環境變數
+- [x] 重啟開發伺服器套用配置
+- [x] 測試 Hybrid 模式連線（WebSocket 端點可訪問）

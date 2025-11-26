@@ -452,8 +452,12 @@ export default function Home() {
   const startHybridRecording = useCallback(async () => {
     try {
       // Create Hybrid ASR client
+      // Use environment variable or default to localhost for development
+      const wsUrl = import.meta.env.VITE_HYBRID_ASR_WS_URL || "ws://localhost:8080/ws/hybrid-asr";
+      console.log('[Hybrid] Using WebSocket URL:', wsUrl);
+      
       const client = new HybridASRClient(
-        "ws://localhost:8080/ws/hybrid-asr",
+        wsUrl,
         "default",
         "hybrid"
       );
