@@ -151,3 +151,17 @@
 
 ### 長期目標（3-6 個月）
 - 總延遲：< 2000ms（減少 50%）
+
+## ✅ Hybrid ASR 模式實作（已完成）
+- [x] 實作 HybridASRHandler 核心邏輯
+- [x] 實作音訊 chunk 累積器
+- [x] 實作 partial transcript（streaming Whisper）
+- [x] 實作 final transcript（segment Whisper + Translation + TTS）
+- [x] 實作 Go routines 並行處理
+- [x] 實作 VAD 句子結束偵測
+- [x] 實作 WebSocket handler
+- [x] 實作 WebSocket 訊息格式
+- [x] 建立主程式（main_hybrid.go）
+- [x] 撰寫完整使用文件（HYBRID_ASR_GUIDE.md）
+- [ ] 測試 hybrid 模式
+- [ ] 前端整合
