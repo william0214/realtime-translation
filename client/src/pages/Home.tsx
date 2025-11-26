@@ -892,7 +892,8 @@ export default function Home() {
                 .map((msg) => (
                   <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
                     <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium text-sm md:text-base">{msg.originalText}</div>
+                    <div className="font-medium text-sm md:text-base mb-1">{msg.originalText}</div>
+                    <div className="text-xs md:text-sm text-gray-400">→ {msg.translatedText}</div>
                   </div>
                 ))}
             </div>

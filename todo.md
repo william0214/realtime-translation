@@ -272,4 +272,28 @@
 - [x] 檢查 determineDirection 函數的語言判斷邏輯（後端正確）
 - [x] 檢查翻譯方向邏輯（後端正確）
 - [x] 修復顯示邏輯（台灣人顯示 originalText，外國人顯示 translatedText）
-- [ ] 測試修復結果
+- [x] 測試修復結果（使用實際音檔測試，雙向翻譯正確顯示）
+
+## 🚀 Hybrid 模式整合測試（進行中）
+
+- [x] 檢查 Go 後端運行狀態（port 8080）
+- [x] 測試 WebSocket 連線功能
+- [x] 測試即時字幕功能（partial transcript）- 成功但延遲 2.5s
+- [ ] 修復 Partial Transcript 延遲問題（目標 < 0.2s）
+- [ ] 測試完整翻譯功能（final transcript + TTS）- 需要即時音訊流
+- [ ] 前端整合測試（瀏覽器實際錄音）
+- [ ] 驗證效能目標（partial < 0.2s, final < 1s）
+- [ ] 建立測試報告
+
+## ⚠️ Go 後端翻譯功能問題（已暫停）
+
+- [x] 檢查 Go 後端 API 運行狀態
+- [x] 修改 HandleSegment 支援 JSON 格式（Base64 音檔）
+- [x] 診斷翻譯失敗原因（OpenAI API 認證問題）
+- [ ] 待解決：Go 後端需要真實 OpenAI API 金鑰配置
+- [ ] 建議：優先使用 Node.js 後端或 Hybrid 模式
+
+## ✅ 恢復台灣人對話框翻譯顯示（已完成）
+
+- [x] 台灣人對話框同時顯示中文原文和外語翻譯
+- [x] 保持外國人對話框只顯示翻譯

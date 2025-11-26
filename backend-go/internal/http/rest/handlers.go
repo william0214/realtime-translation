@@ -1,9 +1,11 @@
 package rest
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"realtime-translation-backend/internal/asr"
@@ -58,43 +60,87 @@ func NewHandlers(db *gorm.DB, cfg *config.Config) *Handlers {
 }
 
 // HandleSegment processes a complete audio segment: ASR → Detect → Translate → TTS
+// JSONSegmentRequest represents the JSON request body
+type JSONSegmentRequest struct {
+	AudioBase64    string `json:"audio_base64"`
+	TargetLanguage string `json:"target_language"`
+	SessionID      string `json:"session_id,omitempty"`
+}
+
 func (h *Handlers) HandleSegment(c *gin.Context) {
 	startTime := time.Now()
 
-	// Parse multipart form
-	if err := c.Request.ParseMultipartForm(16 << 20); err != nil { // 16 MB max
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse multipart form"})
-		return
-	}
-
-	// Get audio file
-	file, _, err := c.Request.FormFile("audio")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing audio file"})
-		return
-	}
-	defer file.Close()
-
-	audioData, err := io.ReadAll(file)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read audio file"})
-		return
-	}
-
-	// Get target language
-	targetLang := c.PostForm("target_lang")
-	if targetLang == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing target_lang"})
-		return
-	}
-
-	// Get optional session_id
-	sessionIDStr := c.PostForm("session_id")
+	var audioData []byte
+	var targetLang string
 	var sessionID *uuid.UUID
-	if sessionIDStr != "" {
-		parsed, err := uuid.Parse(sessionIDStr)
-		if err == nil {
-			sessionID = &parsed
+
+	// Check Content-Type to determine parsing method
+	contentType := c.GetHeader("Content-Type")
+
+	if strings.Contains(contentType, "application/json") {
+		// Parse JSON request
+		var req JSONSegmentRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON request"})
+			return
+		}
+
+		// Decode Base64 audio
+		var err error
+		audioData, err = base64.StdEncoding.DecodeString(req.AudioBase64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Base64 audio data"})
+			return
+		}
+
+		targetLang = req.TargetLanguage
+		if targetLang == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing target_language"})
+			return
+		}
+
+		// Parse session_id if provided
+		if req.SessionID != "" {
+			parsed, err := uuid.Parse(req.SessionID)
+			if err == nil {
+				sessionID = &parsed
+			}
+		}
+	} else {
+		// Parse multipart form (legacy support)
+		if err := c.Request.ParseMultipartForm(16 << 20); err != nil { // 16 MB max
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse multipart form"})
+			return
+		}
+
+		// Get audio file
+		file, _, err := c.Request.FormFile("audio")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing audio file"})
+			return
+		}
+		defer file.Close()
+
+		audioData, err = io.ReadAll(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read audio file"})
+			return
+		}
+
+		// Get target language
+		targetLang = c.PostForm("target_lang")
+		if targetLang == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing target_lang"})
+			return
+		}
+
+		// Get optional session_id
+		sessionIDStr := c.PostForm("session_id")
+		if sessionIDStr != "" {
+			parsed, err := uuid.Parse(sessionIDStr)
+			if err == nil {
+				sessionID = &parsed
+			}
 		}
 	}
 

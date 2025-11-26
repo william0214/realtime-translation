@@ -155,13 +155,11 @@ func createASRProvider(config ProviderConfig) (ASRService, error) {
 	switch config.Type {
 	case ProviderOpenAIASR:
 		return NewOpenAIASRProvider(config)
-	case ProviderGoogleASR:
-		return NewGoogleASRProvider(config)
 	case ProviderManusASR:
 		// TODO: Implement Manus ASR provider
 		return nil, fmt.Errorf("Manus ASR provider not yet implemented")
 	default:
-		return nil, fmt.Errorf("unknown ASR provider type: %s", config.Type)
+		return nil, fmt.Errorf("unknown ASR provider type: %s (only OpenAI supported currently)", config.Type)
 	}
 }
 
@@ -172,12 +170,8 @@ func createTranslationProvider(config ProviderConfig) (TranslationService, error
 		return NewOpenAITranslationProvider(config)
 	case ProviderGoogleTranslation:
 		return NewGoogleTranslationProvider(config)
-	case ProviderAzureTranslation:
-		return NewAzureTranslationProvider(config)
-	case ProviderDeepLTranslation:
-		return NewDeepLTranslationProvider(config)
 	default:
-		return nil, fmt.Errorf("unknown translation provider type: %s", config.Type)
+		return nil, fmt.Errorf("unknown translation provider type: %s (only OpenAI and Google supported currently)", config.Type)
 	}
 }
 
@@ -186,12 +180,8 @@ func createTTSProvider(config ProviderConfig) (TTSService, error) {
 	switch config.Type {
 	case ProviderOpenAITTS:
 		return NewOpenAITTSProvider(config)
-	case ProviderAzureTTS:
-		return NewAzureTTSProvider(config)
-	case ProviderGoogleTTS:
-		return NewGoogleTTSProvider(config)
 	default:
-		return nil, fmt.Errorf("unknown TTS provider type: %s", config.Type)
+		return nil, fmt.Errorf("unknown TTS provider type: %s (only OpenAI supported currently)", config.Type)
 	}
 }
 
