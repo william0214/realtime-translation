@@ -39,8 +39,8 @@ const LANGUAGE_OPTIONS = [
 // Settings
 const RMS_THRESHOLD = 0.08; // Voice activity detection threshold (increased to filter background noise in car)
 const SILENCE_DURATION_MS = 1000; // Silence duration to end speech segment (for translation)
-const MAX_SEGMENT_DURATION = 1.0; // Maximum segment duration in seconds (for Whisper)
-const MIN_SPEECH_DURATION_MS = 300; // Minimum speech duration to avoid short noise (new)
+const MAX_SEGMENT_DURATION = 0.5; // OPTIMIZED: 500ms chunks for faster processing (was 1.0s)
+const MIN_SPEECH_DURATION_MS = 300; // Minimum speech duration to avoid short noise
 const SAMPLE_RATE = 48000; // 48kHz
 
 export default function Home() {

@@ -137,54 +137,34 @@ export async function transcribeAudio(
 }
 
 /**
- * Translate text using OpenAI GPT (OPTIMIZED FOR SPEED)
+ * Translate text using configurable Provider architecture
+ * 
+ * OPTIMIZED FOR SPEED:
+ * - Minimal prompt (reduced tokens)
+ * - Default model: gpt-4o-mini (faster)
+ * - Disabled thinking mode
  */
 export async function translateText(
   text: string,
   sourceLang: string,
   targetLang: string
 ): Promise<{ translatedText: string; translationProfile?: any }> {
-  const languageNames: Record<string, string> = {
-    zh: "中文",
-    vi: "越南語",
-    id: "印尼語",
-    tl: "菲律賓語",
-    fil: "菲律賓語",
-    en: "英文",
-    it: "義大利語",
-    ja: "日文",
-    ko: "韓文",
-    th: "泰文",
-  };
-
-  const sourceLanguageName = languageNames[sourceLang] || sourceLang;
-  const targetLanguageName = languageNames[targetLang] || targetLang;
-
-  const systemPrompt = `你是專業翻譯。將${sourceLanguageName}翻譯成${targetLanguageName}。只回傳翻譯結果，不要解釋。`;
-
   // Start Translation profiling
   const { TranslationProfiler } = await import("./profiler/translationProfiler");
   const profiler = new TranslationProfiler();
   profiler.start();
 
-  // Note: invokeLLM uses default model (gemini-2.5-flash)
-  // Disable thinking mode for translation (we only need the direct result)
-  const response = await invokeLLM({
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: text },
-    ],
-    thinking: false, // Disable thinking mode to avoid verbose output
-  });
-
-  const content = response.choices[0]?.message?.content;
-  const translatedText = typeof content === "string" ? content : "";
+  // Use new Provider architecture
+  const { translate, getDefaultTranslationConfig } = await import("./translationProviders");
+  const config = getDefaultTranslationConfig();
+  
+  const result = await translate(text, sourceLang, targetLang, config);
 
   // End Translation profiling
-  const translationProfile = profiler.end(text, sourceLang, targetLang, "gpt-4o-mini");
-  console.log(`[Translation Profiler] Duration: ${translationProfile.duration.toFixed(0)}ms`);
+  const translationProfile = profiler.end(text, sourceLang, targetLang, result.model);
+  console.log(`[Translation Profiler] Provider: ${result.provider}, Model: ${result.model}, Duration: ${result.duration}ms`);
 
-  return { translatedText: translatedText.trim(), translationProfile };
+  return { translatedText: result.translatedText, translationProfile };
 }
 
 /**
