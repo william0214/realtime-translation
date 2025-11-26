@@ -95,6 +95,7 @@ export async function transcribeAudio(
   const profiler = new ASRProfiler();
   profiler.start();
 
+  // First attempt: Auto-detect language
   const form = new FormData();
   form.append("file", audioBuffer, {
     filename,
@@ -103,7 +104,7 @@ export async function transcribeAudio(
   form.append("model", "whisper-1");
   form.append("response_format", "json");
   form.append("temperature", "0");
-  // Note: Do NOT add language hint here, as it would break foreign language detection
+  // Note: No language hint on first attempt (auto-detect)
 
   try {
     const response = await axios.post(
@@ -117,9 +118,48 @@ export async function transcribeAudio(
       }
     );
 
-    const text = response.data.text || "";
-    const language = response.data.language || "zh"; // Whisper returns ISO-639-1 language code
-    console.log(`[Whisper] Transcript: "${text}", Language: ${language}`);
+    let text = response.data.text || "";
+    let language = response.data.language || "zh"; // Whisper returns ISO-639-1 language code
+    console.log(`[Whisper] First attempt - Transcript: "${text}", Language: ${language}`);
+
+    // Smart Language Hint: If result is English and short (< 4 words), retry with forced Chinese
+    const isEnglish = /^[a-zA-Z\s!?.,'"-]+$/.test(text.trim());
+    const wordCount = text.trim().split(/\s+/).length;
+    
+    if (isEnglish && wordCount < 4) {
+      console.log(`[Whisper] Detected short English phrase (${wordCount} words), retrying with forced Chinese...`);
+      
+      // Retry with forced Chinese
+      const retryForm = new FormData();
+      retryForm.append("file", audioBuffer, {
+        filename,
+        contentType: "audio/webm",
+      });
+      retryForm.append("model", "whisper-1");
+      retryForm.append("response_format", "json");
+      retryForm.append("temperature", "0");
+      retryForm.append("language", "zh"); // Force Chinese
+      
+      try {
+        const retryResponse = await axios.post(
+          "https://api.openai.com/v1/audio/transcriptions",
+          retryForm,
+          {
+            headers: {
+              ...retryForm.getHeaders(),
+              Authorization: `Bearer ${apiKey}`,
+            },
+          }
+        );
+        
+        text = retryResponse.data.text || text;
+        language = retryResponse.data.language || "zh";
+        console.log(`[Whisper] Retry result - Transcript: "${text}", Language: ${language}`);
+      } catch (retryError) {
+        console.error(`[Whisper] Retry failed, using original result:`, retryError);
+        // Keep original result if retry fails
+      }
+    }
 
     // End ASR profiling
     const audioDuration = 1.0; // Estimated, can be calculated from buffer if needed

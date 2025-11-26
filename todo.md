@@ -381,3 +381,20 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 在後端加入音訊大小檢查（< 600 bytes ≈ 0.1 秒）
 - [x] 調整 VAD 最小語音長度（從 300ms 提高到 500ms）
 - [ ] 測試修復結果（等待用戶測試）
+
+## ✅ 單人模式 Smart Language Hint（已完成）
+
+**需求：**
+- 單人使用（Nurse 模式）
+- Whisper 預設使用 `language: "zh"`
+- 如果結果是英文且 < 4 字，重跑一次
+- 移除 LLM 語言偵測（提升速度）
+
+**實作步驟：**
+- [x] 修改 translationService.ts，Whisper API 第一次自動偵測
+- [x] 實作英文短詞檢測邏輯（< 4 字且是英文）
+- [x] 實作 Whisper 重跑機制（第二次加上 `language: "zh"`）
+- [x] 移除 routers.ts 中的 LLM 語言偵測
+- [x] 更新時間日誌（移除 LLM 耗時）
+- [ ] 測試中文識別準確度（等待用戶測試）
+- [ ] 測試速度提升（預期減少 0.5-1 秒）
