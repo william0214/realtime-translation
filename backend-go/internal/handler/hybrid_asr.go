@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"realtime-translation/internal/provider"
+	"realtime-translation-backend/internal/provider"
 )
 
 // HybridASRMode defines the ASR mode

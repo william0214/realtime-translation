@@ -165,3 +165,21 @@
 - [x] 撰寫完整使用文件（HYBRID_ASR_GUIDE.md）
 - [ ] 測試 hybrid 模式
 - [ ] 前端整合
+
+## ✅ 前端 WebSocket 客戶端整合（已完成）
+- [x] 建立 HybridASRClient 類別
+- [x] 實作 WebSocket 連線管理
+- [x] 實作音訊錄製和傳送
+- [x] 實作 partial transcript 處理
+- [x] 實作 final transcript 處理
+- [x] 整合到 Home.tsx
+- [x] 顯示即時字幕和完整翻譯
+- [x] 播放 TTS 音訊
+- [x] 支援三種後端切換（Node.js / Go / Hybrid）
+- [x] 顯示 Hybrid 連線狀態
+- [x] 啟動 Go 後端伺服器
+- [x] 修復 Provider 初始化問題
+- [x] 配置環境變數和 API key
+- [x] 伺服器成功運行在 port 8080
+- [ ] 測試 Hybrid 模式
+- [ ] 優化 VAD 參數配置

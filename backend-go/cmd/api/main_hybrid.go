@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"realtime-translation/internal/handler"
-	"realtime-translation/internal/provider"
+	"realtime-translation-backend/internal/handler"
+	"realtime-translation-backend/internal/provider"
 )
 
 func main() {
@@ -44,11 +44,6 @@ func main() {
 	
 	// Status endpoint
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		status := map[string]interface{}{
-			"active_connections": wsHandler.GetConnectionCount(),
-			"provider_health":    manager.HealthCheck(r.Context()),
-		}
-		
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		

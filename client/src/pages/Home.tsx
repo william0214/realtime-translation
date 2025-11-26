@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import { callGoTranslation } from "@/services/goBackend";
+import { HybridASRClient } from "@/services/hybridASRClient";
 
 type ConversationMessage = {
   id: number;
@@ -51,11 +52,16 @@ export default function Home() {
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   
-  // Backend selection: "nodejs" or "go"
-  const [backend, setBackend] = useState<"nodejs" | "go">(() => {
+  // Backend selection: "nodejs" | "go" | "hybrid"
+  const [backend, setBackend] = useState<"nodejs" | "go" | "hybrid">(() => {
     const saved = localStorage.getItem("translation-backend");
-    return (saved === "go" || saved === "nodejs") ? saved : "nodejs";
+    return (saved === "go" || saved === "nodejs" || saved === "hybrid") ? saved : "nodejs";
   });
+  
+  // Hybrid ASR client
+  const hybridClientRef = useRef<HybridASRClient | null>(null);
+  const [isHybridConnected, setIsHybridConnected] = useState(false);
+  const [partialSubtitle, setPartialSubtitle] = useState<string>("");
   const [titleClickCount, setTitleClickCount] = useState(0);
   const titleClickTimeoutRef = useRef<number | null>(null);
 
@@ -96,11 +102,19 @@ export default function Home() {
     }
 
     if (newCount >= 3) {
-      // Toggle backend
-      const newBackend = backend === "nodejs" ? "go" : "nodejs";
+      // Toggle backend: nodejs → go → hybrid → nodejs
+      let newBackend: "nodejs" | "go" | "hybrid";
+      if (backend === "nodejs") {
+        newBackend = "go";
+      } else if (backend === "go") {
+        newBackend = "hybrid";
+      } else {
+        newBackend = "nodejs";
+      }
       setBackend(newBackend);
       localStorage.setItem("translation-backend", newBackend);
-      toast.success(`已切換到 ${newBackend === "nodejs" ? "Node.js" : "Go"} 後端`);
+      const backendName = newBackend === "nodejs" ? "Node.js" : newBackend === "go" ? "Go" : "Hybrid ASR";
+      toast.success(`已切換到 ${backendName} 後端`);
       setTitleClickCount(0);
     } else {
       titleClickTimeoutRef.current = window.setTimeout(() => {
@@ -434,10 +448,153 @@ export default function Home() {
     }
   }, []);
 
+  // Start Hybrid ASR recording
+  const startHybridRecording = useCallback(async () => {
+    try {
+      // Create Hybrid ASR client
+      const client = new HybridASRClient(
+        "ws://localhost:8080/ws/hybrid-asr",
+        "default",
+        "hybrid"
+      );
+
+      // Set callbacks
+      client.onPartialTranscript = (data) => {
+        console.log(`[Hybrid Partial] ${data.transcript} (${data.latency_ms}ms)`);
+        setPartialSubtitle(data.transcript);
+        setCurrentSubtitle(data.transcript);
+      };
+
+      client.onFinalTranscript = (data) => {
+        console.log(`[Hybrid Final] ${data.transcript} → ${data.translation} (${data.total_latency_ms}ms)`);
+        
+        // Add to conversation
+        const newMessage: ConversationMessage = {
+          id: ++messageIdRef.current,
+          speaker: data.detected_lang === "zh" || data.detected_lang === "zh-TW" ? "nurse" : "patient",
+          originalText: data.transcript,
+          translatedText: data.translation,
+          detectedLanguage: data.detected_lang,
+          timestamp: new Date(),
+        };
+        
+        setConversations((prev) => [...prev, newMessage]);
+        setPartialSubtitle("");
+        setCurrentSubtitle("");
+        
+        // Play TTS audio
+        if (data.tts_audio_data) {
+          client.playAudio(data.tts_audio_data);
+        }
+      };
+
+      client.onError = (error) => {
+        console.error(`[Hybrid Error] ${error}`);
+        toast.error(`Hybrid ASR 錯誤: ${error}`);
+      };
+
+      client.onConnected = () => {
+        console.log("[Hybrid] Connected to WebSocket");
+        setIsHybridConnected(true);
+        toast.success("已連接到 Hybrid ASR 伺服器");
+      };
+
+      client.onDisconnected = () => {
+        console.log("[Hybrid] Disconnected from WebSocket");
+        setIsHybridConnected(false);
+      };
+
+      // Connect to WebSocket
+      await client.connect();
+      hybridClientRef.current = client;
+
+      // Start audio capture
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: SAMPLE_RATE,
+        },
+      });
+      streamRef.current = stream;
+
+      // Setup Web Audio API
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+        sampleRate: SAMPLE_RATE,
+      });
+      const source = audioContext.createMediaStreamSource(stream);
+      audioContextRef.current = audioContext;
+
+      // Setup AudioWorklet
+      await audioContext.audioWorklet.addModule("/audio-processor.js");
+      const audioWorkletNode = new AudioWorkletNode(audioContext, "audio-capture-processor");
+
+      audioWorkletNode.port.onmessage = (event) => {
+        if (event.data.type === "audioData" && client.isConnected()) {
+          // Convert Float32Array to ArrayBuffer and send to WebSocket
+          const pcmData = event.data.data as Float32Array;
+          const buffer = pcmData.buffer.slice(0) as ArrayBuffer;
+          client.sendAudioChunk(buffer, SAMPLE_RATE, "pcm");
+        }
+      };
+
+      source.connect(audioWorkletNode);
+      audioWorkletNode.connect(audioContext.destination);
+      audioWorkletNodeRef.current = audioWorkletNode;
+
+      setIsRecording(true);
+      setProcessingStatus("listening");
+      toast.success("開始 Hybrid ASR 錄音");
+    } catch (error: any) {
+      console.error("[Hybrid] Error starting recording:", error);
+      toast.error(`無法啟動 Hybrid ASR: ${error.message}`);
+    }
+  }, [targetLanguage]);
+
+  // Stop Hybrid ASR recording
+  const stopHybridRecording = useCallback(() => {
+    console.log("[Hybrid] Stopping recording");
+
+    if (hybridClientRef.current) {
+      hybridClientRef.current.stop();
+      hybridClientRef.current.disconnect();
+      hybridClientRef.current = null;
+    }
+
+    if (audioWorkletNodeRef.current) {
+      audioWorkletNodeRef.current.disconnect();
+      audioWorkletNodeRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    setIsHybridConnected(false);
+    setPartialSubtitle("");
+    setCurrentSubtitle("");
+    setProcessingStatus("idle");
+    setIsRecording(false);
+    toast.success("停止 Hybrid ASR 錄音");
+  }, []);
+
   // Start recording
   const startRecording = useCallback(async () => {
     try {
-      // Create a new conversation session
+      // If using Hybrid mode, connect to WebSocket
+      if (backend === "hybrid") {
+        await startHybridRecording();
+        return;
+      }
+
+      // Create a new conversation session (for Node.js/Go backends)
       const conversationResult = await createConversationMutation.mutateAsync({
         targetLanguage,
         title: `對話 - ${new Date().toLocaleString("zh-TW")}`,
@@ -508,6 +665,13 @@ export default function Home() {
   // Stop recording
   const stopRecording = useCallback(() => {
     console.log("[stopRecording] Stopping recording");
+    
+    // If using Hybrid mode, stop Hybrid recording
+    if (backend === "hybrid") {
+      stopHybridRecording();
+      return;
+    }
+    
     stopVADMonitoring();
 
     if (audioWorkletNodeRef.current) {
@@ -628,8 +792,13 @@ export default function Home() {
           >
             即時雙向翻譯系統
             <span className="ml-2 text-xs opacity-50">
-              {backend === "nodejs" ? "(Node.js)" : "(Go)"}
+              {backend === "nodejs" ? "(Node.js)" : backend === "go" ? "(Go)" : "(Hybrid)"}
             </span>
+            {backend === "hybrid" && isHybridConnected && (
+              <span className="ml-2 text-xs text-green-400 animate-pulse">
+                • 已連接
+              </span>
+            )}
           </h1>
           <div className="flex items-center gap-2 md:gap-4">
             <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>

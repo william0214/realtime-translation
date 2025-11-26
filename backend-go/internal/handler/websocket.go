@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"realtime-translation/internal/provider"
+	"realtime-translation-backend/internal/provider"
 )
 
 var upgrader = websocket.Upgrader{
