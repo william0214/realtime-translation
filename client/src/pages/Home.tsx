@@ -21,6 +21,7 @@ type ConversationMessage = {
   translatedText: string;
   detectedLanguage: string;
   timestamp: Date;
+  status: "partial" | "final" | "translated";
 };
 
 type ProcessingStatus = "idle" | "listening" | "vad-detected" | "recognizing" | "translating" | "speaking";
@@ -37,10 +38,11 @@ const LANGUAGE_OPTIONS = [
 ];
 
 // Settings
-const RMS_THRESHOLD = 0.08; // Voice activity detection threshold (increased to filter background noise in car)
-const SILENCE_DURATION_MS = 1000; // Silence duration to end speech segment (for translation)
-const MAX_SEGMENT_DURATION = 0.5; // OPTIMIZED: 500ms chunks for faster processing (was 1.0s)
-const MIN_SPEECH_DURATION_MS = 500; // Minimum speech duration to avoid short noise (increased to prevent Whisper API errors)
+const RMS_THRESHOLD = 0.08; // Voice activity detection threshold (-50dB equivalent)
+const SILENCE_DURATION_MS = 400; // Silence duration to end speech segment (VAD requirement)
+const MIN_SPEECH_DURATION_MS = 200; // Minimum speech duration to start partial (VAD minActive)
+const PARTIAL_CHUNK_INTERVAL_MS = 300; // Partial chunk interval (250-350ms)
+const MAX_SEGMENT_DURATION = 0.5; // Maximum segment duration for chunking
 const SAMPLE_RATE = 48000; // 48kHz
 
 export default function Home() {
@@ -64,6 +66,11 @@ export default function Home() {
   const [partialSubtitle, setPartialSubtitle] = useState<string>("");
   const [titleClickCount, setTitleClickCount] = useState(0);
   const titleClickTimeoutRef = useRef<number | null>(null);
+  
+  // Partial transcript state
+  const partialMessageIdRef = useRef<number | null>(null); // Track current partial message ID
+  const lastPartialTimeRef = useRef<number>(0); // Track last partial push time
+  const partialIntervalRef = useRef<number | null>(null); // Interval for partial pushes
 
   // Refs
   const streamRef = useRef<MediaStream | null>(null);
@@ -150,8 +157,8 @@ export default function Home() {
     return rms > RMS_THRESHOLD;
   }, []);
 
-  // Process 1-second chunk for immediate subtitle
-  const processChunkForSubtitle = useCallback(async (pcmBuffer: Float32Array[]) => {
+  // Process partial chunk for immediate subtitle (250-350ms, update same message, no translation)
+  const processPartialChunk = useCallback(async (pcmBuffer: Float32Array[]) => {
     if (pcmBuffer.length === 0) return;
 
     console.log(`[Subtitle] Processing chunk with ${pcmBuffer.length} PCM buffers`);
@@ -215,22 +222,33 @@ export default function Home() {
                 });
 
             if (result.success && result.sourceText) {
-              // Display subtitle immediately
-              setCurrentSubtitle(result.sourceText);
-              console.log(`[Subtitle] ${result.sourceText}`);
-
-              // Check for sentence-ending punctuation (Chinese and English)
-              const sentenceEndingPattern = /[。？！；，.?!;,]$/;
-              if (sentenceEndingPattern.test(result.sourceText.trim())) {
-                console.log(`[Sentence End Detected] Triggering immediate translation`);
-                // Trigger translation immediately
-                if (processSentenceForTranslationRef.current) {
-                  processSentenceForTranslationRef.current(sentenceBufferRef.current);
-                }
-                // Reset sentence buffer
-                sentenceBufferRef.current = [];
-                lastSpeechTimeRef.current = Date.now();
+              // Update partial message (same message, no translation)
+              if (partialMessageIdRef.current === null) {
+                // Create new partial message
+                const newPartialMessage: ConversationMessage = {
+                  id: messageIdRef.current++,
+                  speaker: "nurse", // Assume nurse for now (can be enhanced later)
+                  originalText: result.sourceText,
+                  translatedText: "",
+                  detectedLanguage: "zh",
+                  timestamp: new Date(),
+                  status: "partial",
+                };
+                partialMessageIdRef.current = newPartialMessage.id;
+                setConversations((prev) => [...prev, newPartialMessage]);
+                console.log(`[Partial] Created partial message #${newPartialMessage.id}: "${result.sourceText}"`);
+              } else {
+                // Update existing partial message
+                setConversations((prev) =>
+                  prev.map((msg) =>
+                    msg.id === partialMessageIdRef.current
+                      ? { ...msg, originalText: result.sourceText || "", timestamp: new Date() }
+                      : msg
+                  )
+                );
+                console.log(`[Partial] Updated partial message #${partialMessageIdRef.current}: "${result.sourceText}"`);
               }
+              setCurrentSubtitle(result.sourceText);
             }
           } catch (error: any) {
             console.error("[Subtitle] Error:", error);
@@ -249,8 +267,8 @@ export default function Home() {
     }
   }, [targetLanguage, translateMutation]);
 
-  // Process VAD-based sentence for translation
-  const processSentenceForTranslation = useCallback(async (pcmBuffer: Float32Array[]) => {
+  // Process final transcript (覆蓋 partial) + 非阻塞翻譯
+  const processFinalTranscript = useCallback(async (pcmBuffer: Float32Array[]) => {
     if (pcmBuffer.length === 0) return;
 
     // Calculate audio duration
@@ -324,34 +342,66 @@ export default function Home() {
                   preferredTargetLang: targetLanguage,
                 });
 
-            if (result.success && result.sourceText && result.translatedText) {
+            if (result.success && result.sourceText) {
               const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
-              const newMessage: ConversationMessage = {
-                id: messageIdRef.current++,
-                speaker,
-                originalText: result.sourceText,
-                translatedText: result.translatedText,
-                detectedLanguage: result.sourceLang || "unknown",
-                timestamp: new Date(),
-              };
-
-              setConversations((prev) => [...prev, newMessage]);
-              setCurrentSubtitle(""); // Clear subtitle after translation
-              console.log(`[Translation] Added message:`, newMessage);
-              setProcessingStatus("listening");
-
-              // Save translation to database
-              if (currentConversationId) {
-                saveTranslationMutation.mutate({
-                  conversationId: currentConversationId,
-                  direction: result.direction!,
-                  sourceLang: result.sourceLang || "unknown",
-                  targetLang: result.targetLang || targetLanguage,
-                  sourceText: result.sourceText,
-                  translatedText: result.translatedText,
-                });
-                console.log(`[Conversation] Saved translation to conversation ID: ${currentConversationId}`);
+              
+              // Step 1: Update partial message to final (覆蓋 partial)
+              if (partialMessageIdRef.current !== null) {
+                setConversations((prev) =>
+                  prev.map((msg) =>
+                    msg.id === partialMessageIdRef.current
+                      ? { ...msg, originalText: result.sourceText || "", status: "final" as const, timestamp: new Date() }
+                      : msg
+                  )
+                );
+                console.log(`[Final] Updated partial #${partialMessageIdRef.current} to final: "${result.sourceText}"`);
+                partialMessageIdRef.current = null; // Reset partial message ID
+              } else {
+                // No partial message, create new final message
+                const finalMessage: ConversationMessage = {
+                  id: messageIdRef.current++,
+                  speaker,
+                  originalText: result.sourceText,
+                  translatedText: "",
+                  detectedLanguage: result.sourceLang || "unknown",
+                  timestamp: new Date(),
+                  status: "final",
+                };
+                setConversations((prev) => [...prev, finalMessage]);
+                console.log(`[Final] Created final message #${finalMessage.id}: "${result.sourceText}"`);
               }
+              
+              // Step 2: 非阻塞翻譯（async）
+              if (result.translatedText) {
+                // Translation already done, add translated message immediately
+                const translatedMessage: ConversationMessage = {
+                  id: messageIdRef.current++,
+                  speaker,
+                  originalText: result.sourceText,
+                  translatedText: result.translatedText,
+                  detectedLanguage: result.sourceLang || "unknown",
+                  timestamp: new Date(),
+                  status: "translated",
+                };
+                setConversations((prev) => [...prev, translatedMessage]);
+                console.log(`[Translated] Added translated message #${translatedMessage.id}`);
+                
+                // Save translation to database
+                if (currentConversationId) {
+                  saveTranslationMutation.mutate({
+                    conversationId: currentConversationId,
+                    direction: result.direction!,
+                    sourceLang: result.sourceLang || "unknown",
+                    targetLang: result.targetLang || targetLanguage,
+                    sourceText: result.sourceText,
+                    translatedText: result.translatedText,
+                  });
+                  console.log(`[Conversation] Saved translation to conversation ID: ${currentConversationId}`);
+                }
+              }
+              
+              setCurrentSubtitle(""); // Clear subtitle after final
+              setProcessingStatus("listening");
             } else {
             const errorMsg = result.error || "未知錯誤";
             console.error("[Translation] Translation failed:", errorMsg);
@@ -378,10 +428,10 @@ export default function Home() {
     }
   }, [targetLanguage, translateMutation]);
 
-  // Update ref for processSentenceForTranslation
+  // Update ref for processFinalTranscript
   useEffect(() => {
-    processSentenceForTranslationRef.current = processSentenceForTranslation;
-  }, [processSentenceForTranslation]);
+    processSentenceForTranslationRef.current = processFinalTranscript;
+  }, [processFinalTranscript]);
 
   // Start VAD monitoring
   const startVADMonitoring = useCallback(() => {
@@ -395,17 +445,20 @@ export default function Home() {
       const isSpeaking = checkAudioLevel();
       const now = Date.now();
 
-      // Track 1: 1-second chunks for subtitles (only when speaking)
-      const chunkDuration = (now - chunkStartTimeRef.current) / 1000;
-      if (chunkDuration >= MAX_SEGMENT_DURATION && isSpeakingRef.current) {
-        // Process 1-second chunk for subtitle (only if there's actual speech)
-        if (currentChunkBufferRef.current.length > 0) {
-          processChunkForSubtitle([...currentChunkBufferRef.current]);
-          currentChunkBufferRef.current = [];
+      // Track 1: Partial chunks (250-350ms) for immediate subtitle (only when speaking)
+      const partialDuration = now - lastPartialTimeRef.current;
+      if (partialDuration >= PARTIAL_CHUNK_INTERVAL_MS && isSpeakingRef.current) {
+        // Process partial chunk for subtitle (use sentenceBuffer which accumulates during speech)
+        if (sentenceBufferRef.current.length > 0) {
+          processPartialChunk([...sentenceBufferRef.current]);
+          // Don't clear sentenceBuffer - it will be used for final transcript
         }
-        chunkStartTimeRef.current = now;
-      } else if (chunkDuration >= MAX_SEGMENT_DURATION && !isSpeakingRef.current) {
-        // Reset chunk timer if no speech (prevent accumulation)
+        lastPartialTimeRef.current = now;
+      }
+      
+      // Clear currentChunkBuffer periodically to prevent memory leak
+      const chunkDuration = (now - chunkStartTimeRef.current) / 1000;
+      if (chunkDuration >= MAX_SEGMENT_DURATION) {
         currentChunkBufferRef.current = [];
         chunkStartTimeRef.current = now;
       }
@@ -437,19 +490,22 @@ export default function Home() {
               // Speech segment end (valid speech)
               isSpeakingRef.current = false;
               setProcessingStatus("listening");
-              console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms), processing translation...`);
+              console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms), processing final transcript...`);
 
-              // Process sentence for translation
+              // Process final transcript
               if (sentenceBufferRef.current.length > 0) {
-                processSentenceForTranslation([...sentenceBufferRef.current]);
+                processFinalTranscript([...sentenceBufferRef.current]);
                 sentenceBufferRef.current = [];
               }
+              
+              // Reset partial state
+              lastPartialTimeRef.current = 0;
             }
           }
         }
       }
     }, 100);
-  }, [checkAudioLevel, processChunkForSubtitle, processSentenceForTranslation]);
+  }, [checkAudioLevel, processPartialChunk, processFinalTranscript]);
 
   // Stop VAD monitoring
   const stopVADMonitoring = useCallback(() => {
@@ -492,6 +548,7 @@ export default function Home() {
           translatedText: data.translation,
           detectedLanguage: data.detected_lang,
           timestamp: new Date(),
+          status: "translated",
         };
         
         setConversations((prev) => [...prev, newMessage]);
@@ -890,22 +947,34 @@ export default function Home() {
             <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">台灣人 (中文)</h2>
             <div ref={nurseScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
               {/* Partial transcript (即時字幕) */}
-              {partialSubtitle && backend === "hybrid" && (
-                <div className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
-                  <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
-                    <span className="animate-pulse">●</span>
-                    即時字幕（處理中...）
-                  </div>
-                  <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
-                    {partialSubtitle}
-                  </div>
-                  <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
-                </div>
-              )}
-              
-              {/* Final transcripts */}
               {conversations
-                .filter((msg) => msg.speaker === "nurse")
+                .filter((msg) => msg.speaker === "nurse" && msg.status === "partial")
+                .map((msg) => (
+                  <div key={msg.id} className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
+                    <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
+                      <span className="animate-pulse">●</span>
+                      即時字幕（處理中...）
+                    </div>
+                    <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
+                      {msg.originalText}
+                    </div>
+                    <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
+                  </div>
+                ))}
+              
+              {/* Final transcripts (完整句子) */}
+              {conversations
+                .filter((msg) => msg.speaker === "nurse" && msg.status === "final")
+                .map((msg) => (
+                  <div key={msg.id} className="bg-blue-900/30 p-2 md:p-3 rounded border border-blue-500/30">
+                    <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
+                    <div className="font-medium text-sm md:text-base text-blue-100">{msg.originalText}</div>
+                  </div>
+                ))}
+              
+              {/* Translated messages (翻譯結果) */}
+              {conversations
+                .filter((msg) => msg.speaker === "nurse" && msg.status === "translated")
                 .map((msg) => (
                   <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
                     <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
@@ -921,22 +990,34 @@ export default function Home() {
             <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">外國人 (外語)</h2>
             <div ref={patientScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
               {/* Partial transcript (即時字幕) */}
-              {partialSubtitle && backend === "hybrid" && (
-                <div className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
-                  <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
-                    <span className="animate-pulse">●</span>
-                    即時字幕（處理中...）
-                  </div>
-                  <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
-                    {partialSubtitle}
-                  </div>
-                  <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
-                </div>
-              )}
-              
-              {/* Final transcripts */}
               {conversations
-                .filter((msg) => msg.speaker === "patient")
+                .filter((msg) => msg.speaker === "patient" && msg.status === "partial")
+                .map((msg) => (
+                  <div key={msg.id} className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
+                    <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
+                      <span className="animate-pulse">●</span>
+                      即時字幕（處理中...）
+                    </div>
+                    <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
+                      {msg.originalText}
+                    </div>
+                    <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
+                  </div>
+                ))}
+              
+              {/* Final transcripts (完整句子) */}
+              {conversations
+                .filter((msg) => msg.speaker === "patient" && msg.status === "final")
+                .map((msg) => (
+                  <div key={msg.id} className="bg-blue-900/30 p-2 md:p-3 rounded border border-blue-500/30">
+                    <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
+                    <div className="font-medium text-sm md:text-base text-blue-100">{msg.originalText}</div>
+                  </div>
+                ))}
+              
+              {/* Translated messages (翻譯結果) */}
+              {conversations
+                .filter((msg) => msg.speaker === "patient" && msg.status === "translated")
                 .map((msg) => (
                   <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
                     <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>

@@ -416,3 +416,19 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 簡化日誌輸出
 - [ ] 測試中文識別準確度（等待用戶測試）
 - [ ] 測試速度和穩定性（等待用戶測試）
+
+## ✅ 醫療級即時雙語字幕（已完成）
+
+**需求：**
+- 🔵 語音進行中：每 250-350ms 推 partial chunk，更新同一條訊息，不翻譯
+- 🟢 停止說話（silence > 400ms）：final transcript 覆蓋 partial，非同步翻譯，新增翻譯訊息
+- 🔴 禁止：partial 新增多行、翻譯阻塞 partial、partial 翻譯、final 覆蓋翻譯
+
+**實作步驟：**
+- [x] 修改 VAD 參數（SILENCE_DURATION_MS: 400ms, MIN_SPEECH_DURATION_MS: 200ms, PARTIAL_CHUNK_INTERVAL_MS: 300ms）
+- [x] 新增訊息狀態管理（ConversationMessage.status: partial / final / translated）
+- [x] 實作 partial 字幕機制（每 300ms 推送 sentenceBuffer，更新同一條訊息）
+- [x] 實作 final transcript（覆蓋 partial，將 status 從 partial 改為 final）
+- [x] 實作非阻塞翻譯（async，新增獨立的 translated 訊息）
+- [x] 修改 UI 顯示邏輯（區分 partial/final/translated，不同顏色）
+- [ ] 測試使用者體驗（等待用戶測試）
