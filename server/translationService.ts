@@ -103,6 +103,7 @@ export async function transcribeAudio(
   form.append("model", "whisper-1");
   form.append("response_format", "json");
   form.append("temperature", "0");
+  // Note: Do NOT add language hint here, as it would break foreign language detection
 
   try {
     const response = await axios.post(

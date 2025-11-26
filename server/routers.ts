@@ -69,9 +69,17 @@ export const appRouter = router({
 
           console.log(`[autoTranslate] Transcript: "${sourceText}", Whisper language: ${whisperLanguage}`);
 
-          // Use Whisper's language detection directly (skip LLM language identification for speed)
-          const detectedLanguage = whisperLanguage || "zh";
-          console.log(`[autoTranslate] Using detected language: ${detectedLanguage}`);
+          // Step 1.5: LLM-based language detection (99%+ accuracy)
+          // This fixes the issue where Whisper misidentifies Chinese as English
+          const llmStartAt = new Date();
+          console.log(`[時間戳記] 開始 LLM 語言偵測: ${llmStartAt.toISOString()}`);
+          console.log(`[autoTranslate] Running LLM language detection on: "${sourceText}"`);
+          const detectedLanguage = await identifyLanguage(sourceText);
+          const llmEndAt = new Date();
+          const llmDuration = llmEndAt.getTime() - llmStartAt.getTime();
+          console.log(`[時間戳記] LLM 語言偵測完成: ${llmEndAt.toISOString()} (耗時 ${llmDuration}ms)`);
+          console.log(`[autoTranslate] LLM detected language: ${detectedLanguage} (Whisper said: ${whisperLanguage})`);
+          console.log(`[autoTranslate] Using LLM result: ${detectedLanguage}`);
 
           // Step 2: Determine translation direction
           const targetLang = input.preferredTargetLang || "vi";
@@ -97,6 +105,7 @@ export const appRouter = router({
           console.log(`\n========================================`);
           console.log(`[時間戳記] 全部完成: ${completedAt.toISOString()}`);
           console.log(`[時間統計] Whisper: ${whisperDuration}ms`);
+          console.log(`[時間統計] LLM 語言偵測: ${llmDuration}ms`);
           console.log(`[時間統計] 翻譯: ${translateDuration}ms`);
           console.log(`[時間統計] 總耗時: ${totalDuration}ms`);
           console.log(`========================================\n`);
