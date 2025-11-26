@@ -1,0 +1,246 @@
+{
+  "client_plans": [
+    {
+      "client_id": "hospital_a",
+      "plan_name": "Premium Hospital Plan",
+      "asr_config": {
+        "service_type": "asr",
+        "providers": [
+          {
+            "type": "openai_asr",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 2,
+            "timeout": "30s",
+            "credentials": {
+              "api_key": "${OPENAI_API_KEY}"
+            },
+            "options": {
+              "model": "whisper-1"
+            }
+          },
+          {
+            "type": "google_asr",
+            "enabled": true,
+            "priority": 90,
+            "max_retries": 2,
+            "timeout": "30s",
+            "credentials": {
+              "api_key": "${GOOGLE_API_KEY}"
+            }
+          }
+        ],
+        "failover_strategy": "next",
+        "routing_strategy": "priority"
+      },
+      "translation_config": {
+        "service_type": "translation",
+        "providers": [
+          {
+            "type": "openai_translation",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 2,
+            "timeout": "30s",
+            "credentials": {
+              "api_key": "${OPENAI_API_KEY}"
+            },
+            "options": {
+              "model": "gpt-4o-mini"
+            }
+          },
+          {
+            "type": "google_translation",
+            "enabled": true,
+            "priority": 90,
+            "max_retries": 2,
+            "timeout": "30s",
+            "credentials": {
+              "api_key": "${GOOGLE_API_KEY}"
+            }
+          }
+        ],
+        "failover_strategy": "next",
+        "routing_strategy": "priority",
+        "language_providers": {
+          "vi": "google_translation",
+          "id": "google_translation",
+          "th": "google_translation"
+        }
+      },
+      "tts_config": {
+        "service_type": "tts",
+        "providers": [
+          {
+            "type": "openai_tts",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 2,
+            "timeout": "60s",
+            "credentials": {
+              "api_key": "${OPENAI_API_KEY}"
+            },
+            "options": {
+              "model": "tts-1"
+            }
+          }
+        ],
+        "failover_strategy": "next",
+        "routing_strategy": "priority"
+      },
+      "sla": {
+        "max_latency_ms": 5000,
+        "min_availability": 0.99,
+        "max_error_rate": 0.01
+      },
+      "cost_tracking": {
+        "enabled": true,
+        "monthly_budget": 1000.0,
+        "alert_threshold": 0.8
+      }
+    },
+    {
+      "client_id": "hospital_b",
+      "plan_name": "Standard Hospital Plan",
+      "asr_config": {
+        "service_type": "asr",
+        "providers": [
+          {
+            "type": "openai_asr",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 1,
+            "timeout": "30s",
+            "credentials": {
+              "api_key": "${OPENAI_API_KEY}"
+            },
+            "options": {
+              "model": "whisper-1"
+            }
+          }
+        ],
+        "failover_strategy": "none",
+        "routing_strategy": "priority"
+      },
+      "translation_config": {
+        "service_type": "translation",
+        "providers": [
+          {
+            "type": "google_translation",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 1,
+            "timeout": "30s",
+            "credentials": {
+              "api_key": "${GOOGLE_API_KEY}"
+            }
+          }
+        ],
+        "failover_strategy": "none",
+        "routing_strategy": "cost"
+      },
+      "tts_config": {
+        "service_type": "tts",
+        "providers": [
+          {
+            "type": "openai_tts",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 1,
+            "timeout": "60s",
+            "credentials": {
+              "api_key": "${OPENAI_API_KEY}"
+            },
+            "options": {
+              "model": "tts-1"
+            }
+          }
+        ],
+        "failover_strategy": "none",
+        "routing_strategy": "cost"
+      },
+      "sla": {
+        "max_latency_ms": 8000,
+        "min_availability": 0.95,
+        "max_error_rate": 0.05
+      },
+      "cost_tracking": {
+        "enabled": true,
+        "monthly_budget": 500.0,
+        "alert_threshold": 0.9
+      }
+    },
+    {
+      "client_id": "clinic_c",
+      "plan_name": "Basic Clinic Plan",
+      "asr_config": {
+        "service_type": "asr",
+        "providers": [
+          {
+            "type": "openai_asr",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 0,
+            "timeout": "30s",
+            "credentials": {
+              "api_key": "${OPENAI_API_KEY}"
+            }
+          }
+        ],
+        "failover_strategy": "none",
+        "routing_strategy": "cost"
+      },
+      "translation_config": {
+        "service_type": "translation",
+        "providers": [
+          {
+            "type": "google_translation",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 0,
+            "timeout": "30s",
+            "credentials": {
+              "api_key": "${GOOGLE_API_KEY}"
+            }
+          }
+        ],
+        "failover_strategy": "none",
+        "routing_strategy": "cost",
+        "language_providers": {
+          "vi": "google_translation",
+          "id": "google_translation"
+        }
+      },
+      "tts_config": {
+        "service_type": "tts",
+        "providers": [
+          {
+            "type": "openai_tts",
+            "enabled": true,
+            "priority": 100,
+            "max_retries": 0,
+            "timeout": "60s",
+            "credentials": {
+              "api_key": "${OPENAI_API_KEY}"
+            },
+            "options": {
+              "model": "tts-1"
+            }
+          }
+        ],
+        "failover_strategy": "none",
+        "routing_strategy": "cost"
+      },
+      "sla": {
+        "max_latency_ms": 10000,
+        "min_availability": 0.90,
+        "max_error_rate": 0.10
+      },
+      "cost_tracking": {
+        "enabled": true,
+        "monthly_budget": 200.0,
+        "alert_threshold": 0.95
+      }
+    }
+  ]
+}
