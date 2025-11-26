@@ -36,9 +36,10 @@ const LANGUAGE_OPTIONS = [
 ];
 
 // Settings
-const RMS_THRESHOLD = 0.04; // Voice activity detection threshold (increased for better segment detection)
-const SILENCE_DURATION_MS = 800; // Silence duration to end speech segment (for translation)
+const RMS_THRESHOLD = 0.08; // Voice activity detection threshold (increased to filter background noise in car)
+const SILENCE_DURATION_MS = 1000; // Silence duration to end speech segment (for translation)
 const MAX_SEGMENT_DURATION = 1.0; // Maximum segment duration in seconds (for Whisper)
+const MIN_SPEECH_DURATION_MS = 300; // Minimum speech duration to avoid short noise (new)
 const SAMPLE_RATE = 48000; // 48kHz
 
 export default function Home() {
@@ -73,6 +74,7 @@ export default function Home() {
 
   // Track 2: VAD-based segments for translation
   const lastSpeechTimeRef = useRef<number>(0);
+  const speechStartTimeRef = useRef<number>(0); // Track when speech actually started
   const isSpeakingRef = useRef<boolean>(false);
   const vadIntervalRef = useRef<number | null>(null);
   const sentenceBufferRef = useRef<Float32Array[]>([]);
@@ -387,6 +389,7 @@ export default function Home() {
         lastSpeechTimeRef.current = now;
         if (!isSpeakingRef.current) {
           // Speech segment start
+          speechStartTimeRef.current = now;
           isSpeakingRef.current = true;
           setProcessingStatus("vad-detected");
           console.log(`🔵 Speech started`);
@@ -395,15 +398,26 @@ export default function Home() {
         if (isSpeakingRef.current) {
           const silenceDuration = now - lastSpeechTimeRef.current;
           if (silenceDuration >= SILENCE_DURATION_MS) {
-            // Speech segment end
-            isSpeakingRef.current = false;
-            setProcessingStatus("listening");
-            console.log(`🟢 Speech ended (silence: ${silenceDuration}ms), processing translation...`);
-
-            // Process sentence for translation
-            if (sentenceBufferRef.current.length > 0) {
-              processSentenceForTranslation([...sentenceBufferRef.current]);
+            // Check minimum speech duration to filter short noise
+            const speechDuration = lastSpeechTimeRef.current - speechStartTimeRef.current;
+            
+            if (speechDuration < MIN_SPEECH_DURATION_MS) {
+              // Too short, likely noise - discard
+              console.log(`⚠️ Speech too short (${speechDuration}ms), discarding as noise`);
+              isSpeakingRef.current = false;
               sentenceBufferRef.current = [];
+              setProcessingStatus("listening");
+            } else {
+              // Speech segment end (valid speech)
+              isSpeakingRef.current = false;
+              setProcessingStatus("listening");
+              console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms), processing translation...`);
+
+              // Process sentence for translation
+              if (sentenceBufferRef.current.length > 0) {
+                processSentenceForTranslation([...sentenceBufferRef.current]);
+                sentenceBufferRef.current = [];
+              }
             }
           }
         }
