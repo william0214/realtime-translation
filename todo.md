@@ -183,3 +183,39 @@
 - [x] 伺服器成功運行在 port 8080
 - [ ] 測試 Hybrid 模式
 - [ ] 優化 VAD 參數配置
+
+## ✅ Hybrid 模式測試和優化（部分完成）
+- [x] 測試 Hybrid 模式 WebSocket 連線
+- [x] 驗證 WebSocket 成功連接到 Go 後端
+- [x] 驗證前端切換功能（Node.js / Go / Hybrid）
+- [ ] 測試即時字幕（partial transcript）（需要實際麥克風）
+- [ ] 測試完整翻譯（final transcript + TTS）（需要實際麥克風）
+- [ ] 驗證延遲和準確度（需要實際麥克風）
+- [ ] 優化 VAD 參數（安靜室內）
+- [ ] 優化 VAD 參數（辦公室）
+- [ ] 優化 VAD 參數（開車）
+- [ ] 優化 VAD 參數（戶外）
+- [ ] 實作 WebSocket config 訊息動態更新
+
+## 🔌 擴展 Provider 支援（進行中）
+- [ ] 實作 Google ASR Provider
+- [ ] 實作 Azure Translator Provider
+- [ ] 實作 Azure TTS Provider
+- [ ] 實作 DeepL Translation Provider
+- [ ] 實作 Google TTS Provider
+- [ ] 撰寫 Provider 單元測試
+- [ ] 驗證 failover 機制
+- [ ] 驗證路由策略
+- [ ] 建立醫院客製化配置範例
+
+## ✅ 擴展 Provider 支援（已完成）
+- [x] 實作 Google Speech-to-Text ASR Provider
+- [x] 實作 Azure Translator Provider
+- [x] 實作 DeepL Translation Provider
+- [x] 實作 Azure TTS Provider
+- [x] 實作 Google Text-to-Speech Provider
+- [x] 更新 config_loader.go 支援新 Provider
+- [x] 建立 VAD 環境參數預設配置文件
+- [ ] 撰寫單元測試
+- [ ] 驗證 failover 機制
+- [ ] 驗證路由策略

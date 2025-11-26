@@ -156,8 +156,7 @@ func createASRProvider(config ProviderConfig) (ASRService, error) {
 	case ProviderOpenAIASR:
 		return NewOpenAIASRProvider(config)
 	case ProviderGoogleASR:
-		// TODO: Implement Google ASR provider
-		return nil, fmt.Errorf("Google ASR provider not yet implemented")
+		return NewGoogleASRProvider(config)
 	case ProviderManusASR:
 		// TODO: Implement Manus ASR provider
 		return nil, fmt.Errorf("Manus ASR provider not yet implemented")
@@ -174,11 +173,9 @@ func createTranslationProvider(config ProviderConfig) (TranslationService, error
 	case ProviderGoogleTranslation:
 		return NewGoogleTranslationProvider(config)
 	case ProviderAzureTranslation:
-		// TODO: Implement Azure translation provider
-		return nil, fmt.Errorf("Azure translation provider not yet implemented")
+		return NewAzureTranslationProvider(config)
 	case ProviderDeepLTranslation:
-		// TODO: Implement DeepL translation provider
-		return nil, fmt.Errorf("DeepL translation provider not yet implemented")
+		return NewDeepLTranslationProvider(config)
 	default:
 		return nil, fmt.Errorf("unknown translation provider type: %s", config.Type)
 	}
@@ -190,11 +187,9 @@ func createTTSProvider(config ProviderConfig) (TTSService, error) {
 	case ProviderOpenAITTS:
 		return NewOpenAITTSProvider(config)
 	case ProviderAzureTTS:
-		// TODO: Implement Azure TTS provider
-		return nil, fmt.Errorf("Azure TTS provider not yet implemented")
+		return NewAzureTTSProvider(config)
 	case ProviderGoogleTTS:
-		// TODO: Implement Google TTS provider
-		return nil, fmt.Errorf("Google TTS provider not yet implemented")
+		return NewGoogleTTSProvider(config)
 	default:
 		return nil, fmt.Errorf("unknown TTS provider type: %s", config.Type)
 	}
