@@ -38,10 +38,10 @@ const LANGUAGE_OPTIONS = [
 ];
 
 // Settings
-const RMS_THRESHOLD = 0.08; // Voice activity detection threshold (-50dB equivalent)
-const SILENCE_DURATION_MS = 400; // Silence duration to end speech segment (VAD requirement)
+const RMS_THRESHOLD = 0.055; // Voice activity detection threshold (-55dB, lowered from 0.08)
+const SILENCE_DURATION_MS = 600; // Silence duration to end speech segment (raised from 400ms)
 const MIN_SPEECH_DURATION_MS = 200; // Minimum speech duration to start partial (VAD minActive)
-const PARTIAL_CHUNK_INTERVAL_MS = 300; // Partial chunk interval (250-350ms)
+const PARTIAL_CHUNK_INTERVAL_MS = 300; // Partial chunk interval (fixed at 300ms)
 const MAX_SEGMENT_DURATION = 0.5; // Maximum segment duration for chunking
 const SAMPLE_RATE = 48000; // 48kHz
 
@@ -92,6 +92,7 @@ export default function Home() {
   const vadIntervalRef = useRef<number | null>(null);
   const sentenceBufferRef = useRef<Float32Array[]>([]);
   const processSentenceForTranslationRef = useRef<((pcmBuffer: Float32Array[]) => Promise<void>) | null>(null);
+  const sentenceEndTriggeredRef = useRef<boolean>(false); // Prevent multiple sentence end triggers
 
   // tRPC mutations (for Node.js backend)
   const translateMutation = trpc.translation.autoTranslate.useMutation();
@@ -470,13 +471,14 @@ export default function Home() {
           // Speech segment start
           speechStartTimeRef.current = now;
           isSpeakingRef.current = true;
+          sentenceEndTriggeredRef.current = false; // Reset flag when speech starts
           setProcessingStatus("vad-detected");
           console.log(`🔵 Speech started`);
         }
       } else {
         if (isSpeakingRef.current) {
           const silenceDuration = now - lastSpeechTimeRef.current;
-          if (silenceDuration >= SILENCE_DURATION_MS) {
+          if (silenceDuration >= SILENCE_DURATION_MS && !sentenceEndTriggeredRef.current) {
             // Check minimum speech duration to filter short noise
             const speechDuration = lastSpeechTimeRef.current - speechStartTimeRef.current;
             
@@ -485,14 +487,16 @@ export default function Home() {
               console.log(`⚠️ Speech too short (${speechDuration}ms), discarding as noise`);
               isSpeakingRef.current = false;
               sentenceBufferRef.current = [];
+              sentenceEndTriggeredRef.current = true; // Mark as triggered to prevent re-entry
               setProcessingStatus("listening");
-            } else {
-              // Speech segment end (valid speech)
+            } else if (!sentenceEndTriggeredRef.current) {
+              // Speech segment end (valid speech) - only trigger once
+              sentenceEndTriggeredRef.current = true; // Set flag immediately to prevent multiple triggers
               isSpeakingRef.current = false;
               setProcessingStatus("listening");
-              console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms), processing final transcript...`);
+              console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms), processing final transcript ONCE...`);
 
-              // Process final transcript
+              // Process final transcript (only once)
               if (sentenceBufferRef.current.length > 0) {
                 processFinalTranscript([...sentenceBufferRef.current]);
                 sentenceBufferRef.current = [];

@@ -432,3 +432,18 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 實作非阻塞翻譯（async，新增獨立的 translated 訊息）
 - [x] 修改 UI 顯示邏輯（區分 partial/final/translated，不同顏色）
 - [ ] 測試使用者體驗（等待用戶測試）
+
+## ✅ VAD + ASR 行為修正（已完成）
+
+**問題：**
+1. Sentence End 被多次觸發，導致 final 翻譯被重複呼叫
+2. Partial 字幕出現韓文/英文誤判（chunk 太碎，< 200ms）
+3. Chunk size 不一致，導致 Whisper 誤判語言
+4. Partial 和 final 邏輯互相干擾
+
+**修正方案：**
+- [x] 調整 VAD 參數（SILENCE_DURATION_MS: 600ms, MIN_SPEECH_DURATION_MS: 200ms, RMS_THRESHOLD: 0.055/-55dB）
+- [x] 加入 sentenceEndTriggeredRef flag 防止多次觸發（說話開始時 reset，結束時 set）
+- [x] 修正 partial 機制（固定 300ms interval，只更新字幕，不觸發 sentence end）
+- [x] 修正 final 機制（silence > 600ms 且 !sentenceEndTriggered 才觸發，僅一次翻譯）
+- [ ] 測試修復結果（等待用戶測試）
