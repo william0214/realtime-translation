@@ -127,9 +127,24 @@ export const appRouter = router({
           };
         } catch (error: any) {
           console.error("[autoTranslate] Error:", error);
+          
+          // Determine error stage
+          let errorStage = "未知環節";
+          let errorDetail = error.message || "未知錯誤";
+          
+          if (errorDetail.includes("transcribe") || errorDetail.includes("Whisper") || errorDetail.includes("ASR")) {
+            errorStage = "語音識別（ASR）";
+          } else if (errorDetail.includes("translate") || errorDetail.includes("translation")) {
+            errorStage = "翻譯";
+          } else if (errorDetail.includes("language") || errorDetail.includes("detect")) {
+            errorStage = "語言偵測";
+          } else if (errorDetail.includes("network") || errorDetail.includes("fetch") || errorDetail.includes("timeout")) {
+            errorStage = "網路連線";
+          }
+          
           return {
             success: false,
-            error: error.message || "Translation failed",
+            error: `${errorStage}失敗: ${errorDetail}`,
           };
         }
       }),
@@ -330,7 +345,7 @@ export const appRouter = router({
           console.error("[TTS] Error:", error);
           return {
             success: false,
-            error: error.message || "TTS generation failed",
+            error: `TTS 語音合成失敗: ${error.message || '未知錯誤'}`,
           };
         }
       }),

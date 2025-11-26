@@ -342,14 +342,14 @@ export default function Home() {
                 console.log(`[Conversation] Saved translation to conversation ID: ${currentConversationId}`);
               }
             } else {
-              console.error("[Translation] Translation failed:", result.error);
-              if (result.error && !result.error.includes("No speech detected")) {
-                toast.error(result.error);
-              }
+            console.error("[Translation] Translation failed:", result.error);
+            if (result.error && !result.error.includes("No speech detected")) {
+              toast.error(`❌ 翻譯失敗: ${result.error}`);
+            }
             }
           } catch (error: any) {
-            console.error("[Translation] Error:", error);
-            toast.error("處理語音時發生錯誤");
+          console.error("[Translation] Error:", error);
+          toast.error(`❌ 處理語音時發生錯誤: ${error.message || '未知錯誤'}`);
           } finally {
             setProcessingStatus("listening");
           }
@@ -361,7 +361,7 @@ export default function Home() {
       setTimeout(() => mediaRecorder.stop(), (audioBuffer.length / SAMPLE_RATE) * 1000 + 100);
     } catch (error: any) {
       console.error("[Translation] Error:", error);
-      toast.error("處理語音時發生錯誤");
+      toast.error(`❌ 語音處理失敗: ${error.message || '未知錯誤'}`);
       setProcessingStatus("listening");
     }
   }, [targetLanguage, translateMutation]);
@@ -494,7 +494,7 @@ export default function Home() {
 
       client.onError = (error) => {
         console.error(`[Hybrid Error] ${error}`);
-        toast.error(`Hybrid ASR 錯誤: ${error}`);
+        toast.error(`❌ Hybrid ASR 錯誤: ${error}`);
       };
 
       client.onConnected = () => {
@@ -552,7 +552,7 @@ export default function Home() {
       toast.success("開始 Hybrid ASR 錄音");
     } catch (error: any) {
       console.error("[Hybrid] Error starting recording:", error);
-      toast.error(`無法啟動 Hybrid ASR: ${error.message}`);
+      toast.error(`❌ 無法啟動 Hybrid ASR: ${error.message || '連線失敗'}`);
     }
   }, [targetLanguage]);
 
@@ -608,7 +608,7 @@ export default function Home() {
         setCurrentConversationId(conversationResult.conversationId);
         console.log(`[Conversation] Created conversation ID: ${conversationResult.conversationId}`);
       } else {
-        toast.error("建立對話會話失敗");
+        toast.error(`❌ 建立對話會話失敗: ${conversationResult.error || '未知錯誤'}`);
         return;
       }
 
@@ -662,7 +662,12 @@ export default function Home() {
       toast.success("開始錄音");
     } catch (error: any) {
       console.error("[Recording] Error starting recording:", error);
-      toast.error("無法啟動麥克風");
+      const errorMsg = error.name === 'NotAllowedError' 
+        ? '麥克風權限被拒絕，請允許使用麥克風'
+        : error.name === 'NotFoundError'
+        ? '找不到麥克風裝置'
+        : `${error.message || '未知錯誤'}`;
+      toast.error(`❌ 無法啟動麥克風: ${errorMsg}`);
     }
   }, [createConversationMutation, targetLanguage, startVADMonitoring]);
 
@@ -733,7 +738,7 @@ export default function Home() {
   // Export conversations
   const exportConversations = useCallback(() => {
     if (conversations.length === 0) {
-      toast.error("沒有對話記錄可匯出");
+      toast.error("⚠️ 沒有對話記錄可匯出");
       return;
     }
 
