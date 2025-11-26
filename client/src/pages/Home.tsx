@@ -892,8 +892,7 @@ export default function Home() {
                 .map((msg) => (
                   <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
                     <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium mb-1 text-sm md:text-base">{msg.originalText}</div>
-                    <div className="text-gray-400 text-xs md:text-sm">→ {msg.translatedText}</div>
+                    <div className="font-medium text-sm md:text-base">{msg.originalText}</div>
                   </div>
                 ))}
             </div>
@@ -923,8 +922,7 @@ export default function Home() {
                 .map((msg) => (
                   <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
                     <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium mb-1 text-sm md:text-base">{msg.originalText}</div>
-                    <div className="text-gray-400 text-xs md:text-sm">→ {msg.translatedText}</div>
+                    <div className="font-medium text-sm md:text-base">{msg.translatedText}</div>
                   </div>
                 ))}
             </div>
