@@ -306,3 +306,12 @@
 - [x] 建立 Go 配置檔（backend-go/ports.go）
 - [x] 更新 README.md 加入 PORT 說明
 - [x] 提供 port 衝突檢查命令
+
+## ✅ 前端 Failed to fetch 錯誤（已修復）
+
+- [x] 診斷網路連線問題（缺少 CORS 配置）
+- [x] 檢查 API 端點配置（後端 API 正常）
+- [x] 安裝 cors 套件
+- [x] 加入 CORS 配置（允許跨域請求）
+- [x] 重啟開發伺服器
+- [x] 測試修復結果（頁面正常載入）
