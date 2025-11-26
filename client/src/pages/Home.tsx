@@ -868,6 +868,21 @@ export default function Home() {
           <div className="bg-gray-900 rounded-lg p-3 md:p-4 md:rotate-0 rotate-180">
             <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">台灣人 (中文)</h2>
             <div ref={nurseScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
+              {/* Partial transcript (即時字幕) */}
+              {partialSubtitle && backend === "hybrid" && (
+                <div className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
+                  <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
+                    <span className="animate-pulse">●</span>
+                    即時字幕（處理中...）
+                  </div>
+                  <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
+                    {partialSubtitle}
+                  </div>
+                  <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
+                </div>
+              )}
+              
+              {/* Final transcripts */}
               {conversations
                 .filter((msg) => msg.speaker === "nurse")
                 .map((msg) => (
@@ -884,6 +899,21 @@ export default function Home() {
           <div className="bg-gray-900 rounded-lg p-3 md:p-4">
             <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">外國人 (外語)</h2>
             <div ref={patientScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
+              {/* Partial transcript (即時字幕) */}
+              {partialSubtitle && backend === "hybrid" && (
+                <div className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
+                  <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
+                    <span className="animate-pulse">●</span>
+                    即時字幕（處理中...）
+                  </div>
+                  <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
+                    {partialSubtitle}
+                  </div>
+                  <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
+                </div>
+              )}
+              
+              {/* Final transcripts */}
               {conversations
                 .filter((msg) => msg.speaker === "patient")
                 .map((msg) => (
