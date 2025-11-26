@@ -342,9 +342,10 @@ export default function Home() {
                 console.log(`[Conversation] Saved translation to conversation ID: ${currentConversationId}`);
               }
             } else {
-            console.error("[Translation] Translation failed:", result.error);
-            if (result.error && !result.error.includes("No speech detected")) {
-              toast.error(`❌ 翻譯失敗: ${result.error}`);
+            const errorMsg = result.error || "未知錯誤";
+            console.error("[Translation] Translation failed:", errorMsg);
+            if (!errorMsg.includes("No speech detected")) {
+              toast.error(`❌ 翻譯失敗: ${errorMsg}`);
             }
             }
           } catch (error: any) {

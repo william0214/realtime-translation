@@ -28,6 +28,7 @@ export type GoTranslationResponse = {
  */
 export async function callGoTranslation(request: GoTranslationRequest): Promise<GoTranslationResponse> {
   try {
+    console.log("[Go Backend] Sending request to:", `${GO_BACKEND_URL}/api/v1/asr/segment`);
     const response = await fetch(`${GO_BACKEND_URL}/api/v1/asr/segment`, {
       method: "POST",
       headers: {
@@ -40,10 +41,13 @@ export async function callGoTranslation(request: GoTranslationRequest): Promise<
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error("[Go Backend] HTTP error:", response.status, errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log("[Go Backend] Response:", data);
 
     // Map Go response to our format
     return {
@@ -56,9 +60,10 @@ export async function callGoTranslation(request: GoTranslationRequest): Promise<
     };
   } catch (error: any) {
     console.error("[Go Backend] Error:", error);
+    const errorMessage = error.message || error.toString() || "Translation failed: Unknown error";
     return {
       success: false,
-      error: error.message || "Translation failed",
+      error: errorMessage,
     };
   }
 }

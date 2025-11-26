@@ -342,3 +342,11 @@
 - [x] 修復 JSON 請求處理（支援 audio_base64 和 audio_data）
 - [x] 測試 Go 後端翻譯功能（成功，總延遲 6.16s）
 - [x] Go API 服務已啟動並暴露於 port 8081
+
+## ✅ 翻譯失敗錯誤 "Translation failed: undefined"（已修復）
+
+- [x] 診斷錯誤原因（error.message 為 undefined）
+- [x] 修復 goBackend.ts 錯誤處理邏輯（error.message || error.toString() || "Unknown error"）
+- [x] 修復 Home.tsx 錯誤顯示邏輯（處理 undefined 情況）
+- [x] 加入更詳細的錯誤日誌（請求 URL、HTTP 狀態、回應資料）
+- [ ] 測試修復結果（等待用戶測試）
