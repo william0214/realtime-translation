@@ -475,3 +475,23 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 更新 Home.tsx 使用配置檔案
 - [x] 更新 server/translationService.ts 使用配置檔案
 - [x] 測試配置檔案功能
+
+## ✅ VAD 和 ASR 邏輯修正（已完成）
+
+**問題：**
+1. 產生過短的 chunk（< 200ms），導致語言誤判
+2. Partial chunk 間隔不固定，可能低於 280ms
+3. Final transcript 在不完整句子時觸發（< 0.8 秒）
+4. Partial message 創建多條訊息（應只更新一條）
+5. Final 完成後未重置狀態
+6. 一段語音可能觸發多次 final
+
+**修正方案：**
+- [x] 更新配置檔案參數（minSilence 800ms, minSpeech 500ms, partialInterval 300ms）
+- [x] 禁止產生 < 200ms chunk（< 6 個 buffer 直接丟棄）
+- [x] Partial chunk 固定 300ms（不低於 280ms）
+- [x] Final transcript 只在完整句子後觸發（final chunk ≥ 0.8-1.5 秒）
+- [x] Partial message 永遠只更新一條（同一語音段落 partialMessageId 不變）
+- [x] Final 完成後重置狀態（清空 buffer、reset ID、talking = false）
+- [x] 一段語音只能做一次 final（已做過 final 則禁止新 partial 和重複 final）
+- [x] 測試修正結果

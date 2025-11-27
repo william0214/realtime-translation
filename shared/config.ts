@@ -18,8 +18,10 @@ export const VAD_CONFIG = {
    * - 安靜環境：200ms
    * - 一般環境：250ms
    * - 嘈雜環境：300ms
+   * 
+   * 當前設定：500ms（確保 final chunk ≥ 0.8-1.2 秒）
    */
-  MIN_SPEECH_DURATION_MS: 250,
+  MIN_SPEECH_DURATION_MS: 500,
 
   /**
    * 靜音持續時間（毫秒）
@@ -27,10 +29,12 @@ export const VAD_CONFIG = {
    * 
    * 建議值：
    * - 快速回應：500-600ms
-   * - 平衡模式：650ms（預設）
+   * - 平衡模式：650ms
    * - 完整句子：700-800ms
+   * 
+   * 當前設定：800ms（確保收集完整句子）
    */
-  SILENCE_DURATION_MS: 650,
+  SILENCE_DURATION_MS: 800,
 
   /**
    * RMS 音量閾值
@@ -62,10 +66,12 @@ export const ASR_CONFIG = {
    * 
    * 建議值：
    * - 快速更新：250-300ms
-   * - 平衡模式：320ms（預設）
+   * - 平衡模式：320ms
    * - 穩定更新：400-500ms
+   * 
+   * 當前設定：300ms（固定，不低於 280ms）
    */
-  PARTIAL_CHUNK_INTERVAL_MS: 320,
+  PARTIAL_CHUNK_INTERVAL_MS: 300,
 
   /**
    * Partial chunk 最小持續時間（毫秒）
@@ -73,10 +79,12 @@ export const ASR_CONFIG = {
    * 
    * 建議值：
    * - 快速回應：200ms
-   * - 平衡模式：250ms（預設）
+   * - 平衡模式：250ms
    * - 穩定識別：300ms
+   * 
+   * 當前設定：200ms（6 個 buffer ≈ 200-250ms）
    */
-  PARTIAL_CHUNK_MIN_DURATION_MS: 250,
+  PARTIAL_CHUNK_MIN_DURATION_MS: 200,
 
   /**
    * Whisper API 語言提示

@@ -448,9 +448,16 @@ export default function Home() {
       const isSpeaking = checkAudioLevel();
       const now = Date.now();
 
-      // Track 1: Partial chunks (320ms) for immediate subtitle (only when speaking)
+      // Track 1: Partial chunks (300ms fixed) for immediate subtitle (only when speaking)
       const partialDuration = now - lastPartialTimeRef.current;
-      if (partialDuration >= PARTIAL_CHUNK_INTERVAL_MS && isSpeakingRef.current) {
+      if (partialDuration >= PARTIAL_CHUNK_INTERVAL_MS && isSpeakingRef.current && !sentenceEndTriggeredRef.current) {
+        // Prohibit chunks < 200ms (< 6 buffers)
+        if (sentenceBufferRef.current.length < 6) {
+          console.log(`⚠️ Partial chunk too short (${sentenceBufferRef.current.length} buffers < 6), discarding as noise`);
+          lastPartialTimeRef.current = now;
+          return;
+        }
+        
         // Check minimum chunk duration to avoid fragmentation
         const speechDuration = now - speechStartTimeRef.current;
         if (speechDuration >= PARTIAL_CHUNK_MIN_DURATION_MS && sentenceBufferRef.current.length > 0) {
@@ -480,34 +487,46 @@ export default function Home() {
           console.log(`🔵 Speech started`);
         }
       } else {
-        if (isSpeakingRef.current) {
+        if (isSpeakingRef.current && !sentenceEndTriggeredRef.current) {
           const silenceDuration = now - lastSpeechTimeRef.current;
-          if (silenceDuration >= SILENCE_DURATION_MS && !sentenceEndTriggeredRef.current) {
-            // Check minimum speech duration to filter short noise
+          if (silenceDuration >= SILENCE_DURATION_MS) {
+            // Check minimum speech duration to filter short noise (500ms)
             const speechDuration = lastSpeechTimeRef.current - speechStartTimeRef.current;
             
             if (speechDuration < MIN_SPEECH_DURATION_MS) {
               // Too short, likely noise - discard
-              console.log(`⚠️ Speech too short (${speechDuration}ms), discarding as noise`);
+              console.log(`⚠️ Speech too short (${speechDuration}ms < ${MIN_SPEECH_DURATION_MS}ms), discarding as noise`);
               isSpeakingRef.current = false;
               sentenceBufferRef.current = [];
+              partialMessageIdRef.current = null; // Reset partial message ID
               sentenceEndTriggeredRef.current = true; // Mark as triggered to prevent re-entry
               setProcessingStatus("listening");
-            } else if (!sentenceEndTriggeredRef.current) {
+            } else {
               // Speech segment end (valid speech) - only trigger once
               sentenceEndTriggeredRef.current = true; // Set flag immediately to prevent multiple triggers
               isSpeakingRef.current = false;
-              setProcessingStatus("listening");
-              console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms), processing final transcript ONCE...`);
+              
+              // Calculate final chunk duration
+              const totalSamples = sentenceBufferRef.current.reduce((acc, buf) => acc + buf.length, 0);
+              const finalChunkDuration = totalSamples / SAMPLE_RATE;
+              
+              console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms, final chunk: ${finalChunkDuration.toFixed(2)}s), processing final transcript ONCE...`);
 
-              // Process final transcript (only once)
-              if (sentenceBufferRef.current.length > 0) {
-                processFinalTranscript([...sentenceBufferRef.current]);
-                sentenceBufferRef.current = [];
+              // Only process if final chunk >= 0.8s (ensure complete sentence)
+              if (finalChunkDuration >= 0.8 && finalChunkDuration <= 1.5) {
+                // Process final transcript (only once)
+                if (sentenceBufferRef.current.length > 0) {
+                  processFinalTranscript([...sentenceBufferRef.current]);
+                }
+              } else {
+                console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s out of range [0.8, 1.5], discarding`);
               }
               
-              // Reset partial state
+              // Reset state after final
+              sentenceBufferRef.current = [];
+              partialMessageIdRef.current = null; // Reset partial message ID
               lastPartialTimeRef.current = 0;
+              setProcessingStatus("listening");
             }
           }
         }
