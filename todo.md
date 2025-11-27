@@ -460,3 +460,18 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 確保 final chunk 收集完整語音段落（sentenceBuffer 只在 isSpeaking 時累積）
 - [x] 加入語言提示（Whisper prompt: "Speaker likely speaks Chinese, Vietnamese, English, or Indonesian."）
 - [ ] 測試 partial 速度和 final 準確度（等待用戶測試）
+
+## ✅ 將 VAD 和 ASR 參數集中到配置檔案（已完成）
+
+**目標：**
+- 建立配置檔案集中管理所有 VAD 和 ASR 參數
+- 方便調整和維護，不需要修改程式碼
+
+**任務清單：**
+- [x] 建立 shared/config.ts 配置檔案
+- [x] 將 VAD 參數移到配置檔案（MIN_SPEECH_DURATION_MS, SILENCE_DURATION_MS, RMS_THRESHOLD）
+- [x] 將 ASR 參數移到配置檔案（PARTIAL_CHUNK_INTERVAL_MS, PARTIAL_CHUNK_MIN_DURATION_MS）
+- [x] 將 Whisper 語言提示移到配置檔案
+- [x] 更新 Home.tsx 使用配置檔案
+- [x] 更新 server/translationService.ts 使用配置檔案
+- [x] 測試配置檔案功能

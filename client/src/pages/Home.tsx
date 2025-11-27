@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import { callGoTranslation } from "@/services/goBackend";
 import { HybridASRClient } from "@/services/hybridASRClient";
+import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG } from "@shared/config";
 
 type ConversationMessage = {
   id: number;
@@ -37,12 +38,12 @@ const LANGUAGE_OPTIONS = [
   { value: "th", label: "泰文" },
 ];
 
-// Settings
-const RMS_THRESHOLD = 0.055; // Voice activity detection threshold (-55dB)
-const SILENCE_DURATION_MS = 650; // Silence duration to end speech segment (optimized for accuracy)
-const MIN_SPEECH_DURATION_MS = 250; // Minimum speech duration to start partial (VAD minActive)
-const PARTIAL_CHUNK_INTERVAL_MS = 320; // Partial chunk interval (optimized 300-350ms)
-const PARTIAL_CHUNK_MIN_DURATION_MS = 250; // Minimum partial chunk duration to avoid fragmentation
+// Settings (從配置檔案載入)
+const RMS_THRESHOLD = VAD_CONFIG.RMS_THRESHOLD;
+const SILENCE_DURATION_MS = VAD_CONFIG.SILENCE_DURATION_MS;
+const MIN_SPEECH_DURATION_MS = VAD_CONFIG.MIN_SPEECH_DURATION_MS;
+const PARTIAL_CHUNK_INTERVAL_MS = ASR_CONFIG.PARTIAL_CHUNK_INTERVAL_MS;
+const PARTIAL_CHUNK_MIN_DURATION_MS = ASR_CONFIG.PARTIAL_CHUNK_MIN_DURATION_MS;
 const MAX_SEGMENT_DURATION = 0.5; // Maximum segment duration for chunking
 const SAMPLE_RATE = 48000; // 48kHz
 

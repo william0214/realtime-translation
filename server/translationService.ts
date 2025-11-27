@@ -1,6 +1,7 @@
 import { invokeLLM } from "./_core/llm";
 import axios from "axios";
 import FormData from "form-data";
+import { ASR_CONFIG } from "../shared/config";
 
 /**
  * Language role mapping
@@ -104,8 +105,11 @@ export async function transcribeAudio(
   form.append("model", "whisper-1");
   form.append("response_format", "json");
   form.append("temperature", "0");
-  form.append("language", "zh"); // Force Chinese (no auto-detect, no retry)
-  form.append("prompt", "Speaker likely speaks Chinese, Vietnamese, English, or Indonesian."); // Language hint for better accuracy
+  // Use config for language settings
+  if (ASR_CONFIG.WHISPER_FORCE_LANGUAGE) {
+    form.append("language", ASR_CONFIG.WHISPER_FORCE_LANGUAGE);
+  }
+  form.append("prompt", ASR_CONFIG.WHISPER_LANGUAGE_HINT);
 
   try {
     const response = await axios.post(
