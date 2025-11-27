@@ -490,7 +490,7 @@ export default function Home() {
         if (isSpeakingRef.current && !sentenceEndTriggeredRef.current) {
           const silenceDuration = now - lastSpeechTimeRef.current;
           if (silenceDuration >= SILENCE_DURATION_MS) {
-            // Check minimum speech duration to filter short noise (500ms)
+            // Check minimum speech duration to filter short noise (800ms, prevent Whisper hallucination)
             const speechDuration = lastSpeechTimeRef.current - speechStartTimeRef.current;
             
             if (speechDuration < MIN_SPEECH_DURATION_MS) {

@@ -19,9 +19,9 @@ export const VAD_CONFIG = {
    * - 一般環境：250ms
    * - 嘈雜環境：300ms
    * 
-   * 當前設定：500ms（確保 final chunk ≥ 0.8-1.2 秒）
+   * 當前設定：800ms（確保 final chunk ≥ 0.8 秒，防止 Whisper 幻覺）
    */
-  MIN_SPEECH_DURATION_MS: 500,
+  MIN_SPEECH_DURATION_MS: 800,
 
   /**
    * 靜音持續時間（毫秒）
@@ -32,9 +32,9 @@ export const VAD_CONFIG = {
    * - 平衡模式：650ms
    * - 完整句子：700-800ms
    * 
-   * 當前設定：800ms（確保收集完整句子）
+   * 當前設定：650ms（快速觸發，但確保語音夠長）
    */
-  SILENCE_DURATION_MS: 800,
+  SILENCE_DURATION_MS: 650,
 
   /**
    * RMS 音量閾值

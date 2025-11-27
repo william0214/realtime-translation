@@ -495,3 +495,16 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] Final 完成後重置狀態（清空 buffer、reset ID、talking = false）
 - [x] 一段語音只能做一次 final（已做過 final 則禁止新 partial 和重複 final）
 - [x] 測試修正結果
+
+## ✅ 修正 ASR chunk 長度問題，防止 Whisper 幻覺（已完成）
+
+**問題：**
+- Whisper 出現幻覺字串：“请不吝点赞订阅转发打赏支持明镜与点点栏目”
+- 原因：極短音訊（< 0.8 秒）被送到 Whisper，導致幻覺
+
+**修正方案：**
+- [x] 更新配置參數（minSpeech 800ms, minSilence 650ms）
+- [x] 加強 final chunk 長度檢查（必須 ≥ 0.8 秒）
+- [x] 確認 partial 只更新一條訊息
+- [x] 確認 final 只觸發一次
+- [x] 測試修正結果
