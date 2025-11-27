@@ -38,10 +38,11 @@ const LANGUAGE_OPTIONS = [
 ];
 
 // Settings
-const RMS_THRESHOLD = 0.055; // Voice activity detection threshold (-55dB, lowered from 0.08)
-const SILENCE_DURATION_MS = 600; // Silence duration to end speech segment (raised from 400ms)
-const MIN_SPEECH_DURATION_MS = 200; // Minimum speech duration to start partial (VAD minActive)
-const PARTIAL_CHUNK_INTERVAL_MS = 300; // Partial chunk interval (fixed at 300ms)
+const RMS_THRESHOLD = 0.055; // Voice activity detection threshold (-55dB)
+const SILENCE_DURATION_MS = 650; // Silence duration to end speech segment (optimized for accuracy)
+const MIN_SPEECH_DURATION_MS = 250; // Minimum speech duration to start partial (VAD minActive)
+const PARTIAL_CHUNK_INTERVAL_MS = 320; // Partial chunk interval (optimized 300-350ms)
+const PARTIAL_CHUNK_MIN_DURATION_MS = 250; // Minimum partial chunk duration to avoid fragmentation
 const MAX_SEGMENT_DURATION = 0.5; // Maximum segment duration for chunking
 const SAMPLE_RATE = 48000; // 48kHz
 
@@ -446,11 +447,13 @@ export default function Home() {
       const isSpeaking = checkAudioLevel();
       const now = Date.now();
 
-      // Track 1: Partial chunks (250-350ms) for immediate subtitle (only when speaking)
+      // Track 1: Partial chunks (320ms) for immediate subtitle (only when speaking)
       const partialDuration = now - lastPartialTimeRef.current;
       if (partialDuration >= PARTIAL_CHUNK_INTERVAL_MS && isSpeakingRef.current) {
-        // Process partial chunk for subtitle (use sentenceBuffer which accumulates during speech)
-        if (sentenceBufferRef.current.length > 0) {
+        // Check minimum chunk duration to avoid fragmentation
+        const speechDuration = now - speechStartTimeRef.current;
+        if (speechDuration >= PARTIAL_CHUNK_MIN_DURATION_MS && sentenceBufferRef.current.length > 0) {
+          // Process partial chunk for subtitle (use sentenceBuffer which accumulates during speech)
           processPartialChunk([...sentenceBufferRef.current]);
           // Don't clear sentenceBuffer - it will be used for final transcript
         }

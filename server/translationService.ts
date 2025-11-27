@@ -95,7 +95,7 @@ export async function transcribeAudio(
   const profiler = new ASRProfiler();
   profiler.start();
 
-  // Force Chinese language for single-user (nurse) mode
+  // Force Chinese language for single-user (nurse) mode with language hint
   const form = new FormData();
   form.append("file", audioBuffer, {
     filename,
@@ -105,6 +105,7 @@ export async function transcribeAudio(
   form.append("response_format", "json");
   form.append("temperature", "0");
   form.append("language", "zh"); // Force Chinese (no auto-detect, no retry)
+  form.append("prompt", "Speaker likely speaks Chinese, Vietnamese, English, or Indonesian."); // Language hint for better accuracy
 
   try {
     const response = await axios.post(

@@ -447,3 +447,16 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 修正 partial 機制（固定 300ms interval，只更新字幕，不觸發 sentence end）
 - [x] 修正 final 機制（silence > 600ms 且 !sentenceEndTriggered 才觸發，僅一次翻譯）
 - [ ] 測試修復結果（等待用戶測試）
+
+## ✅ ASR + VAD 優化以降低翻譯錯誤率（已完成）
+
+**問題：**
+- 翻譯錯誤率升高
+- Final chunk 被切碎，導致翻譯品質下降
+
+**優化方案：**
+- [x] 調整 VAD 參數（MIN_SPEECH_DURATION_MS: 250ms, SILENCE_DURATION_MS: 650ms, RMS_THRESHOLD: 0.055/-55dB）
+- [x] 優化 partial chunk（PARTIAL_CHUNK_INTERVAL_MS: 320ms, PARTIAL_CHUNK_MIN_DURATION_MS: 250ms）
+- [x] 確保 final chunk 收集完整語音段落（sentenceBuffer 只在 isSpeaking 時累積）
+- [x] 加入語言提示（Whisper prompt: "Speaker likely speaks Chinese, Vietnamese, English, or Indonesian."）
+- [ ] 測試 partial 速度和 final 準確度（等待用戶測試）
