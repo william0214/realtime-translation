@@ -1,7 +1,7 @@
 import { invokeLLM } from "./_core/llm";
 import axios from "axios";
 import FormData from "form-data";
-import { ASR_CONFIG } from "../shared/config";
+import { ASR_CONFIG, type ASRMode, getASRModeConfig } from "../shared/config";
 
 /**
  * Language role mapping
@@ -80,12 +80,15 @@ export async function identifyLanguage(text: string): Promise<string> {
  */
 export async function transcribeAudio(
   audioBuffer: Buffer,
-  filename: string
+  filename: string,
+  asrMode?: ASRMode
 ): Promise<{
   text: string;
   language?: string;
   asrProfile?: any;
 }> {
+  // Get ASR mode config (default to normal if not provided)
+  const modeConfig = asrMode ? getASRModeConfig(asrMode) : getASRModeConfig("normal");
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
@@ -96,7 +99,7 @@ export async function transcribeAudio(
   const profiler = new ASRProfiler();
   profiler.start();
 
-  // Force Chinese language for single-user (nurse) mode with language hint
+  // Use ASR mode config for Whisper parameters
   const form = new FormData();
   form.append("file", audioBuffer, {
     filename,
@@ -104,12 +107,12 @@ export async function transcribeAudio(
   });
   form.append("model", "whisper-1");
   form.append("response_format", "json");
-  form.append("temperature", "0");
-  // Use config for language settings
-  if (ASR_CONFIG.WHISPER_FORCE_LANGUAGE) {
-    form.append("language", ASR_CONFIG.WHISPER_FORCE_LANGUAGE);
+  form.append("temperature", modeConfig.whisperTemperature.toString());
+  // Use mode-specific language settings
+  if (modeConfig.whisperForceLanguage) {
+    form.append("language", modeConfig.whisperForceLanguage);
   }
-  form.append("prompt", ASR_CONFIG.WHISPER_LANGUAGE_HINT);
+  form.append("prompt", modeConfig.whisperPrompt);
 
   try {
     const response = await axios.post(
@@ -154,16 +157,21 @@ export async function transcribeAudio(
 export async function translateText(
   text: string,
   sourceLang: string,
-  targetLang: string
+  targetLang: string,
+  asrMode?: ASRMode
 ): Promise<{ translatedText: string; translationProfile?: any }> {
+  // Get ASR mode config for translation model selection
+  const modeConfig = asrMode ? getASRModeConfig(asrMode) : getASRModeConfig("normal");
   // Start Translation profiling
   const { TranslationProfiler } = await import("./profiler/translationProfiler");
   const profiler = new TranslationProfiler();
   profiler.start();
 
-  // Use new Provider architecture
+  // Use new Provider architecture with mode-specific model
   const { translate, getDefaultTranslationConfig } = await import("./translationProviders");
   const config = getDefaultTranslationConfig();
+  // Override model based on ASR mode
+  config.model = modeConfig.translationModel;
   
   const result = await translate(text, sourceLang, targetLang, config);
 

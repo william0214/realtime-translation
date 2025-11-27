@@ -30,6 +30,7 @@ export const appRouter = router({
           audioBase64: z.string(),
           filename: z.string().optional(),
           preferredTargetLang: z.string().optional(),
+          asrMode: z.enum(["normal", "precise"]).optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -65,7 +66,7 @@ export const appRouter = router({
           const whisperStartAt = new Date();
           console.log(`[時間戳記] 開始 Whisper 識別: ${whisperStartAt.toISOString()}`);
           console.log(`[autoTranslate] Transcribing audio...`);
-          const { text: sourceText, language: whisperLanguage, asrProfile } = await transcribeAudio(audioBuffer, filename);
+          const { text: sourceText, language: whisperLanguage, asrProfile } = await transcribeAudio(audioBuffer, filename, input.asrMode);
           const whisperEndAt = new Date();
           const whisperDuration = whisperEndAt.getTime() - whisperStartAt.getTime();
           console.log(`[時間戳記] Whisper 完成: ${whisperEndAt.toISOString()} (耗時 ${whisperDuration}ms)`);
@@ -94,7 +95,7 @@ export const appRouter = router({
           const translateStartAt = new Date();
           console.log(`[時間戳記] 開始翻譯: ${translateStartAt.toISOString()}`);
           console.log(`[autoTranslate] Translating...`);
-          const { translatedText, translationProfile } = await translateText(sourceText, sourceLang, finalTargetLang);
+          const { translatedText, translationProfile } = await translateText(sourceText, sourceLang, finalTargetLang, input.asrMode);
           const translateEndAt = new Date();
           const translateDuration = translateEndAt.getTime() - translateStartAt.getTime();
           console.log(`[時間戳記] 翻譯完成: ${translateEndAt.toISOString()} (耗時 ${translateDuration}ms)`);

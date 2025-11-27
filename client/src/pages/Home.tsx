@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import { callGoTranslation } from "@/services/goBackend";
 import { HybridASRClient } from "@/services/hybridASRClient";
-import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG } from "@shared/config";
+import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG, ASR_MODE_CONFIG, type ASRMode, getASRModeConfig } from "@shared/config";
 
 type ConversationMessage = {
   id: number;
@@ -38,12 +38,6 @@ const LANGUAGE_OPTIONS = [
   { value: "th", label: "泰文" },
 ];
 
-// Settings (從配置檔案載入)
-const RMS_THRESHOLD = VAD_CONFIG.RMS_THRESHOLD;
-const SILENCE_DURATION_MS = VAD_CONFIG.SILENCE_DURATION_MS;
-const MIN_SPEECH_DURATION_MS = VAD_CONFIG.MIN_SPEECH_DURATION_MS;
-const PARTIAL_CHUNK_INTERVAL_MS = ASR_CONFIG.PARTIAL_CHUNK_INTERVAL_MS;
-const PARTIAL_CHUNK_MIN_DURATION_MS = ASR_CONFIG.PARTIAL_CHUNK_MIN_DURATION_MS;
 const MAX_SEGMENT_DURATION = 0.5; // Maximum segment duration for chunking
 const SAMPLE_RATE = 48000; // 48kHz
 
@@ -61,6 +55,17 @@ export default function Home() {
     const saved = localStorage.getItem("translation-backend");
     return (saved === "go" || saved === "nodejs" || saved === "hybrid") ? saved : "nodejs";
   });
+  
+  // ASR mode selection: "normal" | "precise"
+  const [asrMode, setAsrMode] = useState<ASRMode>(() => {
+    const saved = localStorage.getItem("asr-mode");
+    return (saved === "normal" || saved === "precise") ? saved : "normal";
+  });
+  
+  // Save ASR mode to localStorage when changed
+  useEffect(() => {
+    localStorage.setItem("asr-mode", asrMode);
+  }, [asrMode]);
   
   // Hybrid ASR client
   const hybridClientRef = useRef<HybridASRClient | null>(null);
@@ -338,6 +343,7 @@ export default function Home() {
                   audioBase64: base64Audio,
                   filename: `translation-${Date.now()}.webm`,
                   preferredTargetLang: targetLanguage,
+                  asrMode, // Pass ASR mode to backend
                 })
               : await callGoTranslation({
                   audioBase64: base64Audio,
@@ -436,6 +442,17 @@ export default function Home() {
     processSentenceForTranslationRef.current = processFinalTranscript;
   }, [processFinalTranscript]);
 
+  // Get current ASR mode config
+  const currentConfig = getASRModeConfig(asrMode);
+  const RMS_THRESHOLD = currentConfig.rmsThreshold;
+  const SILENCE_DURATION_MS = currentConfig.silenceDurationMs;
+  const MIN_SPEECH_DURATION_MS = currentConfig.minSpeechDurationMs;
+  const PARTIAL_CHUNK_INTERVAL_MS = currentConfig.partialChunkIntervalMs;
+  const PARTIAL_CHUNK_MIN_DURATION_MS = currentConfig.partialChunkMinDurationMs;
+  const PARTIAL_CHUNK_MIN_BUFFERS = currentConfig.partialChunkMinBuffers;
+  const FINAL_MIN_DURATION_MS = currentConfig.finalMinDurationMs;
+  const FINAL_MAX_DURATION_MS = currentConfig.finalMaxDurationMs;
+  
   // Start VAD monitoring
   const startVADMonitoring = useCallback(() => {
     if (vadIntervalRef.current !== null) return;
@@ -451,9 +468,9 @@ export default function Home() {
       // Track 1: Partial chunks (300ms fixed) for immediate subtitle (only when speaking)
       const partialDuration = now - lastPartialTimeRef.current;
       if (partialDuration >= PARTIAL_CHUNK_INTERVAL_MS && isSpeakingRef.current && !sentenceEndTriggeredRef.current) {
-        // Prohibit chunks < 200ms (< 6 buffers)
-        if (sentenceBufferRef.current.length < 6) {
-          console.log(`⚠️ Partial chunk too short (${sentenceBufferRef.current.length} buffers < 6), discarding as noise`);
+        // Prohibit chunks < min buffers (prevent short chunks)
+        if (sentenceBufferRef.current.length < PARTIAL_CHUNK_MIN_BUFFERS) {
+          console.log(`⚠️ Partial chunk too short (${sentenceBufferRef.current.length} buffers < ${PARTIAL_CHUNK_MIN_BUFFERS}), discarding as noise`);
           lastPartialTimeRef.current = now;
           return;
         }
@@ -512,14 +529,18 @@ export default function Home() {
               
               console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms, final chunk: ${finalChunkDuration.toFixed(2)}s), processing final transcript ONCE...`);
 
-              // Only process if final chunk >= 0.8s (ensure complete sentence)
-              if (finalChunkDuration >= 0.8 && finalChunkDuration <= 1.5) {
+              // Only process if final chunk in valid range (ensure complete sentence)
+              const finalMinDurationS = FINAL_MIN_DURATION_MS / 1000;
+              const finalMaxDurationS = FINAL_MAX_DURATION_MS / 1000;
+              if (finalChunkDuration >= finalMinDurationS && finalChunkDuration <= finalMaxDurationS) {
                 // Process final transcript (only once)
                 if (sentenceBufferRef.current.length > 0) {
                   processFinalTranscript([...sentenceBufferRef.current]);
                 }
               } else {
-                console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s out of range [0.8, 1.5], discarding`);
+                const finalMinDurationS = FINAL_MIN_DURATION_MS / 1000;
+                const finalMaxDurationS = FINAL_MAX_DURATION_MS / 1000;
+                console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s out of range [${finalMinDurationS}, ${finalMaxDurationS}], discarding`);
               }
               
               // Reset state after final
@@ -906,6 +927,28 @@ export default function Home() {
             )}
           </h1>
           <div className="flex items-center gap-2 md:gap-4">
+            {/* ASR Mode Selector */}
+            <Select value={asrMode} onValueChange={(value) => setAsrMode(value as ASRMode)} disabled={isRecording}>
+              <SelectTrigger className="w-[100px] md:w-[140px] bg-gray-900 border-gray-700 text-sm md:text-base">
+                <SelectValue placeholder="模式" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-700">
+                <SelectItem value="normal">
+                  <div className="flex flex-col">
+                    <span>💨 快速</span>
+                    <span className="text-xs text-gray-400">0.6-1.2s</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="precise">
+                  <div className="flex flex-col">
+                    <span>🎯 精確</span>
+                    <span className="text-xs text-gray-400">1.0-2.0s</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            
+            {/* Target Language Selector */}
             <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>
               <SelectTrigger className="w-[120px] md:w-[180px] bg-gray-900 border-gray-700 text-sm md:text-base">
                 <SelectValue placeholder="選擇語言" />

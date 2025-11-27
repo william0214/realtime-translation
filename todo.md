@@ -508,3 +508,49 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 確認 partial 只更新一條訊息
 - [x] 確認 final 只觸發一次
 - [x] 測試修正結果
+
+## ✅ ASR 模式切換功能（已完成）
+
+**需求：**
+- 支援兩種 ASR 模式：normal（快速）和 precise（高準確）
+- 使用者可在前端選擇模式
+- 根據模式動態調整 VAD、Chunk、Final、Whisper、Translation 參數
+
+**Normal 模式（快速）：**
+- partialChunkInterval: 300ms
+- partialChunkMinBuffers: 6（≈200ms）
+- minSpeech: 300ms
+- minSilence: 650ms
+- silenceThreshold: -55dB
+- finalMinDuration: 800ms
+- discardBelow: 200ms
+- whisperPrompt: "Chinese, Vietnamese, English, Indonesian"
+- temperature: 0
+- translationModel: "gpt-4o-mini"
+- 用途：普通對話、反應速度優先、護理站高流量
+- 預期：0.6-1.2 秒出翻譯，準確率 85-93%
+
+**Precise 模式（高準確）：**
+- partialChunkInterval: 400ms
+- partialChunkMinBuffers: 10（≈350-400ms）
+- minSpeech: 800ms
+- minSilence: 900ms
+- silenceThreshold: -50dB
+- finalMinDuration: 1500ms
+- discardBelow: 400ms
+- whisperPrompt: "User is speaking Chinese or Vietnamese. Prioritize Chinese detection."
+- temperature: 0
+- translationModel: "gpt-4o"
+- 用途：醫療問診、敏感資訊、翻譯錯誤不能接受
+- 預期：1.0-2.0 秒出翻譯，準確率 95-99%
+
+**任務清單：**
+- [x] 建立模式配置結構（shared/config.ts）
+- [x] 實作前端模式選擇器（UI 切換按鈕）
+- [x] 根據模式動態調整 VAD 參數
+- [x] 根據模式動態調整 Chunk 參數
+- [x] 根據模式動態調整 Final 參數
+- [x] 更新後端支援模式參數（Whisper prompt、翻譯模型）
+- [x] 儲存使用者選擇到 localStorage
+- [x] 測試兩種模式的行為差異
+- [x] 建立模式切換說明文件

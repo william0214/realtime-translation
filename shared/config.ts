@@ -200,8 +200,105 @@ export const VAD_PRESETS = {
 
 // ==================== 類型定義 ====================
 
+// ==================== ASR 模式配置 ====================
+
+/**
+ * ASR 模式類型
+ */
+export type ASRMode = "normal" | "precise";
+
+/**
+ * ASR 模式配置
+ * 根據模式動態調整 VAD、Chunk、Final、Whisper、Translation 參數
+ */
+export const ASR_MODE_CONFIG = {
+  /**
+   * Normal 模式（快速）
+   * 
+   * 用途：
+   * - 普通對話
+   * - 反應速度優先
+   * - 護理站高流量狀態（人多、要快）
+   * 
+   * 預期效果：
+   * - 0.6-1.2 秒出翻譯
+   * - 準確率：85-93%
+   */
+  normal: {
+    // VAD 參數
+    minSpeechDurationMs: 300,
+    silenceDurationMs: 650,
+    rmsThreshold: 0.055, // -55dB
+    
+    // Chunk 參數
+    partialChunkIntervalMs: 300,
+    partialChunkMinBuffers: 6, // ≈ 200ms
+    partialChunkMinDurationMs: 200,
+    
+    // Final 參數
+    finalMinDurationMs: 800,
+    finalMaxDurationMs: 1500,
+    discardBelowMs: 200,
+    
+    // Whisper 參數
+    whisperPrompt: "Speaker likely speaks Chinese, Vietnamese, English, or Indonesian.",
+    whisperForceLanguage: "zh" as string | undefined,
+    whisperTemperature: 0,
+    
+    // Translation 參數
+    translationModel: "gpt-4o-mini",
+  },
+  
+  /**
+   * Precise 模式（高準確）
+   * 
+   * 用途：
+   * - 醫療問診
+   * - 溝通敏感資訊（用藥、疼痛、緊急狀況）
+   * - 翻譯錯誤不能接受的場景
+   * 
+   * 預期效果：
+   * - 1.0-2.0 秒出翻譯
+   * - 準確率：95-99%
+   */
+  precise: {
+    // VAD 參數
+    minSpeechDurationMs: 800,
+    silenceDurationMs: 900,
+    rmsThreshold: 0.1, // -50dB
+    
+    // Chunk 參數
+    partialChunkIntervalMs: 400,
+    partialChunkMinBuffers: 10, // ≈ 350-400ms
+    partialChunkMinDurationMs: 400,
+    
+    // Final 參數
+    finalMinDurationMs: 1500,
+    finalMaxDurationMs: 3000,
+    discardBelowMs: 400,
+    
+    // Whisper 參數
+    whisperPrompt: "User is speaking Chinese or Vietnamese. Prioritize Chinese detection.",
+    whisperForceLanguage: "zh" as string | undefined,
+    whisperTemperature: 0,
+    
+    // Translation 參數
+    translationModel: "gpt-4o",
+  },
+} as const;
+
+/**
+ * 獲取指定模式的配置
+ */
+export function getASRModeConfig(mode: ASRMode) {
+  return ASR_MODE_CONFIG[mode];
+}
+
+// ==================== 類型定義 ====================
+
 export type VADConfig = typeof VAD_CONFIG;
 export type ASRConfig = typeof ASR_CONFIG;
 export type TranslationConfig = typeof TRANSLATION_CONFIG;
 export type AudioConfig = typeof AUDIO_CONFIG;
 export type VADPreset = keyof typeof VAD_PRESETS;
+export type ASRModeConfig = typeof ASR_MODE_CONFIG[ASRMode];
