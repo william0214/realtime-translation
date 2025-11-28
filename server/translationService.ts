@@ -127,8 +127,8 @@ export async function transcribeAudio(
     );
 
     const text = response.data.text || "";
-    const language = response.data.language || "zh"; // Whisper returns ISO-639-1 language code
-    console.log(`[Whisper] Transcript: "${text}", Language: ${language} (forced Chinese)`);
+    const language = response.data.language || "unknown"; // Whisper returns ISO-639-1 language code
+    console.log(`[Whisper] Transcript: "${text}", Language: ${language} (auto-detected)`);
 
     // End ASR profiling
     const audioDuration = 1.0; // Estimated, can be calculated from buffer if needed

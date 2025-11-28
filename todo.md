@@ -751,3 +751,20 @@ at reader.onloadend (Home.tsx:323:23)
 - [x] 前端 partial chunk 呼叫時傳入 `transcriptOnly: true`
 - [x] 更新 GoTranslationRequest 類型定義
 - [x] 測試修復結果
+
+## ✅ 移除 Whisper language 強制設定（已完成）
+
+**目標：** 移除 Whisper 的 `language="zh"` 強制中文設定，讓 Whisper 自動偵測語言
+
+**原因：**
+- 目前強制設定 `language="zh"` 會導致其他語言（越南語、印尼語）識別不準確
+- Whisper 有很好的自動語言偵測能力，不需要強制指定語言
+- 移除後可以更準確地識別多語言對話
+
+**修改內容：**
+- [x] 查找所有 Whisper API 呼叫的位置
+- [x] 移除 `shared/config.ts` 中的 `WHISPER_FORCE_LANGUAGE: "zh"`
+- [x] 移除 ASR normal 模式的 `whisperForceLanguage: "zh"`
+- [x] 移除 ASR precise 模式的 `whisperForceLanguage: "zh"`
+- [x] 更新 `translationService.ts` 的日誌訊息
+- [x] 測試自動語言偵測效果

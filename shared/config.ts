@@ -100,14 +100,12 @@ export const ASR_CONFIG = {
 
   /**
    * Whisper API 強制語言
-   * 設定為 "zh" 可提升中文識別準確度
-   * 設定為 undefined 則自動偵測語言
+   * 設定為 undefined 則自動偵測語言（建議）
    * 
    * 建議值：
-   * - 單人中文模式：zh
-   * - 多語言模式：undefined
+   * - 多語言模式：undefined（讓 Whisper 自動偵測）
    */
-  WHISPER_FORCE_LANGUAGE: "zh" as string | undefined,
+  WHISPER_FORCE_LANGUAGE: undefined as string | undefined,
 } as const;
 
 // ==================== 翻譯配置 ====================
@@ -242,7 +240,7 @@ export const ASR_MODE_CONFIG = {
     
     // Whisper 參數
     whisperPrompt: "Speaker likely speaks Chinese, Vietnamese, English, or Indonesian.",
-    whisperForceLanguage: "zh" as string | undefined,
+    whisperForceLanguage: undefined, // 自動偵測語言
     whisperTemperature: 0,
     
     // Translation 參數
@@ -279,7 +277,7 @@ export const ASR_MODE_CONFIG = {
     
     // Whisper 參數
     whisperPrompt: "User is speaking Chinese or Vietnamese. Prioritize Chinese detection.",
-    whisperForceLanguage: "zh" as string | undefined,
+    whisperForceLanguage: undefined, // 自動偵測語言
     whisperTemperature: 0,
     
     // Translation 參數
