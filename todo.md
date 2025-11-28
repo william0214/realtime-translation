@@ -768,3 +768,33 @@ at reader.onloadend (Home.tsx:323:23)
 - [x] 移除 ASR precise 模式的 `whisperForceLanguage: "zh"`
 - [x] 更新 `translationService.ts` 的日誌訊息
 - [x] 測試自動語言偵測效果
+
+## 🐛 翻譯失敗問題（sourceText 為空）
+
+**問題描述：**
+- 系統出現 `[Translation] Translation failed: 未知錯誤`
+- 從日誌看到 `sourceText: ""`（空字串）
+- 後端回傳 `success: true`，但 `sourceText` 和 `translatedText` 都是空的
+- 前端判斷為「未知錯誤」
+
+**日誌範例：**
+```
+[Translation] Backend response: {success: true, sourceText: '', translatedText: '', sourceLang: 'unknown', targetLang: 'en', direction: 'unknown'}
+[Translation] Translation failed: 未知錯誤
+```
+
+**可能原因：**
+1. Whisper API 識別失敗（音訊太短、音訊損壞、格式錯誤）
+2. 音訊 blob 為空或損壞
+3. Base64 編碼錯誤
+4. 後端處理邏輯錯誤
+
+**排查步驟：**
+- [x] 檢查前端產生的 WebM blob 大小（應該 > 0）
+- [x] 檢查 Base64 編碼是否正確
+- [x] 檢查後端 Whisper API 呼叫是否成功
+- [x] 檢查後端錯誤處理邏輯（是否正確回傳錯誤）
+- [x] 加入前端音訊長度檢查（< 1KB 跳過）
+- [x] 修復後端錯誤處理邏輯（sourceText 為空時回傳 success: false）
+- [x] 改進前端錯誤訊息顯示（過濾正常的短音訊錯誤）
+- [x] 測試修復結果

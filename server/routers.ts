@@ -73,9 +73,15 @@ export const appRouter = router({
           console.log(`[時間戳記] Whisper 完成: ${whisperEndAt.toISOString()} (耗時 ${whisperDuration}ms)`);
 
           if (!sourceText || sourceText.trim() === "") {
+            console.log(`[autoTranslate] No speech detected in audio`);
             return {
               success: false,
               error: "No speech detected",
+              sourceText: "",
+              translatedText: "",
+              sourceLang: "unknown",
+              targetLang: input.preferredTargetLang || "vi",
+              direction: "unknown",
             };
           }
 

@@ -229,6 +229,13 @@ export default function Home() {
         const webmBlob = new Blob(chunks, { type: "audio/webm" });
         console.log(`[Subtitle] Created WebM blob, size: ${webmBlob.size} bytes`);
 
+        // Skip if blob is too small (< 1KB ≈ 0.15 seconds)
+        if (webmBlob.size < 1000) {
+          console.warn(`[Subtitle] Blob too small (${webmBlob.size} bytes < 1000 bytes), skipping`);
+          setProcessingStatus("listening");
+          return;
+        }
+
         // Convert to base64 and send to Whisper
         const reader = new FileReader();
         reader.onloadend = async () => {
@@ -340,6 +347,13 @@ export default function Home() {
         const webmBlob = new Blob(chunks, { type: "audio/webm" });
         console.log(`[Translation] Created WebM blob, size: ${webmBlob.size} bytes`);
 
+        // Skip if blob is too small (< 1KB ≈ 0.15 seconds)
+        if (webmBlob.size < 1000) {
+          console.warn(`[Translation] Blob too small (${webmBlob.size} bytes < 1000 bytes), skipping`);
+          setProcessingStatus("listening");
+          return;
+        }
+
         // Convert to base64 and send for translation
         const reader = new FileReader();
         reader.onloadend = async () => {
@@ -424,11 +438,13 @@ export default function Home() {
               setProcessingStatus("listening");
             } else {
             const errorMsg = result.error || "未知錯誤";
-            console.error("[Translation] Translation failed:", errorMsg);
-            console.error("[Translation] Full response:", JSON.stringify(result, null, 2));
-            if (!errorMsg.includes("No speech detected")) {
+            console.warn("[Translation] No translation result:", errorMsg);
+            console.warn("[Translation] Full response:", JSON.stringify(result, null, 2));
+            // Only show error toast for real errors (not "No speech detected" or empty audio)
+            if (!errorMsg.includes("No speech detected") && !errorMsg.includes("Audio too short")) {
               toast.error(`❌ 翻譯失敗: ${errorMsg}`);
             }
+            setProcessingStatus("listening");
             }
           } catch (error: any) {
           console.error("[Translation] Error:", error);
