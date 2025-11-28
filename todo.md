@@ -605,3 +605,19 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 調整 Precise 模式參數：minSpeech: 800ms → 500ms
 - [x] 調整 Precise 模式參數：finalMinDuration: 1500ms → 1000ms
 - [ ] 測試修復結果（請用戶重新測試）
+
+## ✅ 修復翻譯失敗錯誤（已加強日誌）
+
+**錯誤訊息：**
+```
+[Translation] Translation failed: 未知錯誤
+Time: 2025-11-28T10:23:01.082Z (Asia/Taipei)
+at reader.onloadend (Home.tsx:323:23)
+```
+
+**修復方案：**
+- [x] 檢查 Home.tsx line 426-430 的錯誤處理邏輯
+- [x] 檢查後端 translation API 的錯誤處理（line 140-161）
+- [x] 加強前端日誌，輸出完整的 backend response
+- [x] 加強錯誤訊息，顯示 JSON.stringify(result)
+- [ ] 測試修復結果（請用戶重新測試並提供完整日誌）

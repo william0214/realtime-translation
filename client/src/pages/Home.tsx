@@ -362,6 +362,8 @@ export default function Home() {
                   preferredTargetLang: targetLanguage,
                 });
 
+            console.log("[Translation] Backend response:", result);
+            
             if (result.success && result.sourceText) {
               const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
               
@@ -425,6 +427,7 @@ export default function Home() {
             } else {
             const errorMsg = result.error || "未知錯誤";
             console.error("[Translation] Translation failed:", errorMsg);
+            console.error("[Translation] Full response:", JSON.stringify(result, null, 2));
             if (!errorMsg.includes("No speech detected")) {
               toast.error(`❌ 翻譯失敗: ${errorMsg}`);
             }
