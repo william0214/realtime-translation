@@ -138,6 +138,17 @@ export default function Home() {
     }
   };
 
+  // Get current ASR mode config (must be before all useCallback that use these values)
+  const currentConfig = getASRModeConfig(asrMode);
+  const RMS_THRESHOLD = currentConfig.rmsThreshold;
+  const SILENCE_DURATION_MS = currentConfig.silenceDurationMs;
+  const MIN_SPEECH_DURATION_MS = currentConfig.minSpeechDurationMs;
+  const PARTIAL_CHUNK_INTERVAL_MS = currentConfig.partialChunkIntervalMs;
+  const PARTIAL_CHUNK_MIN_DURATION_MS = currentConfig.partialChunkMinDurationMs;
+  const PARTIAL_CHUNK_MIN_BUFFERS = currentConfig.partialChunkMinBuffers;
+  const FINAL_MIN_DURATION_MS = currentConfig.finalMinDurationMs;
+  const FINAL_MAX_DURATION_MS = currentConfig.finalMaxDurationMs;
+
   // Show backend indicator
   useEffect(() => {
     console.log(`[Backend] Current backend: ${backend}`);
@@ -163,7 +174,7 @@ export default function Home() {
     setAudioLevel(rms / RMS_THRESHOLD);
 
     return rms > RMS_THRESHOLD;
-  }, []);
+  }, [RMS_THRESHOLD]);
 
   // Process partial chunk for immediate subtitle (250-350ms, update same message, no translation)
   const processPartialChunk = useCallback(async (pcmBuffer: Float32Array[]) => {
@@ -442,17 +453,6 @@ export default function Home() {
     processSentenceForTranslationRef.current = processFinalTranscript;
   }, [processFinalTranscript]);
 
-  // Get current ASR mode config
-  const currentConfig = getASRModeConfig(asrMode);
-  const RMS_THRESHOLD = currentConfig.rmsThreshold;
-  const SILENCE_DURATION_MS = currentConfig.silenceDurationMs;
-  const MIN_SPEECH_DURATION_MS = currentConfig.minSpeechDurationMs;
-  const PARTIAL_CHUNK_INTERVAL_MS = currentConfig.partialChunkIntervalMs;
-  const PARTIAL_CHUNK_MIN_DURATION_MS = currentConfig.partialChunkMinDurationMs;
-  const PARTIAL_CHUNK_MIN_BUFFERS = currentConfig.partialChunkMinBuffers;
-  const FINAL_MIN_DURATION_MS = currentConfig.finalMinDurationMs;
-  const FINAL_MAX_DURATION_MS = currentConfig.finalMaxDurationMs;
-  
   // Start VAD monitoring
   const startVADMonitoring = useCallback(() => {
     if (vadIntervalRef.current !== null) return;

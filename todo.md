@@ -554,3 +554,35 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 儲存使用者選擇到 localStorage
 - [x] 測試兩種模式的行為差異
 - [x] 建立模式切換說明文件
+
+## 🐛 修復「沒有翻譯產生」問題（進行中）
+
+**問題描述：**
+- 使用者點擊「開始對話」後說話，沒有看到即時字幕
+- 沒有翻譯產生
+- 可能是 VAD（語音活動檢測）沒有正常工作
+
+**排查步驟：**
+- [ ] 檢查 checkAudioLevel() 函數是否正常工作
+- [ ] 檢查 RMS_THRESHOLD 是否過高
+- [ ] 檢查 analyserRef 是否正確初始化
+- [ ] 檢查 VAD 監控是否正常啟動
+- [ ] 檢查瀏覽器控制台日誌
+- [ ] 測試修復結果
+
+## ✅ 修復「沒有翻譯產生」問題（已修復）
+
+**問題描述：**
+- 使用者點擊「開始對話」後說話，沒有看到即時字幕
+- 沒有翻譯產生
+- 使用 Node.js 後端
+- VAD（語音活動檢測）沒有正常工作
+
+**問題原因：**
+- `checkAudioLevel` 函數使用了 `RMS_THRESHOLD`，但 `useCallback` 的依賴陣列是空的，導致它一直使用舊的（undefined）值
+- `RMS_THRESHOLD` 在 `checkAudioLevel` 之後才定義，導致順序錯誤
+
+**修復方案：**
+- [x] 將 ASR 模式配置移到最前面，在所有 useCallback 之前
+- [x] 更新 `checkAudioLevel` 的 useCallback 依賴，加入 `RMS_THRESHOLD`
+- [x] 測試修復結果
