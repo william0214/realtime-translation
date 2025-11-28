@@ -476,8 +476,14 @@ export default function Home() {
         // Check minimum chunk duration to avoid fragmentation
         const speechDuration = now - speechStartTimeRef.current;
         if (speechDuration >= PARTIAL_CHUNK_MIN_DURATION_MS && sentenceBufferRef.current.length > 0) {
-          // Process partial chunk for subtitle (use sentenceBuffer which accumulates during speech)
-          processPartialChunk([...sentenceBufferRef.current]);
+          // Process partial chunk for subtitle (only use last 1 second of audio)
+          // Calculate how many buffers = 1 second (48kHz * 1s / samples_per_buffer)
+          // Assuming each buffer is ~960 samples (20ms at 48kHz), 1 second = ~50 buffers
+          const BUFFERS_PER_SECOND = Math.ceil(SAMPLE_RATE / 960); // ~50 buffers for 1 second
+          const recentBuffers = sentenceBufferRef.current.slice(-BUFFERS_PER_SECOND);
+          
+          console.log(`[Partial] Using last ${recentBuffers.length} buffers (out of ${sentenceBufferRef.current.length} total) for partial transcript`);
+          processPartialChunk(recentBuffers);
           // Don't clear sentenceBuffer - it will be used for final transcript
         }
         lastPartialTimeRef.current = now;

@@ -669,3 +669,48 @@ at reader.onloadend (Home.tsx:323:23)
 **修正：** minSpeech = 400ms, minSilence = 600ms, silenceThreshold = -55dB（YouTube/Google ASR/Whisper default）
 - [x] 更新 shared/config.ts 的 VAD 參數（minSpeech: 400ms, minSilence: 600ms, rmsThreshold: 0.055）
 - [ ] 測試修復結果
+
+## ✅ 部分調整 ASR/VAD 流程（已完成）
+
+**目標：** 部分調整 ASR/VAD 流程，修改 partial chunk 行為（最近 1 秒音訊，不送整段 buffer）
+
+### 核心流程規範
+
+1. **音訊輸入**
+   - 固定大小的 PCM buffer（約 20ms）持續輸入
+   - 每個 buffer 計算 dB 能量
+   - > -55dB 視為語音，否則為靜音
+
+2. **語音段落開始**
+   - 連續語音超過 MIN_SPEECH_MS = 400ms
+   - 設定 talking = true
+   - 開始累積 buffer 到 pcmBuffers
+
+3. **Partial transcript**
+   - 條件：talking = true 且累積 buffer 數 ≥ 12（約 240ms）且距離上次 partial ≥ 300ms
+   - 切出最近 1 秒的音訊 chunk
+   - 呼叫 Whisper 做 partial transcript
+   - **只更新同一條字幕訊息**，不創建新的訊息
+
+4. **語音段落結束**
+   - 偵測到靜音時間 ≥ MIN_SILENCE_MS = 600ms
+   - 段落長度 < 800ms → 視為 noise，不呼叫 Whisper
+   - 段落長度 ≥ 800ms → 將整段音訊呼叫 Whisper 做 final transcript
+   - Final 覆蓋原本的 partial 字幕
+   - 呼叫翻譯 API
+
+5. **狀態重置**
+   - Final 完成後，重置段落狀態（pcmBuffers、currentPartialMessageId、hasFinalForThisSegment）
+   - 禁止對同一段送 final
+
+6. **限制**
+   - 禁止對長度 < 200ms 的 chunk 呼叫 Whisper
+   - Final chunk 最大可接受長度 4 秒（不得因超過 1.5 秒而被丟棄）
+
+### 修改內容
+
+- [x] 修改 partial chunk 行為：每 300ms 更新一次（已有）
+- [x] 修改 partial 音訊來源：改成最近 1 秒（固定長度）
+- [x] 不要送整段累積的 buffer
+- [x] 保持：只更新同一條 partial 訊息（已有）
+- [x] 測試修改結果
