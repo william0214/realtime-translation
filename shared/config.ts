@@ -226,18 +226,18 @@ export const ASR_MODE_CONFIG = {
    */
   normal: {
     // VAD 參數
-    minSpeechDurationMs: 300,
-    silenceDurationMs: 650,
+    minSpeechDurationMs: 400,  // 調整從 300ms 到 400ms
+    silenceDurationMs: 600,    // 調整從 650ms 到 600ms
     rmsThreshold: 0.055, // -55dB
     
     // Chunk 參數
     partialChunkIntervalMs: 300,
-    partialChunkMinBuffers: 6, // ≈ 200ms
-    partialChunkMinDurationMs: 200,
+    partialChunkMinBuffers: 12, // 調整從 6 到 12（≈ 300ms）
+    partialChunkMinDurationMs: 300,  // 調整從 200ms 到 300ms
     
     // Final 參數
     finalMinDurationMs: 800,
-    finalMaxDurationMs: 1500,
+    finalMaxDurationMs: 4000,  // 調整從 1500ms 到 4000ms
     discardBelowMs: 200,
     
     // Whisper 參數
@@ -263,19 +263,19 @@ export const ASR_MODE_CONFIG = {
    */
   precise: {
     // VAD 參數
-    minSpeechDurationMs: 500,  // 調整從 800ms 到 500ms
-    silenceDurationMs: 900,
+    minSpeechDurationMs: 400,  // 調整從 500ms 到 400ms（與 normal 一致）
+    silenceDurationMs: 600,    // 調整從 900ms 到 600ms（與 normal 一致）
     rmsThreshold: 0.1, // -50dB
     
     // Chunk 參數
     partialChunkIntervalMs: 400,
-    partialChunkMinBuffers: 10, // ≈ 350-400ms
-    partialChunkMinDurationMs: 400,
+    partialChunkMinBuffers: 12, // 調整從 10 到 12（≈ 300ms）
+    partialChunkMinDurationMs: 300,  // 調整從 400ms 到 300ms
     
     // Final 參數
-    finalMinDurationMs: 1000,  // 調整從 1500ms 到 1000ms
-    finalMaxDurationMs: 3000,
-    discardBelowMs: 400,
+    finalMinDurationMs: 800,   // 調整從 1000ms 到 800ms
+    finalMaxDurationMs: 4000,  // 調整從 3000ms 到 4000ms
+    discardBelowMs: 300,       // 調整從 400ms 到 300ms
     
     // Whisper 參數
     whisperPrompt: "User is speaking Chinese or Vietnamese. Prioritize Chinese detection.",

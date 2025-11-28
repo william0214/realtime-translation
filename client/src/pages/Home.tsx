@@ -249,23 +249,8 @@ export default function Home() {
                 });
 
             if (result.success && result.sourceText) {
-              // Update partial message (same message, no translation)
-              if (partialMessageIdRef.current === null) {
-                // Create new partial message
-                const newPartialMessage: ConversationMessage = {
-                  id: messageIdRef.current++,
-                  speaker: "nurse", // Assume nurse for now (can be enhanced later)
-                  originalText: result.sourceText,
-                  translatedText: "",
-                  detectedLanguage: "zh",
-                  timestamp: new Date(),
-                  status: "partial",
-                };
-                partialMessageIdRef.current = newPartialMessage.id;
-                setConversations((prev) => [...prev, newPartialMessage]);
-                console.log(`[Partial] Created partial message #${newPartialMessage.id}: "${result.sourceText}"`);
-              } else {
-                // Update existing partial message
+              // Update existing partial message (NEVER create new message)
+              if (partialMessageIdRef.current !== null) {
                 setConversations((prev) =>
                   prev.map((msg) =>
                     msg.id === partialMessageIdRef.current
@@ -274,8 +259,10 @@ export default function Home() {
                   )
                 );
                 console.log(`[Partial] Updated partial message #${partialMessageIdRef.current}: "${result.sourceText}"`);
+                setCurrentSubtitle(result.sourceText);
+              } else {
+                console.warn(`[Partial] No partial message to update, skipping`);
               }
-              setCurrentSubtitle(result.sourceText);
             }
           } catch (error: any) {
             console.error("[Subtitle] Error:", error);
@@ -513,6 +500,47 @@ export default function Home() {
           sentenceEndTriggeredRef.current = false; // Reset flag when speech starts
           setProcessingStatus("vad-detected");
           console.log(`🔵 Speech started`);
+          
+          // Create initial partial message (will be updated by processPartialChunk)
+          if (partialMessageIdRef.current === null) {
+            const newPartialMessage: ConversationMessage = {
+              id: messageIdRef.current++,
+              speaker: "nurse", // Assume nurse for now
+              originalText: "",
+              translatedText: "",
+              detectedLanguage: "zh",
+              timestamp: new Date(),
+              status: "partial",
+            };
+            partialMessageIdRef.current = newPartialMessage.id;
+            setConversations((prev) => [...prev, newPartialMessage]);
+            console.log(`[Partial] Created initial partial message #${newPartialMessage.id}`);
+          }
+        }
+        
+        // Auto-cut if speech duration exceeds 4 seconds
+        const speechDuration = now - speechStartTimeRef.current;
+        if (speechDuration >= FINAL_MAX_DURATION_MS && !sentenceEndTriggeredRef.current) {
+          console.log(`⚠️ Speech duration ${speechDuration}ms exceeds ${FINAL_MAX_DURATION_MS}ms, auto-cutting...`);
+          sentenceEndTriggeredRef.current = true;
+          isSpeakingRef.current = false;
+          
+          // Calculate final chunk duration
+          const totalSamples = sentenceBufferRef.current.reduce((acc, buf) => acc + buf.length, 0);
+          const finalChunkDuration = totalSamples / SAMPLE_RATE;
+          
+          console.log(`🟢 Speech auto-cut (duration: ${speechDuration}ms, final chunk: ${finalChunkDuration.toFixed(2)}s), processing final transcript...`);
+          
+          // Process final transcript (no upper limit check for auto-cut)
+          if (sentenceBufferRef.current.length > 0) {
+            processFinalTranscript([...sentenceBufferRef.current]);
+          }
+          
+          // Reset state after final
+          sentenceBufferRef.current = [];
+          partialMessageIdRef.current = null;
+          lastPartialTimeRef.current = 0;
+          setProcessingStatus("listening");
         }
       } else {
         if (isSpeakingRef.current && !sentenceEndTriggeredRef.current) {
@@ -540,18 +568,15 @@ export default function Home() {
               
               console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms, final chunk: ${finalChunkDuration.toFixed(2)}s), processing final transcript ONCE...`);
 
-              // Only process if final chunk in valid range (ensure complete sentence)
+              // Only process if final chunk >= minimum duration (no upper limit check)
               const finalMinDurationS = FINAL_MIN_DURATION_MS / 1000;
-              const finalMaxDurationS = FINAL_MAX_DURATION_MS / 1000;
-              if (finalChunkDuration >= finalMinDurationS && finalChunkDuration <= finalMaxDurationS) {
+              if (finalChunkDuration >= finalMinDurationS) {
                 // Process final transcript (only once)
                 if (sentenceBufferRef.current.length > 0) {
                   processFinalTranscript([...sentenceBufferRef.current]);
                 }
               } else {
-                const finalMinDurationS = FINAL_MIN_DURATION_MS / 1000;
-                const finalMaxDurationS = FINAL_MAX_DURATION_MS / 1000;
-                console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s out of range [${finalMinDurationS}, ${finalMaxDurationS}], discarding`);
+                console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s < ${finalMinDurationS}s, discarding`);
               }
               
               // Reset state after final

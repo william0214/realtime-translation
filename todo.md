@@ -641,3 +641,31 @@ at reader.onloadend (Home.tsx:323:23)
 - [x] 加入 RMS 值日誌，查看實際音量（每 2 秒輸出一次）
 - [x] 加入 analyserRef 檢查，防止 null 錯誤
 - [ ] 測試修復結果（請用戶重新測試並查看控制台 RMS 日誌）
+
+## ✅ 修正四個關鍵 BUG（已完成）
+
+### BUG #1 — Partial chunk 太短（非法 chunk）
+**問題：** 目前 partialChunkMinBuffers 太低，導致非法 chunk 產生
+**修正：** minPartialBuffers = 12（≈300ms），丟棄 < 12 buffers 的 chunk
+- [x] 更新 shared/config.ts 的 partialChunkMinBuffers（normal: 6 → 12, precise: 10 → 12）
+- [x] Home.tsx 已有 partial chunk 檢查邏輯（line 483-487）
+
+### BUG #2 — Final chunk 必須允許 0.8–4 秒
+**問題：** 目前限制在 0.8–1.5 秒，導致 80% 真實句子被判為非法
+**修正：** finalMinDuration = 0.8s, finalMaxDuration = 4.0s，超過 4 秒自動強制切段
+- [x] 更新 shared/config.ts 的 finalMaxDurationMs（normal: 1500ms → 4000ms, precise: 3000ms → 4000ms）
+- [x] 更新 Home.tsx 的 final chunk 檢查邏輯（移除上限檢查）
+- [x] 加入超過 4 秒自動切段的邏輯
+
+### BUG #3 — Partial 不得創建新的訊息
+**問題：** Partial 創建新訊息，導致訊息列表混亂
+**修正：** Partial 只更新現有 partial message，不創建新訊息，只有 final 才新增訊息
+- [x] 檢查 processPartialChunk 函數
+- [x] 在語音開始時創建初始 partial message
+- [x] processPartialChunk 只更新現有 partial message，不創建新訊息
+
+### BUG #4 — VAD 參數重新設定
+**問題：** VAD 太敏感，導致句子被切得亂七八糟
+**修正：** minSpeech = 400ms, minSilence = 600ms, silenceThreshold = -55dB（YouTube/Google ASR/Whisper default）
+- [x] 更新 shared/config.ts 的 VAD 參數（minSpeech: 400ms, minSilence: 600ms, rmsThreshold: 0.055）
+- [ ] 測試修復結果
