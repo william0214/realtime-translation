@@ -586,3 +586,22 @@ Audio file is too short. Minimum audio length is 0.1 seconds.
 - [x] 將 ASR 模式配置移到最前面，在所有 useCallback 之前
 - [x] 更新 `checkAudioLevel` 的 useCallback 依賴，加入 `RMS_THRESHOLD`
 - [x] 測試修復結果
+
+## ✅ 修復「印尼話翻不出來」問題（已調整）
+
+**問題描述：**
+- 使用者選擇印尼語作為目標語言
+- 說中文後，沒有翻譯成印尼語
+- 從日誌看到 partial 字幕有出現（「謝謝」、「麻煩你了」等）
+- 但沒有看到翻譯結果
+
+**觀察到的問題：**
+- Precise 模式下，很多語音被過濾（Speech too short < 800ms）
+- Partial chunk 有產生，但 final chunk 可能沒有觸發
+- 需要檢查是否有 final transcript 和翻譯的日誌
+
+**修復方案：**
+- [x] 分析日誌，發現 Precise 模式的 minSpeech (800ms) 和 finalMinDuration (1500ms) 太嚴格
+- [x] 調整 Precise 模式參數：minSpeech: 800ms → 500ms
+- [x] 調整 Precise 模式參數：finalMinDuration: 1500ms → 1000ms
+- [ ] 測試修復結果（請用戶重新測試）

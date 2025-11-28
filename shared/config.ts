@@ -263,7 +263,7 @@ export const ASR_MODE_CONFIG = {
    */
   precise: {
     // VAD 參數
-    minSpeechDurationMs: 800,
+    minSpeechDurationMs: 500,  // 調整從 800ms 到 500ms
     silenceDurationMs: 900,
     rmsThreshold: 0.1, // -50dB
     
@@ -273,7 +273,7 @@ export const ASR_MODE_CONFIG = {
     partialChunkMinDurationMs: 400,
     
     // Final 參數
-    finalMinDurationMs: 1500,
+    finalMinDurationMs: 1000,  // 調整從 1500ms 到 1000ms
     finalMaxDurationMs: 3000,
     discardBelowMs: 400,
     
