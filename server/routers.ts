@@ -31,6 +31,7 @@ export const appRouter = router({
           filename: z.string().optional(),
           preferredTargetLang: z.string().optional(),
           asrMode: z.enum(["normal", "precise"]).optional(),
+          transcriptOnly: z.boolean().optional(), // If true, only do transcription, no translation
         })
       )
       .mutation(async ({ input }) => {
@@ -79,6 +80,31 @@ export const appRouter = router({
           }
 
           console.log(`[autoTranslate] Transcript: "${sourceText}", Whisper language: ${whisperLanguage}`);
+
+          // If transcriptOnly is true, skip translation and return transcript only
+          if (input.transcriptOnly) {
+            console.log(`[autoTranslate] transcriptOnly=true, skipping translation`);
+            
+            // End E2E profiling
+            const e2eProfile = e2eProfiler.end("autoTranslate complete (transcript only)");
+            const completedAt = new Date();
+            const totalDuration = completedAt.getTime() - receivedAt.getTime();
+            
+            console.log(`\n========================================`);
+            console.log(`[時間戳記] 全部完成: ${completedAt.toISOString()}`);
+            console.log(`[時間統計] Whisper: ${whisperDuration}ms`);
+            console.log(`[時間統計] 總耗時: ${totalDuration}ms`);
+            console.log(`========================================\n`);
+            
+            return {
+              success: true,
+              sourceText,
+              translatedText: "", // No translation
+              sourceLang: whisperLanguage || "zh",
+              targetLang: input.preferredTargetLang || "vi",
+              direction: "unknown",
+            };
+          }
 
           // Use Whisper's language detection directly (with Smart Language Hint retry mechanism)
           // No need for LLM language detection anymore (saves 0.5-1 second)

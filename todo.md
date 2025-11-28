@@ -714,3 +714,40 @@ at reader.onloadend (Home.tsx:323:23)
 - [x] 不要送整段累積的 buffer
 - [x] 保持：只更新同一條 partial 訊息（已有）
 - [x] 測試修改結果
+
+## ✅ 修復翻譯失敗錯誤：sourceText 為空（已完成）
+
+**錯誤訊息：**
+```
+[Translation] Full response: {
+  "success": true,
+  "sourceText": "",
+  "translatedText": "",
+  "sourceLang": "unknown",
+  "targetLang": "vi",
+  "direction": "unknown"
+}
+[Translation] Translation failed: 未知錯誤
+```
+
+**問題分析：**
+- 翻譯 API 回傳 `success: true`，但 `sourceText` 和 `translatedText` 都是空字串
+- `sourceLang` 是 "unknown"
+- 表示 Whisper 沒有識別出任何文字
+
+**可能原因：**
+1. 音訊太短（< 0.2 秒）
+2. 音訊品質不佳或全是靜音
+3. Partial chunk 的音訊數據有問題
+4. WebM 編碼失敗
+
+**診斷結果：**
+- [x] 問題原因：partial chunk 呼叫翻譯 API，但應該只做語音識別
+- [x] Whisper 識別失敗時，sourceText 為空，導致翻譯失敗
+
+**修復方案：**
+- [x] 在後端 API 加入 `transcriptOnly` 參數
+- [x] 當 `transcriptOnly: true` 時，跳過翻譯，只回傳語音識別結果
+- [x] 前端 partial chunk 呼叫時傳入 `transcriptOnly: true`
+- [x] 更新 GoTranslationRequest 類型定義
+- [x] 測試修復結果

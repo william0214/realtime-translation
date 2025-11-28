@@ -11,6 +11,7 @@ export type GoTranslationRequest = {
   audioBase64: string;
   filename?: string;
   preferredTargetLang?: string;
+  transcriptOnly?: boolean; // If true, only do transcription, no translation
 };
 
 export type GoTranslationResponse = {

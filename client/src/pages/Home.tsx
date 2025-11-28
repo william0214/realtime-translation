@@ -241,11 +241,14 @@ export default function Home() {
                   audioBase64: base64Audio,
                   filename: `subtitle-${Date.now()}.webm`,
                   preferredTargetLang: targetLanguage,
+                  transcriptOnly: true, // Partial: only transcription, no translation
+                  asrMode,
                 })
               : await callGoTranslation({
                   audioBase64: base64Audio,
                   filename: `subtitle-${Date.now()}.webm`,
                   preferredTargetLang: targetLanguage,
+                  transcriptOnly: true, // Partial: only transcription, no translation
                 });
 
             if (result.success && result.sourceText) {
