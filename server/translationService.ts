@@ -1,7 +1,7 @@
 import { invokeLLM } from "./_core/llm";
 import axios from "axios";
 import FormData from "form-data";
-import { ASR_CONFIG, type ASRMode, getASRModeConfig } from "../shared/config";
+import { ASR_CONFIG, WHISPER_CONFIG, type ASRMode, getASRModeConfig } from "../shared/config";
 
 /**
  * Language role mapping
@@ -105,8 +105,8 @@ export async function transcribeAudio(
     filename,
     contentType: "audio/webm",
   });
-  form.append("model", "whisper-1");
-  form.append("response_format", "json");
+  form.append("model", WHISPER_CONFIG.MODEL);
+  form.append("response_format", WHISPER_CONFIG.RESPONSE_FORMAT);
   form.append("temperature", modeConfig.whisperTemperature.toString());
   // Use mode-specific language settings
   if (modeConfig.whisperForceLanguage) {
@@ -116,7 +116,7 @@ export async function transcribeAudio(
 
   try {
     const response = await axios.post(
-      "https://api.openai.com/v1/audio/transcriptions",
+      WHISPER_CONFIG.API_ENDPOINT,
       form,
       {
         headers: {

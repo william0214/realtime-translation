@@ -56,6 +56,33 @@ export const VAD_CONFIG = {
 // ==================== ASR (Automatic Speech Recognition) 參數 ====================
 
 /**
+ * Whisper API 配置
+ * 控制 Whisper API 呼叫的參數
+ */
+export const WHISPER_CONFIG = {
+  /**
+   * Whisper 模型
+   * 目前只有 whisper-1 可用
+   */
+  MODEL: "whisper-1" as const,
+
+  /**
+   * 回應格式
+   * - "json": 返回 JSON 格式（預設）
+   * - "text": 返回純文字
+   * - "srt": 返回 SRT 字幕格式
+   * - "verbose_json": 返回詳細 JSON（包含時間戳、標點等）
+   * - "vtt": 返回 WebVTT 字幕格式
+   */
+  RESPONSE_FORMAT: "json" as const,
+
+  /**
+   * API 端點
+   */
+  API_ENDPOINT: "https://api.openai.com/v1/audio/transcriptions" as const,
+} as const;
+
+/**
  * ASR 配置
  * 控制語音識別的行為
  */
@@ -230,8 +257,8 @@ export const ASR_MODE_CONFIG = {
     
     // Chunk 參數
     partialChunkIntervalMs: 300,
-    partialChunkMinBuffers: 12, // 調整從 6 到 12（≈ 300ms）
-    partialChunkMinDurationMs: 300,  // 調整從 200ms 到 300ms
+    partialChunkMinBuffers: 10, // 調整從 12 到 10（≈ 240ms，改善即時字幕延遲）
+    partialChunkMinDurationMs: 240,  // 調整從 300ms 到 240ms
     
     // Final 參數
     finalMinDurationMs: 800,
@@ -267,8 +294,8 @@ export const ASR_MODE_CONFIG = {
     
     // Chunk 參數
     partialChunkIntervalMs: 400,
-    partialChunkMinBuffers: 12, // 調整從 10 到 12（≈ 300ms）
-    partialChunkMinDurationMs: 300,  // 調整從 400ms 到 300ms
+    partialChunkMinBuffers: 10, // 調整從 12 到 10（≈ 240ms，改善即時字幕延遲）
+    partialChunkMinDurationMs: 240,  // 調整從 300ms 到 240ms
     
     // Final 參數
     finalMinDurationMs: 800,   // 調整從 1000ms 到 800ms

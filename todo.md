@@ -798,3 +798,49 @@ at reader.onloadend (Home.tsx:323:23)
 - [x] 修復後端錯誤處理邏輯（sourceText 為空時回傳 success: false）
 - [x] 改進前端錯誤訊息顯示（過濾正常的短音訊錯誤）
 - [x] 測試修復結果
+
+## 🔥 VAD/ASR 致命問題修復（緊急）
+
+**問題描述：**
+從日誌發現三個致命問題：
+1. **final chunk 超長（12-14 秒）**：pcmBuffers 沒有在 final 後清空，導致累積成超長音訊
+2. **Whisper 幻覺**：超長音訊導致 Whisper 產生 "本期視頻拍到這裡"、"Amara 字幕" 等幻覺句
+3. **partial 不穩定**：前 11 buffers < 12 被丟棄，造成即時字幕延遲
+
+**日誌證據：**
+```
+🟢 Speech ended (duration: 600ms, silence: 699ms, final chunk: 14.39s)
+🟢 Speech ended (duration: 599ms, silence: 601ms, final chunk: 12.97s)
+⚠️ Partial chunk too short (11 buffers < 12)
+```
+
+**根本原因：**
+- ❌ resetSegmentState() 沒有被正確呼叫
+- ❌ final 結束後 pcmBuffers 沒有清空
+- ❌ 語音開始時 pcmBuffers 沒有強制清空
+- ❌ final chunk 沒有長度上限（應該 ≤ 4 秒）
+
+**修復步驟：**
+- [x] 在 final 送出前立即重置 buffer（避免累積）
+- [x] 在語音開始時強制清空 buffer（確保新段落乾淨）
+- [x] 限制 final chunk 最大長度為 4 秒（避免超長音訊）
+- [x] 降低 partial 門檻從 12 到 10（改善即時字幕延遲）
+- [x] 加入詳細的 reset 日誌（方便診斷）
+- [x] 測試修復結果（確認 final chunk ≤ 4 秒）
+
+## 🔧 Whisper 參數抽出到 config（進行中）
+
+**需求：**
+將 Whisper API 的參數抽出到 shared/config.ts，方便調整
+
+**參數列表：**
+- model（目前固定為 "whisper-1"）
+- response_format（目前固定為 "json"）
+- temperature（目前固定為 0）
+- language（目前為 undefined，自動偵測）
+- prompt（目前在 ASR_MODE_CONFIG 中）
+
+**實作步驟：**
+- [x] 在 shared/config.ts 加入 WHISPER_CONFIG
+- [x] 更新 server/translationService.ts 使用 WHISPER_CONFIG
+- [x] 測試修改結果

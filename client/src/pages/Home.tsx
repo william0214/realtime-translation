@@ -523,8 +523,14 @@ export default function Home() {
           speechStartTimeRef.current = now;
           isSpeakingRef.current = true;
           sentenceEndTriggeredRef.current = false; // Reset flag when speech starts
+          
+          // 🔥 CRITICAL FIX: Force clear buffer when new speech starts
+          sentenceBufferRef.current = [];
+          partialMessageIdRef.current = null;
+          lastPartialTimeRef.current = 0;
+          console.log(`🔵 Speech started (buffer force-cleared)`);
+          
           setProcessingStatus("vad-detected");
-          console.log(`🔵 Speech started`);
           
           // Create initial partial message (will be updated by processPartialChunk)
           if (partialMessageIdRef.current === null) {
@@ -593,21 +599,40 @@ export default function Home() {
               
               console.log(`🟢 Speech ended (duration: ${speechDuration}ms, silence: ${silenceDuration}ms, final chunk: ${finalChunkDuration.toFixed(2)}s), processing final transcript ONCE...`);
 
-              // Only process if final chunk >= minimum duration (no upper limit check)
+              // Only process if final chunk >= minimum duration
               const finalMinDurationS = FINAL_MIN_DURATION_MS / 1000;
+              const finalMaxDurationS = FINAL_MAX_DURATION_MS / 1000;
+              
               if (finalChunkDuration >= finalMinDurationS) {
                 // Process final transcript (only once)
                 if (sentenceBufferRef.current.length > 0) {
-                  processFinalTranscript([...sentenceBufferRef.current]);
+                  // 🔥 CRITICAL FIX: Copy buffer FIRST, then reset IMMEDIATELY (before async call)
+                  let finalBuffers = [...sentenceBufferRef.current];
+                  
+                  // 🔥 CRITICAL FIX: Limit final chunk to max 4 seconds (prevent Whisper hallucination)
+                  if (finalChunkDuration > finalMaxDurationS) {
+                    const maxBuffers = Math.floor((finalMaxDurationS * SAMPLE_RATE) / 960); // 960 samples per buffer
+                    finalBuffers = finalBuffers.slice(-maxBuffers);
+                    console.log(`⚠️ Final chunk too long (${finalChunkDuration.toFixed(2)}s > ${finalMaxDurationS}s), truncating to last ${finalMaxDurationS}s`);
+                  }
+                  
+                  // Reset state IMMEDIATELY (before processFinalTranscript starts)
+                  sentenceBufferRef.current = [];
+                  partialMessageIdRef.current = null;
+                  lastPartialTimeRef.current = 0;
+                  console.log(`[ASR] Resetting segment state (buffer cleared)`);
+                  
+                  // Now call async function with copied buffer
+                  processFinalTranscript(finalBuffers);
                 }
               } else {
                 console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s < ${finalMinDurationS}s, discarding`);
+                // Also reset state when discarding
+                sentenceBufferRef.current = [];
+                partialMessageIdRef.current = null;
+                lastPartialTimeRef.current = 0;
               }
               
-              // Reset state after final
-              sentenceBufferRef.current = [];
-              partialMessageIdRef.current = null; // Reset partial message ID
-              lastPartialTimeRef.current = 0;
               setProcessingStatus("listening");
             }
           }
