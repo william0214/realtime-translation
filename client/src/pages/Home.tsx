@@ -156,7 +156,10 @@ export default function Home() {
 
   // Check audio level (VAD)
   const checkAudioLevel = useCallback(() => {
-    if (!analyserRef.current) return false;
+    if (!analyserRef.current) {
+      console.warn("[VAD] analyserRef is null");
+      return false;
+    }
 
     const analyser = analyserRef.current;
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -169,6 +172,11 @@ export default function Home() {
       sum += normalized * normalized;
     }
     const rms = Math.sqrt(sum / dataArray.length);
+
+    // Log RMS value every 2 seconds for debugging
+    if (Date.now() % 2000 < 100) {
+      console.log(`[VAD] RMS: ${rms.toFixed(4)}, Threshold: ${RMS_THRESHOLD.toFixed(4)}, Speaking: ${rms > RMS_THRESHOLD}`);
+    }
 
     // Update audio level display
     setAudioLevel(rms / RMS_THRESHOLD);

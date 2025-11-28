@@ -621,3 +621,23 @@ at reader.onloadend (Home.tsx:323:23)
 - [x] 加強前端日誌，輸出完整的 backend response
 - [x] 加強錯誤訊息，顯示 JSON.stringify(result)
 - [ ] 測試修復結果（請用戶重新測試並提供完整日誌）
+
+## 🐛 修復「即時字幕沒有出現」問題（進行中）
+
+**問題描述：**
+- 使用者點擊「開始對話」後說話
+- 狀態顯示「一直等待語音」
+- 沒有看到即時字幕
+- 音量條可能沒有變化
+
+**可能原因：**
+- VAD 沒有偵測到語音活動
+- RMS_THRESHOLD 太高（Normal: 0.055, Precise: 0.1）
+- 麥克風權限問題
+- checkAudioLevel 沒有正常工作
+
+**排查步驟：**
+- [x] 檢查 checkAudioLevel 是否正常執行
+- [x] 加入 RMS 值日誌，查看實際音量（每 2 秒輸出一次）
+- [x] 加入 analyserRef 檢查，防止 null 錯誤
+- [ ] 測試修復結果（請用戶重新測試並查看控制台 RMS 日誌）
