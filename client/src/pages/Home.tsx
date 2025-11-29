@@ -188,6 +188,12 @@ export default function Home() {
   const processPartialChunk = useCallback(async (pcmBuffer: Float32Array[]) => {
     if (pcmBuffer.length === 0) return;
 
+    // 🔥 OPTIMIZATION #4: Do NOT send ASR during silent loop
+    if (!isSpeakingRef.current) {
+      console.log(`⚠️ [Subtitle] Not speaking, skipping partial ASR`);
+      return;
+    }
+
     console.log(`[Subtitle] Processing chunk with ${pcmBuffer.length} PCM buffers`);
     setProcessingStatus("recognizing");
 
@@ -295,8 +301,38 @@ export default function Home() {
   const processFinalTranscript = useCallback(async (pcmBuffer: Float32Array[]) => {
     if (pcmBuffer.length === 0) return;
 
+    // 🔥 OPTIMIZATION #3: Filter noise/silence WebM
+    // Check 1: Buffer length (too short = noise)
+    if (pcmBuffer.length < 12) {
+      console.log(`⚠️ [Translation] Buffer too short (${pcmBuffer.length} buffers < 12), skipping as noise`);
+      setProcessingStatus("listening");
+      return;
+    }
+
+    // Check 2: Calculate RMS (too quiet = silence)
+    const concatenated = new Float32Array(pcmBuffer.reduce((acc, buf) => acc + buf.length, 0));
+    let offset = 0;
+    for (const buf of pcmBuffer) {
+      concatenated.set(buf, offset);
+      offset += buf.length;
+    }
+    
+    let sum = 0;
+    for (let i = 0; i < concatenated.length; i++) {
+      sum += concatenated[i] * concatenated[i];
+    }
+    const rms = Math.sqrt(sum / concatenated.length);
+    const currentConfig = getASRModeConfig(asrMode);
+    const rmsThreshold = currentConfig.rmsThreshold;
+    
+    if (rms < rmsThreshold) {
+      console.log(`⚠️ [Translation] RMS too low (${rms.toFixed(4)} < ${rmsThreshold}), skipping as silence`);
+      setProcessingStatus("listening");
+      return;
+    }
+
     // Calculate audio duration
-    const totalSamples = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
+    const totalSamples = concatenated.length;
     const audioDuration = totalSamples / SAMPLE_RATE;
     
     // Skip if audio is too short (Whisper requires minimum 0.1 seconds)
@@ -306,19 +342,11 @@ export default function Home() {
       return;
     }
 
-    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers (duration: ${audioDuration.toFixed(2)}s)`);
+    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers (duration: ${audioDuration.toFixed(2)}s, RMS: ${rms.toFixed(4)})`);
     setProcessingStatus("translating");
 
     try {
-      // Concatenate PCM buffers
-      const totalLength = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
-      const concatenated = new Float32Array(totalLength);
-      let offset = 0;
-      for (const buf of pcmBuffer) {
-        concatenated.set(buf, offset);
-        offset += buf.length;
-      }
-
+      // Note: concatenated array is already created above for RMS check
       // Create AudioBuffer
       const audioBuffer = audioContextRef.current!.createBuffer(1, concatenated.length, SAMPLE_RATE);
       audioBuffer.copyToChannel(concatenated, 0);
@@ -580,6 +608,9 @@ export default function Home() {
             // Check minimum speech duration to filter short noise (800ms, prevent Whisper hallucination)
             const speechDuration = lastSpeechTimeRef.current - speechStartTimeRef.current;
             
+            // 🔥 OPTIMIZATION #2: Only process speech between 800-2500ms
+            const MAX_SPEECH_DURATION_MS = 2500; // Maximum valid speech duration
+            
             if (speechDuration < MIN_SPEECH_DURATION_MS) {
               // Too short, likely noise - discard
               console.log(`⚠️ Speech too short (${speechDuration}ms < ${MIN_SPEECH_DURATION_MS}ms), discarding as noise`);
@@ -587,6 +618,14 @@ export default function Home() {
               sentenceBufferRef.current = [];
               partialMessageIdRef.current = null; // Reset partial message ID
               sentenceEndTriggeredRef.current = true; // Mark as triggered to prevent re-entry
+              setProcessingStatus("listening");
+            } else if (speechDuration > MAX_SPEECH_DURATION_MS) {
+              // Too long, likely accumulated noise or continuous speech - discard
+              console.log(`⚠️ Speech too long (${speechDuration}ms > ${MAX_SPEECH_DURATION_MS}ms), discarding`);
+              isSpeakingRef.current = false;
+              sentenceBufferRef.current = [];
+              partialMessageIdRef.current = null;
+              sentenceEndTriggeredRef.current = true;
               setProcessingStatus("listening");
             } else {
               // Speech segment end (valid speech) - only trigger once
@@ -606,14 +645,17 @@ export default function Home() {
               if (finalChunkDuration >= finalMinDurationS) {
                 // Process final transcript (only once)
                 if (sentenceBufferRef.current.length > 0) {
-                  // 🔥 CRITICAL FIX: Copy buffer FIRST, then reset IMMEDIATELY (before async call)
-                  let finalBuffers = [...sentenceBufferRef.current];
+                  // 🔥 OPTIMIZATION #1: Only take last 50-70 buffers (~1-1.5 seconds)
+                  // This prevents Whisper hallucination and reduces processing time
+                  const MAX_FINAL_BUFFERS = 70; // ~1.5 seconds at 48kHz
+                  let finalBuffers = sentenceBufferRef.current.slice(-MAX_FINAL_BUFFERS);
                   
-                  // 🔥 CRITICAL FIX: Limit final chunk to max 4 seconds (prevent Whisper hallucination)
-                  if (finalChunkDuration > finalMaxDurationS) {
-                    const maxBuffers = Math.floor((finalMaxDurationS * SAMPLE_RATE) / 960); // 960 samples per buffer
-                    finalBuffers = finalBuffers.slice(-maxBuffers);
-                    console.log(`⚠️ Final chunk too long (${finalChunkDuration.toFixed(2)}s > ${finalMaxDurationS}s), truncating to last ${finalMaxDurationS}s`);
+                  const finalBufferDuration = finalBuffers.reduce((acc, buf) => acc + buf.length, 0) / SAMPLE_RATE;
+                  console.log(`🔹 Final buffers: ${finalBuffers.length} buffers (~${finalBufferDuration.toFixed(2)}s)`);
+                  
+                  // Additional check: if still too long after slicing, something is wrong
+                  if (finalBufferDuration > 2.0) {
+                    console.warn(`⚠️ Final buffer still too long (${finalBufferDuration.toFixed(2)}s > 2.0s), this should not happen`);
                   }
                   
                   // Reset state IMMEDIATELY (before processFinalTranscript starts)

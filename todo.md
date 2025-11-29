@@ -860,3 +860,38 @@ partial 訊息的顯示邏輯有問題：
 - [x] 移除「（處理中...）」後綴，改為只顯示「即時字幕」
 - [x] 只有當 `originalText` 有內容時才顯示「等待完整識別...」
 - [x] 測試修復結果
+
+## ⭐ 5 項關鍵優化（精準、快速、低成本）
+
+**目標：**
+- ⭐ 精準：不再出現亂碼、Youtuber 字幕、幻覺
+- ⭐ 快速：每段固定在 1.3-1.6 秒（ASR ~0.6s + Translate ~0.6-0.8s）
+- ⭐ 低成本：silent loop 不再送 API，費用降低 50-70%
+
+**優化項目：**
+
+### 1. Final transcript 只取最後 50-70 buffers
+- [x] 不要送整段 PCM，改成 `const finalBuffers = pcmBuffers.slice(-70);`
+- [x] 確保 final chunk 長度在 0.8-1.5 秒
+
+### 2. 僅當 speechDuration 800-2500ms 才送 final ASR
+- [x] 加入條件：`if (speechDuration >= 800ms && speechDuration <= 2500ms)`
+- [x] 過濾掉太短（< 800ms）和太長（> 2500ms）的語音段落
+
+### 3. 噪音/靜音 WebM 不要送出 ASR
+- [x] 加入條件：`if (finalBuffers.length < 12) return; // too short`
+- [x] 加入條件：`if (RMS < threshold) return; // silence`
+
+### 4. Silent loop 期間不要送 ASR
+- [x] 加入條件：`if (!speaking) return; // 禁止送 segment`
+- [x] 避免在 speaking=false 時持續送 "Sending request to segment ASR..."
+
+### 5. Partial transcript 最大 300ms 更新一次（已正確）
+- [x] 已實作：`if (now - lastPartialTime >= 300ms)`
+
+**預期效果：**
+- Final chunk 長度：0.8-1.5 秒（不再出現 3.24s、12.97s）
+- ASR 延遲：~0.6s
+- 翻譯延遲：~0.6-0.8s
+- 總延遲：~1.3-1.6 秒
+- API 費用降低：50-70%
