@@ -942,3 +942,17 @@ Partial 訊息永遠不會被升級為 final，而是創建了一個新的 final
 - 在 `shared/config.ts` 加入 `TRANSLATION_CONFIG.ENABLE_TRANSLATION = true`
 - 修改後端 `server/routers.ts`，使用 `TRANSLATION_CONFIG.ENABLE_TRANSLATION` 控制翻譯功能
 - 翻譯功能已打開（`ENABLE_TRANSLATION: true`）
+
+## 🔧 語言選擇邏輯修正
+
+**需求：**
+- [x] 修正語言選擇邏輯：當選擇越南語時，將其作為翻譯的目標語言（`preferredTargetLang`）
+- [x] 新增「自動判斷」選項：選擇時不傳 `preferredTargetLang` 參數，讓 LLM 自動判斷目標語言
+- [x] 確保選擇語言後，之後的對話都使用該語言（不需要每次都改）
+
+**實作步驟：**
+- [x] 檢查目前的語言選擇邏輯
+- [x] 修正前端邏輯：將選擇的語言作為 `preferredTargetLang` 傳給後端
+- [x] 在 `LANGUAGE_OPTIONS` 加入「自動判斷」選項
+- [x] 修改前端邏輯：當選擇「自動判斷」時，傳 `undefined` 給 `preferredTargetLang`
+- [x] 測試修復結果

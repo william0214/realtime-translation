@@ -28,6 +28,7 @@ type ConversationMessage = {
 type ProcessingStatus = "idle" | "listening" | "vad-detected" | "recognizing" | "translating" | "speaking";
 
 const LANGUAGE_OPTIONS = [
+  { value: "auto", label: "🤖 自動判斷" },
   { value: "vi", label: "越南語" },
   { value: "id", label: "印尼語" },
   { value: "fil", label: "菲律賓語" },
@@ -253,14 +254,14 @@ export default function Home() {
               ? await translateMutation.mutateAsync({
                   audioBase64: base64Audio,
                   filename: `subtitle-${Date.now()}.webm`,
-                  preferredTargetLang: targetLanguage,
+                  preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                   transcriptOnly: true, // Partial: only transcription, no translation
                   asrMode,
                 })
               : await callGoTranslation({
                   audioBase64: base64Audio,
                   filename: `subtitle-${Date.now()}.webm`,
-                  preferredTargetLang: targetLanguage,
+                  preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                   transcriptOnly: true, // Partial: only transcription, no translation
                 });
 
@@ -382,13 +383,13 @@ export default function Home() {
               ? await translateMutation.mutateAsync({
                   audioBase64: base64Audio,
                   filename: `translation-${Date.now()}.webm`,
-                  preferredTargetLang: targetLanguage,
+                  preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                   asrMode, // Pass ASR mode to backend
                 })
               : await callGoTranslation({
                   audioBase64: base64Audio,
                   filename: `translation-${Date.now()}.webm`,
-                  preferredTargetLang: targetLanguage,
+                  preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                 });
 
             console.log("[Translation] Backend response:", result);
@@ -857,7 +858,7 @@ export default function Home() {
 
       // Create a new conversation session (for Node.js/Go backends)
       const conversationResult = await createConversationMutation.mutateAsync({
-        targetLanguage,
+        targetLanguage: targetLanguage === "auto" ? "auto" : targetLanguage,
         title: `對話 - ${new Date().toLocaleString("zh-TW")}`,
       });
 
