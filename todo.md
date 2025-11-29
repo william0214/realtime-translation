@@ -908,3 +908,26 @@ partial 訊息的顯示邏輯有問題：
 - [x] 移除翻譯階段的 RMS 判斷
 - [x] 翻譯是否執行僅依據：final transcript 是否有文字（非空字串）
 - [x] 保留 VAD 階段和 final chunk 產生前的 RMS 檢查
+
+## 🐛 Partial 訊息永遠不會升級為 Final
+
+**問題描述：**
+Partial 訊息永遠不會被升級為 final，而是創建了一個新的 final 訊息。
+
+**根本原因：**
+在 VAD 邏輯中，`partialMessageIdRef.current = null` 被設置在呼叫 `processFinalTranscript` **之前**，導致 `processFinalTranscript` 內部的檢查總是走到 `else` 分支（創建新訊息）。
+
+**期望行為：**
+1. 說話時：創建一個 partial 訊息（例如 #25）
+2. 停止說話後：**更新** #25 從 `status: "partial"` 到 `status: "final"`
+3. 翻譯完成後：創建翻譯訊息（例如 #26）
+
+**實際行為：**
+1. 說話時：創建 partial 訊息 #25
+2. 停止說話後：創建**新的** final 訊息 #26
+3. 翻譯完成後：創建翻譯訊息 #27
+
+**修復方案：**
+- [x] 不要在呼叫 `processFinalTranscript` 前重置 `partialMessageIdRef.current`
+- [x] 讓 `processFinalTranscript` 負責更新 partial 訊息並重置 `partialMessageIdRef.current`
+- [x] 清理狀態重置邏輯（太短/太長的 chunk 被丟棄時，移除 partial 訊息）

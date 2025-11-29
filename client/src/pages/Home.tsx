@@ -603,14 +603,28 @@ export default function Home() {
             if (speechDuration < MIN_SPEECH_DURATION_MS) {
               // Too short, likely noise - discard
               console.log(`⚠️ Speech too short (${speechDuration}ms < ${MIN_SPEECH_DURATION_MS}ms), discarding as noise`);
+              
+              // Remove the partial message from UI (if exists)
+              if (partialMessageIdRef.current !== null) {
+                setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageIdRef.current));
+                console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (speech too short)`);
+              }
+              
               isSpeakingRef.current = false;
               sentenceBufferRef.current = [];
-              partialMessageIdRef.current = null; // Reset partial message ID
-              sentenceEndTriggeredRef.current = true; // Mark as triggered to prevent re-entry
+              partialMessageIdRef.current = null;
+              sentenceEndTriggeredRef.current = true;
               setProcessingStatus("listening");
             } else if (speechDuration > MAX_SPEECH_DURATION_MS) {
               // Too long, likely accumulated noise or continuous speech - discard
               console.log(`⚠️ Speech too long (${speechDuration}ms > ${MAX_SPEECH_DURATION_MS}ms), discarding`);
+              
+              // Remove the partial message from UI (if exists)
+              if (partialMessageIdRef.current !== null) {
+                setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageIdRef.current));
+                console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (speech too long)`);
+              }
+              
               isSpeakingRef.current = false;
               sentenceBufferRef.current = [];
               partialMessageIdRef.current = null;
@@ -647,18 +661,27 @@ export default function Home() {
                     console.warn(`⚠️ Final buffer still too long (${finalBufferDuration.toFixed(2)}s > 2.0s), this should not happen`);
                   }
                   
-                  // Reset state IMMEDIATELY (before processFinalTranscript starts)
+                  // Reset buffer and timer IMMEDIATELY (before processFinalTranscript starts)
+                  // But DO NOT reset partialMessageIdRef yet - let processFinalTranscript handle it
                   sentenceBufferRef.current = [];
-                  partialMessageIdRef.current = null;
                   lastPartialTimeRef.current = 0;
-                  console.log(`[ASR] Resetting segment state (buffer cleared)`);
+                  console.log(`[ASR] Resetting segment state (buffer cleared, timer reset)`);
                   
                   // Now call async function with copied buffer
+                  // processFinalTranscript will update the existing partial message to final
+                  // and reset partialMessageIdRef.current after success
                   processFinalTranscript(finalBuffers);
                 }
               } else {
                 console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s < ${finalMinDurationS}s, discarding`);
-                // Also reset state when discarding
+                
+                // Remove the partial message from UI (if exists) to avoid "stuck partial bubble"
+                if (partialMessageIdRef.current !== null) {
+                  setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageIdRef.current));
+                  console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (chunk too short)`);
+                }
+                
+                // Reset state when discarding
                 sentenceBufferRef.current = [];
                 partialMessageIdRef.current = null;
                 lastPartialTimeRef.current = 0;
