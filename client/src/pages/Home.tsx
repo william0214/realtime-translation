@@ -1109,12 +1109,14 @@ export default function Home() {
                   <div key={msg.id} className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
                     <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
                       <span className="animate-pulse">●</span>
-                      即時字幕（處理中...）
+                      即時字幕
                     </div>
                     <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
-                      {msg.originalText}
+                      {msg.originalText || "偵測中..."}
                     </div>
-                    <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
+                    {msg.originalText && (
+                      <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
+                    )}
                   </div>
                 ))}
               
@@ -1152,12 +1154,14 @@ export default function Home() {
                   <div key={msg.id} className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
                     <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
                       <span className="animate-pulse">●</span>
-                      即時字幕（處理中...）
+                      即時字幕
                     </div>
                     <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
-                      {msg.originalText}
+                      {msg.originalText || "偵測中..."}
                     </div>
-                    <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
+                    {msg.originalText && (
+                      <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
+                    )}
                   </div>
                 ))}
               

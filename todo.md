@@ -844,3 +844,19 @@ at reader.onloadend (Home.tsx:323:23)
 - [x] 在 shared/config.ts 加入 WHISPER_CONFIG
 - [x] 更新 server/translationService.ts 使用 WHISPER_CONFIG
 - [x] 測試修改結果
+
+## 🐛 即時字幕一直顯示「處理中...」沒有出現文字
+
+**問題描述：**
+用戶報告即時字幕卡在「即時字幕（處理中...）」狀態，沒有顯示識別出的文字
+
+**根本原因：**
+partial 訊息的顯示邏輯有問題：
+- 當 `originalText` 為空字串時，顯示「即時字幕（處理中...）」但下面沒有文字
+- 如果 Whisper API 沒有成功識別出文字（例如音訊太短、噪音等），`result.sourceText` 就是空字串
+
+**修復方案：**
+- [x] 改進顯示邏輯：如果 `originalText` 為空，顯示「偵測中...」
+- [x] 移除「（處理中...）」後綴，改為只顯示「即時字幕」
+- [x] 只有當 `originalText` 有內容時才顯示「等待完整識別...」
+- [x] 測試修復結果
