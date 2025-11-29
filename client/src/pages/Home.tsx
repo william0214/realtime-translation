@@ -309,26 +309,16 @@ export default function Home() {
       return;
     }
 
-    // Check 2: Calculate RMS (too quiet = silence)
+    // Note: RMS check removed from translation stage
+    // Noise/silence filtering should only happen at VAD stage and before final chunk generation
+    // If Whisper successfully transcribes text, we should NOT filter it based on RMS
+    
+    // Concatenate PCM buffers
     const concatenated = new Float32Array(pcmBuffer.reduce((acc, buf) => acc + buf.length, 0));
     let offset = 0;
     for (const buf of pcmBuffer) {
       concatenated.set(buf, offset);
       offset += buf.length;
-    }
-    
-    let sum = 0;
-    for (let i = 0; i < concatenated.length; i++) {
-      sum += concatenated[i] * concatenated[i];
-    }
-    const rms = Math.sqrt(sum / concatenated.length);
-    const currentConfig = getASRModeConfig(asrMode);
-    const rmsThreshold = currentConfig.rmsThreshold;
-    
-    if (rms < rmsThreshold) {
-      console.log(`⚠️ [Translation] RMS too low (${rms.toFixed(4)} < ${rmsThreshold}), skipping as silence`);
-      setProcessingStatus("listening");
-      return;
     }
 
     // Calculate audio duration
@@ -342,11 +332,10 @@ export default function Home() {
       return;
     }
 
-    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers (duration: ${audioDuration.toFixed(2)}s, RMS: ${rms.toFixed(4)})`);
+    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers (duration: ${audioDuration.toFixed(2)}s)`);
     setProcessingStatus("translating");
 
     try {
-      // Note: concatenated array is already created above for RMS check
       // Create AudioBuffer
       const audioBuffer = audioContextRef.current!.createBuffer(1, concatenated.length, SAMPLE_RATE);
       audioBuffer.copyToChannel(concatenated, 0);
