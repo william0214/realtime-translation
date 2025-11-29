@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { diagnosticsStore } from "./profiler/diagnosticsStore";
 import { transcribeAudio, identifyLanguage, translateText, determineDirection } from "./translationService";
+import { TRANSLATION_CONFIG } from "../shared/config";
 import { E2EProfiler } from "./profiler/e2eProfiler";
 import { BottleneckDetector } from "./profiler/bottleneckDetector";
 
@@ -87,9 +88,10 @@ export const appRouter = router({
 
           console.log(`[autoTranslate] Transcript: "${sourceText}", Whisper language: ${whisperLanguage}`);
 
-          // If transcriptOnly is true, skip translation and return transcript only
-          if (input.transcriptOnly) {
-            console.log(`[autoTranslate] transcriptOnly=true, skipping translation`);
+          // If transcriptOnly is true OR translation is disabled in config, skip translation
+          if (input.transcriptOnly || !TRANSLATION_CONFIG.ENABLE_TRANSLATION) {
+            const reason = input.transcriptOnly ? "transcriptOnly=true" : "TRANSLATION_CONFIG.ENABLE_TRANSLATION=false";
+            console.log(`[autoTranslate] ${reason}, skipping translation`);
             
             // End E2E profiling
             const e2eProfile = e2eProfiler.end("autoTranslate complete (transcript only)");

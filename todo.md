@@ -931,3 +931,14 @@ Partial 訊息永遠不會被升級為 final，而是創建了一個新的 final
 - [x] 不要在呼叫 `processFinalTranscript` 前重置 `partialMessageIdRef.current`
 - [x] 讓 `processFinalTranscript` 負責更新 partial 訊息並重置 `partialMessageIdRef.current`
 - [x] 清理狀態重置邏輯（太短/太長的 chunk 被丟棄時，移除 partial 訊息）
+
+## 🔧 翻譯功能設定
+
+**需求：**
+- [x] 將翻譯功能打開（目前可能是關閉的）
+- [x] 將翻譯開關設定移到 `shared/config.ts`，方便調整
+
+**實作結果：**
+- 在 `shared/config.ts` 加入 `TRANSLATION_CONFIG.ENABLE_TRANSLATION = true`
+- 修改後端 `server/routers.ts`，使用 `TRANSLATION_CONFIG.ENABLE_TRANSLATION` 控制翻譯功能
+- 翻譯功能已打開（`ENABLE_TRANSLATION: true`）

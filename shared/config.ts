@@ -143,6 +143,17 @@ export const ASR_CONFIG = {
  */
 export const TRANSLATION_CONFIG = {
   /**
+   * 翻譯功能開關
+   * 設定為 false 只做語音識別，不翻譯
+   * 設定為 true 則同時執行語音識別和翻譯
+   * 
+   * 建議值：
+   * - 測試階段：false（只測試 ASR）
+   * - 正式使用：true（完整功能）
+   */
+  ENABLE_TRANSLATION: true,
+
+  /**
    * 預設目標語言
    * 台灣人說中文時，翻譯成此語言
    */
