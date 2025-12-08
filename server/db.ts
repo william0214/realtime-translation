@@ -1,6 +1,6 @@
 import { eq, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, translations, InsertTranslation, languageConfig, conversations, InsertConversation } from "../drizzle/schema";
+import { InsertUser, users, translations, InsertTranslation, languageConfig, conversations, InsertConversation, conversationSummaries, InsertConversationSummary } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -208,4 +208,40 @@ export async function getTranslationsByConversationId(conversationId: number) {
 
   const result = await db.select().from(translations).where(eq(translations.conversationId, conversationId));
   return result;
+}
+
+// Conversation summary queries
+export async function createConversationSummary(summary: InsertConversationSummary) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot create summary: database not available");
+    return undefined;
+  }
+
+  const result = await db.insert(conversationSummaries).values(summary);
+  const inserted = await db.select().from(conversationSummaries).orderBy(desc(conversationSummaries.id)).limit(1);
+  return inserted.length > 0 ? inserted[0] : undefined;
+}
+
+export async function getSummaryByConversationId(conversationId: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get summary: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(conversationSummaries).where(eq(conversationSummaries.conversationId, conversationId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateConversationSummary(conversationId: number, summary: string, keyPoints: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot update summary: database not available");
+    return;
+  }
+
+  await db.update(conversationSummaries)
+    .set({ summary, keyPoints, updatedAt: new Date() })
+    .where(eq(conversationSummaries.conversationId, conversationId));
 }

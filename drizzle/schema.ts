@@ -91,3 +91,25 @@ export const languageConfig = mysqlTable("languageConfig", {
 
 export type LanguageConfig = typeof languageConfig.$inferSelect;
 export type InsertLanguageConfig = typeof languageConfig.$inferInsert;
+
+/**
+ * Conversation summaries table - stores AI-generated summaries
+ */
+export const conversationSummaries = mysqlTable("conversationSummaries", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Conversation ID this summary belongs to */
+  conversationId: int("conversationId").notNull(),
+  /** AI-generated summary of the conversation */
+  summary: text("summary").notNull(),
+  /** Key points extracted from the conversation */
+  keyPoints: text("keyPoints"),
+  /** Total number of messages in the conversation */
+  messageCount: int("messageCount").notNull(),
+  /** User ID who generated the summary (optional) */
+  userId: int("userId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ConversationSummary = typeof conversationSummaries.$inferSelect;
+export type InsertConversationSummary = typeof conversationSummaries.$inferInsert;

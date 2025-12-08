@@ -365,6 +365,148 @@ export const appRouter = router({
           };
         }
       }),
+
+    // Generate conversation summary
+    generateSummary: publicProcedure
+      .input(
+        z.object({
+          conversationId: z.number(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const { getConversationById, getTranslationsByConversationId, createConversationSummary, getSummaryByConversationId, updateConversationSummary } = await import("./db");
+        const { invokeLLM } = await import("./_core/llm");
+
+        try {
+          // Get conversation and translations
+          const conversation = await getConversationById(input.conversationId);
+          if (!conversation) {
+            return {
+              success: false,
+              error: "Conversation not found",
+            };
+          }
+
+          const translations = await getTranslationsByConversationId(input.conversationId);
+          if (translations.length === 0) {
+            return {
+              success: false,
+              error: "No translations found in this conversation",
+            };
+          }
+
+          // Format conversation for LLM
+          const conversationText = translations
+            .map((t, index) => {
+              const speaker = t.direction === "nurse_to_patient" ? "護理人員" : "病患";
+              return `${index + 1}. ${speaker}: ${t.sourceText} (翻譯: ${t.translatedText})`;
+            })
+            .join("\n");
+
+          console.log(`[Summary] Generating summary for conversation ${input.conversationId} with ${translations.length} messages`);
+
+          // Generate summary using LLM
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: "你是一個專業的醫療對話摘要助手。請根據護理人員與病患的對話記錄，生成簡潔的摘要和關鍵要點。",
+              },
+              {
+                role: "user",
+                content: `請為以下對話生成摘要：\n\n${conversationText}\n\n請以 JSON 格式回覆，包含兩個欄位：\n1. summary: 對話的簡潔摘要（2-3 句話）\n2. keyPoints: 關鍵要點列表（3-5 個要點，使用 | 分隔）`,
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "conversation_summary",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    summary: {
+                      type: "string",
+                      description: "對話的簡潔摘要",
+                    },
+                    keyPoints: {
+                      type: "string",
+                      description: "關鍵要點，使用 | 分隔",
+                    },
+                  },
+                  required: ["summary", "keyPoints"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const content = response.choices[0].message.content;
+          const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
+          const summaryData = JSON.parse(contentStr || "{}");
+          console.log(`[Summary] Generated summary:`, summaryData);
+
+          // Check if summary already exists
+          const existingSummary = await getSummaryByConversationId(input.conversationId);
+          
+          if (existingSummary) {
+            // Update existing summary
+            await updateConversationSummary(
+              input.conversationId,
+              summaryData.summary,
+              summaryData.keyPoints
+            );
+          } else {
+            // Create new summary
+            await createConversationSummary({
+              conversationId: input.conversationId,
+              summary: summaryData.summary,
+              keyPoints: summaryData.keyPoints,
+              messageCount: translations.length,
+              userId: ctx.user?.id,
+            });
+          }
+
+          return {
+            success: true,
+            summary: summaryData.summary,
+            keyPoints: summaryData.keyPoints,
+            messageCount: translations.length,
+          };
+        } catch (error: any) {
+          console.error("[Summary] Error:", error);
+          return {
+            success: false,
+            error: error.message || "Failed to generate summary",
+          };
+        }
+      }),
+
+    // Get conversation summary
+    getSummary: publicProcedure
+      .input(
+        z.object({
+          conversationId: z.number(),
+        })
+      )
+      .query(async ({ input }) => {
+        const { getSummaryByConversationId } = await import("./db");
+
+        try {
+          const summary = await getSummaryByConversationId(input.conversationId);
+
+          return {
+            success: true,
+            summary,
+          };
+        } catch (error: any) {
+          console.error("[Summary] Get error:", error);
+          return {
+            success: false,
+            error: error.message || "Failed to get summary",
+          };
+        }
+      }),
   }),
 
   // TTS endpoint
