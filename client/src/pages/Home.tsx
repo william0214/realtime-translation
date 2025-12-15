@@ -844,6 +844,16 @@ export default function Home() {
     setCurrentSubtitle("");
     setProcessingStatus("idle");
     setIsRecording(false);
+
+    // 🔥 FIX: Remove any partial messages from UI when stopping Hybrid recording
+    if (partialMessageIdRef.current !== null) {
+      setConversations((prev) => prev.filter((msg) => msg.status !== "partial"));
+      console.log(`[Stop Hybrid Recording] Removed all partial messages`);
+      partialMessageIdRef.current = null;
+    }
+    lastPartialTimeRef.current = 0;
+    sentenceEndTriggeredRef.current = false;
+
     toast.success("停止 Hybrid ASR 錄音");
   }, []);
 
@@ -964,6 +974,15 @@ export default function Home() {
     setCurrentSubtitle("");
     setProcessingStatus("idle");
     setIsRecording(false);
+
+    // 🔥 FIX: Remove any partial messages from UI when stopping recording
+    if (partialMessageIdRef.current !== null) {
+      setConversations((prev) => prev.filter((msg) => msg.status !== "partial"));
+      console.log(`[Stop Recording] Removed all partial messages`);
+      partialMessageIdRef.current = null;
+    }
+    lastPartialTimeRef.current = 0;
+    sentenceEndTriggeredRef.current = false;
 
     // End conversation
     if (currentConversationId) {
