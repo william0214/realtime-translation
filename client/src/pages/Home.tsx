@@ -75,6 +75,17 @@ export default function Home() {
   const [titleClickCount, setTitleClickCount] = useState(0);
   const titleClickTimeoutRef = useRef<number | null>(null);
   
+  // Mirror display for transparent screen
+  const [mirrorForeignView, setMirrorForeignView] = useState<boolean>(() => {
+    const saved = localStorage.getItem("mirror-foreign-view");
+    return saved === "true";
+  });
+  
+  // Save mirror setting to localStorage
+  useEffect(() => {
+    localStorage.setItem("mirror-foreign-view", mirrorForeignView.toString());
+  }, [mirrorForeignView]);
+  
   // Partial transcript state
   const partialMessageIdRef = useRef<number | null>(null); // Track current partial message ID
   const lastPartialTimeRef = useRef<number>(0); // Track last partial push time
@@ -1229,8 +1240,22 @@ export default function Home() {
 
           {/* Patient (Foreign Language) - Top on mobile (normal, facing down), Right on desktop */}
           <div className="bg-gray-900 rounded-lg p-3 md:p-4">
-            <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">外國人 (外語)</h2>
-            <div ref={patientScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
+            <div className="flex items-center justify-center gap-3 mb-3 md:mb-4">
+              <h2 className="text-lg md:text-xl font-semibold">外國人 (外語)</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMirrorForeignView(!mirrorForeignView)}
+                className="h-7 px-2 text-xs"
+                title={mirrorForeignView ? "取消翻轉顯示" : "翻轉顯示（透明螢幕）"}
+              >
+                {mirrorForeignView ? "🔄 已翻轉" : "↔️ 翻轉"}
+              </Button>
+            </div>
+            <div 
+              ref={patientScrollRef} 
+              className={`h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3 ${mirrorForeignView ? 'mirror-horizontal' : ''}`}
+            >
               {/* Partial transcript (即時字幕) */}
               {conversations
                 .filter((msg) => msg.speaker === "patient" && msg.status === "partial")

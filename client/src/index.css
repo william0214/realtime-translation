@@ -174,4 +174,17 @@
       max-width: 1280px; /* Standard content width */
     }
   }
+
+  /**
+   * Mirror horizontal utility for transparent screen display.
+   * 
+   * This flips content horizontally so text appears correctly
+   * when viewed from the opposite side of a transparent screen.
+   * 
+   * Usage: <div className="mirror-horizontal">...</div>
+   */
+  .mirror-horizontal {
+    transform: scaleX(-1);
+    transform-origin: center;
+  }
 }
