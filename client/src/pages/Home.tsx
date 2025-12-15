@@ -395,7 +395,11 @@ export default function Home() {
             console.log("[Translation] Backend response:", result);
             
             if (result.success && result.sourceText) {
-              const speaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
+              // 🔥 FIX: Separate source and target speakers
+              const sourceSpeaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
+              const targetSpeaker = result.direction === "nurse_to_patient" ? "patient" : "nurse";
+              
+              console.log(`[Speaker Logic] Direction: ${result.direction}, Source: ${sourceSpeaker}, Target: ${targetSpeaker}`);
               
               // Step 1: Update partial message to final (覆蓋 partial)
               if (partialMessageIdRef.current !== null) {
@@ -412,7 +416,7 @@ export default function Home() {
                 // No partial message, create new final message
                 const finalMessage: ConversationMessage = {
                   id: messageIdRef.current++,
-                  speaker,
+                  speaker: sourceSpeaker, // Use source speaker for original text
                   originalText: result.sourceText,
                   translatedText: "",
                   detectedLanguage: result.sourceLang || "unknown",
@@ -420,7 +424,7 @@ export default function Home() {
                   status: "final",
                 };
                 setConversations((prev) => [...prev, finalMessage]);
-                console.log(`[Final] Created final message #${finalMessage.id}: "${result.sourceText}"`);
+                console.log(`[Final] Created final message #${finalMessage.id}: "${result.sourceText}" (speaker: ${sourceSpeaker})`);
               }
               
               // Step 2: 非阻塞翻譯（async）
@@ -428,7 +432,7 @@ export default function Home() {
                 // Translation already done, add translated message immediately
                 const translatedMessage: ConversationMessage = {
                   id: messageIdRef.current++,
-                  speaker,
+                  speaker: targetSpeaker, // 🔥 FIX: Use target speaker for translated text
                   originalText: result.sourceText,
                   translatedText: result.translatedText,
                   detectedLanguage: result.sourceLang || "unknown",
@@ -436,7 +440,7 @@ export default function Home() {
                   status: "translated",
                 };
                 setConversations((prev) => [...prev, translatedMessage]);
-                console.log(`[Translated] Added translated message #${translatedMessage.id}`);
+                console.log(`[Translated] Added translated message #${translatedMessage.id} (speaker: ${targetSpeaker})`);
                 
                 // Save translation to database
                 if (currentConversationId) {
