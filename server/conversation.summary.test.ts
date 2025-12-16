@@ -34,12 +34,13 @@ function createTestContext(): TrpcContext {
 
 describe("conversation.generateSummary", () => {
   let testConversationId: number;
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
   beforeAll(async () => {
-    // Create a test conversation
+    // Create a test conversation with unique title
     const conversationId = await createConversation({
       targetLanguage: "vi",
-      title: "測試對話",
+      title: `測試對話-summary-${uniqueSuffix}`,
     });
 
     if (!conversationId) {
@@ -149,10 +150,11 @@ describe("conversation.getSummary", () => {
     const ctx = createTestContext();
     const caller = appRouter.createCaller(ctx);
 
-    // Create a conversation and generate summary
+    // Create a conversation and generate summary with unique title
+    const uniqueTitle = `測試對話-getSummary-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     const conversationId = await createConversation({
       targetLanguage: "en",
-      title: "測試對話 2",
+      title: uniqueTitle,
     });
 
     if (!conversationId) {
@@ -182,10 +184,11 @@ describe("conversation.getSummary", () => {
     const ctx = createTestContext();
     const caller = appRouter.createCaller(ctx);
 
-    // Create a conversation without generating summary
+    // Create a conversation without generating summary with unique title
+    const uniqueTitle = `測試對話-noSummary-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     const conversationId = await createConversation({
       targetLanguage: "ja",
-      title: "測試對話 3",
+      title: uniqueTitle,
     });
 
     if (!conversationId) {

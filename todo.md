@@ -364,3 +364,19 @@
   - 問題：原文和翻譯顯示在不同側
   - 修復：讓原文和翻譯都顯示在說話者那一側的同一個泡泡裡
   - 改動：translatedMessage 的 speaker 改用 sourceSpeaker
+
+
+## 🔧 測試修復（2025-12-16 新增）
+
+- [x] 修復測試資料隔離問題
+  - 問題：測試之間的資料互相影響，導致 messageCount 和 translationCount 錯誤
+  - 修復：history.test.ts 使用唯一標題避免資料衝突
+  - 修復：conversation.summary.test.ts 已使用唯一標題
+  - 結果：所有 62 個測試通過（100% 通過率）
+
+- [x] 修復 VAD 和 Whisper 幻覺問題
+  - 問題：語音太長（>2.5s）被丟棄
+  - 問題：Whisper 產生重複字串幻覺（如「謝謝,謝謝,謝謝...」）
+  - 修復：移除語音太長限制，改用 auto-cut（4秒自動切段）
+  - 修復：加入 detectWhisperHallucination 函數過濾重複字串
+  - 結果：長句翻譯正常，幻覺被自動過濾
