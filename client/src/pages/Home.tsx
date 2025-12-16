@@ -861,11 +861,16 @@ export default function Home() {
     setIsRecording(false);
 
     // 🔥 FIX: Remove any partial messages from UI when stopping Hybrid recording
-    if (partialMessageIdRef.current !== null) {
-      setConversations((prev) => prev.filter((msg) => msg.status !== "partial"));
-      console.log(`[Stop Hybrid Recording] Removed all partial messages`);
-      partialMessageIdRef.current = null;
-    }
+    // Always remove all partial messages, regardless of partialMessageIdRef state
+    setConversations((prev) => {
+      const partialCount = prev.filter((msg) => msg.status === "partial").length;
+      if (partialCount > 0) {
+        console.log(`[Stop Hybrid Recording] Removing ${partialCount} partial message(s)`);
+        return prev.filter((msg) => msg.status !== "partial");
+      }
+      return prev;
+    });
+    partialMessageIdRef.current = null;
     lastPartialTimeRef.current = 0;
     sentenceEndTriggeredRef.current = false;
 
@@ -991,11 +996,16 @@ export default function Home() {
     setIsRecording(false);
 
     // 🔥 FIX: Remove any partial messages from UI when stopping recording
-    if (partialMessageIdRef.current !== null) {
-      setConversations((prev) => prev.filter((msg) => msg.status !== "partial"));
-      console.log(`[Stop Recording] Removed all partial messages`);
-      partialMessageIdRef.current = null;
-    }
+    // Always remove all partial messages, regardless of partialMessageIdRef state
+    setConversations((prev) => {
+      const partialCount = prev.filter((msg) => msg.status === "partial").length;
+      if (partialCount > 0) {
+        console.log(`[Stop Recording] Removing ${partialCount} partial message(s)`);
+        return prev.filter((msg) => msg.status !== "partial");
+      }
+      return prev;
+    });
+    partialMessageIdRef.current = null;
     lastPartialTimeRef.current = 0;
     sentenceEndTriggeredRef.current = false;
 
