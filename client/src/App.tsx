@@ -10,6 +10,7 @@ import History from "./pages/History";
 import Test from "./pages/Test";
 import ConversationList from "./pages/ConversationList";
 import ConversationDetail from "./pages/ConversationDetail";
+import Simple from "./pages/Simple";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -21,6 +22,7 @@ function Router() {
       <Route path={"/test"} component={Test} />
       <Route path={"/conversations"} component={ConversationList} />
       <Route path={"/conversation/:id"} component={ConversationDetail} />
+      <Route path={"/simple"} component={Simple} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

@@ -126,10 +126,85 @@ export default function Home() {
     return saved === "true";
   });
   
+  // 🎙️ Dual Microphone Mode (simplified: manual speaker switch)
+  const [dualMicMode, setDualMicMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem("dual-mic-mode");
+    return saved === "true";
+  });
+  // Current speaker in dual mic mode: "nurse" (Taiwan) or "patient" (Foreign)
+  const [currentSpeaker, setCurrentSpeaker] = useState<"nurse" | "patient">("nurse");
+  const [availableMics, setAvailableMics] = useState<MediaDeviceInfo[]>([]);
+  const [nurseMicId, setNurseMicId] = useState<string>(() => {
+    return localStorage.getItem("nurse-mic-id") || "";
+  });
+  const [patientMicId, setPatientMicId] = useState<string>(() => {
+    return localStorage.getItem("patient-mic-id") || "";
+  });
+  
+  // Dual mic streams and contexts
+  const nurseStreamRef = useRef<MediaStream | null>(null);
+  const patientStreamRef = useRef<MediaStream | null>(null);
+  const nurseAudioContextRef = useRef<AudioContext | null>(null);
+  const patientAudioContextRef = useRef<AudioContext | null>(null);
+  const nurseAnalyserRef = useRef<AnalyserNode | null>(null);
+  const patientAnalyserRef = useRef<AnalyserNode | null>(null);
+  const nurseWorkletRef = useRef<AudioWorkletNode | null>(null);
+  const patientWorkletRef = useRef<AudioWorkletNode | null>(null);
+  
+  // Dual mic buffers
+  const nurseSentenceBufferRef = useRef<Float32Array[]>([]);
+  const patientSentenceBufferRef = useRef<Float32Array[]>([]);
+  const nurseIsSpeakingRef = useRef<boolean>(false);
+  const patientIsSpeakingRef = useRef<boolean>(false);
+  const nurseLastSpeechTimeRef = useRef<number>(0);
+  const patientLastSpeechTimeRef = useRef<number>(0);
+  const nurseSpeechStartTimeRef = useRef<number>(0);
+  const patientSpeechStartTimeRef = useRef<number>(0);
+  const nurseSentenceEndTriggeredRef = useRef<boolean>(false);
+  const patientSentenceEndTriggeredRef = useRef<boolean>(false);
+  const nursePartialMessageIdRef = useRef<number | null>(null);
+  const patientPartialMessageIdRef = useRef<number | null>(null);
+  
   // Save mirror setting to localStorage
   useEffect(() => {
     localStorage.setItem("mirror-foreign-view", mirrorForeignView.toString());
   }, [mirrorForeignView]);
+  
+  // Save dual mic settings to localStorage
+  useEffect(() => {
+    localStorage.setItem("dual-mic-mode", dualMicMode.toString());
+  }, [dualMicMode]);
+  
+  useEffect(() => {
+    if (nurseMicId) localStorage.setItem("nurse-mic-id", nurseMicId);
+  }, [nurseMicId]);
+  
+  useEffect(() => {
+    if (patientMicId) localStorage.setItem("patient-mic-id", patientMicId);
+  }, [patientMicId]);
+  
+  // Load available microphones
+  useEffect(() => {
+    const loadMicrophones = async () => {
+      try {
+        // Request permission first to get device labels
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter(device => device.kind === "audioinput");
+        setAvailableMics(mics);
+        console.log("[Dual Mic] Available microphones:", mics.map(m => ({ id: m.deviceId, label: m.label })));
+      } catch (error) {
+        console.error("[Dual Mic] Error loading microphones:", error);
+      }
+    };
+    loadMicrophones();
+    
+    // Listen for device changes
+    navigator.mediaDevices.addEventListener("devicechange", loadMicrophones);
+    return () => {
+      navigator.mediaDevices.removeEventListener("devicechange", loadMicrophones);
+    };
+  }, []);
   
   // Partial transcript state
   const partialMessageIdRef = useRef<number | null>(null); // Track current partial message ID
@@ -442,12 +517,19 @@ export default function Home() {
 
           try {
             // Call backend based on selection
+            // 🎙️ Dual Mic Mode: Add force language parameters
+            const forceParams = dualMicMode ? {
+              forceSourceLang: currentSpeaker === "nurse" ? "zh" : (targetLanguage === "auto" ? "vi" : targetLanguage),
+              forceSpeaker: currentSpeaker,
+            } : {};
+            
             const result = backend === "nodejs"
               ? await translateMutation.mutateAsync({
                   audioBase64: base64Audio,
                   filename: `translation-${Date.now()}.webm`,
                   preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                   asrMode, // Pass ASR mode to backend
+                  ...forceParams, // Add force language params in dual mic mode
                 })
               : await callGoTranslation({
                   audioBase64: base64Audio,
@@ -562,7 +644,7 @@ export default function Home() {
       toast.error(`❌ 語音處理失敗: ${error.message || '未知錯誤'}`);
       setProcessingStatus("listening");
     }
-  }, [targetLanguage, translateMutation]);
+  }, [targetLanguage, translateMutation, dualMicMode, currentSpeaker, backend, asrMode]);
 
   // Update ref for processFinalTranscript
   useEffect(() => {
@@ -1345,6 +1427,76 @@ export default function Home() {
                 ))}
             </div>
           </div>
+        </div>
+
+        {/* 🎙️ Manual Speaker Mode (Simplified Dual Mic) */}
+        <div className="mb-4 md:mb-6">
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={dualMicMode}
+                onChange={(e) => setDualMicMode(e.target.checked)}
+                disabled={isRecording}
+                className="w-4 h-4 accent-green-500"
+              />
+              <span className="text-sm md:text-base">🎙️ 手動切換說話者模式</span>
+            </label>
+          </div>
+          
+          {dualMicMode && (
+            <div className="bg-gray-900 rounded-xl p-4 max-w-md mx-auto">
+              <div className="text-center mb-3 text-sm text-gray-400">
+                點擊下方按鈕切換當前說話者
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  variant={currentSpeaker === "nurse" ? "default" : "outline"}
+                  onClick={() => setCurrentSpeaker("nurse")}
+                  className={`py-6 text-lg ${
+                    currentSpeaker === "nurse" 
+                      ? "bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-400" 
+                      : "bg-gray-800 hover:bg-gray-700"
+                  }`}
+                >
+                  <div className="flex flex-col items-center">
+                    <span className="text-2xl mb-1">🇹🇼</span>
+                    <span>台灣人</span>
+                    <span className="text-xs opacity-70">（中文）</span>
+                  </div>
+                </Button>
+                <Button
+                  variant={currentSpeaker === "patient" ? "default" : "outline"}
+                  onClick={() => setCurrentSpeaker("patient")}
+                  className={`py-6 text-lg ${
+                    currentSpeaker === "patient" 
+                      ? "bg-green-600 hover:bg-green-700 ring-2 ring-green-400" 
+                      : "bg-gray-800 hover:bg-gray-700"
+                  }`}
+                >
+                  <div className="flex flex-col items-center">
+                    <span className="text-2xl mb-1">🌏</span>
+                    <span>外國人</span>
+                    <span className="text-xs opacity-70">（{LANGUAGE_OPTIONS.find(l => l.value === targetLanguage)?.label || '外語'}）</span>
+                  </div>
+                </Button>
+              </div>
+              
+              {/* Current speaker indicator */}
+              <div className={`mt-4 text-center py-2 rounded-lg ${
+                currentSpeaker === "nurse" 
+                  ? "bg-blue-900/50 text-blue-300" 
+                  : "bg-green-900/50 text-green-300"
+              }`}>
+                當前說話者：{currentSpeaker === "nurse" ? "🇹🇼 台灣人（中文）" : `🌏 外國人（${LANGUAGE_OPTIONS.find(l => l.value === targetLanguage)?.label || '外語'}）`}
+              </div>
+              
+              {/* Info */}
+              <div className="mt-3 text-gray-500 text-xs text-center">
+                💡 手動切換模式可以避免語言偵測錯誤，確保翻譯方向正確
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Control Button */}

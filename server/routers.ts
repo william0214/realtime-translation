@@ -33,6 +33,9 @@ export const appRouter = router({
           preferredTargetLang: z.string().optional(),
           asrMode: z.enum(["normal", "precise"]).optional(),
           transcriptOnly: z.boolean().optional(), // If true, only do transcription, no translation
+          // 🎙️ Dual Microphone Mode: Force source language and speaker
+          forceSourceLang: z.string().optional(), // Force source language (skip language detection)
+          forceSpeaker: z.enum(["nurse", "patient"]).optional(), // Force speaker role
         })
       )
       .mutation(async ({ input }) => {
@@ -114,15 +117,38 @@ export const appRouter = router({
             };
           }
 
-          // Use Whisper's language detection directly (with Smart Language Hint retry mechanism)
-          // No need for LLM language detection anymore (saves 0.5-1 second)
-          // FIX: Handle "unknown" as Chinese (default assumption for Taiwan users)
-          const detectedLanguage = (whisperLanguage && whisperLanguage !== "unknown") ? whisperLanguage : "zh";
-          console.log(`[autoTranslate] Using Whisper detected language: ${detectedLanguage} (raw: ${whisperLanguage})`);
-
-          // Step 2: Determine translation direction
+          // 🎙️ Dual Microphone Mode: Use forced language if provided
+          let direction: "nurse_to_patient" | "patient_to_nurse";
+          let sourceLang: string;
+          let finalTargetLang: string;
           const targetLang = input.preferredTargetLang || "vi";
-          const { direction, sourceLang, targetLang: finalTargetLang } = determineDirection(detectedLanguage, targetLang);
+          
+          if (input.forceSourceLang && input.forceSpeaker) {
+            // Dual Mic Mode: Skip language detection entirely
+            console.log(`[autoTranslate] 🎙️ Dual Mic Mode: forceSpeaker=${input.forceSpeaker}, forceSourceLang=${input.forceSourceLang}`);
+            
+            if (input.forceSpeaker === "nurse") {
+              // Nurse (Taiwan) speaking Chinese -> translate to target language
+              direction = "nurse_to_patient";
+              sourceLang = "zh";
+              finalTargetLang = targetLang;
+            } else {
+              // Patient (Foreign) speaking target language -> translate to Chinese
+              direction = "patient_to_nurse";
+              sourceLang = input.forceSourceLang;
+              finalTargetLang = "zh";
+            }
+            console.log(`[autoTranslate] 🎙️ Forced direction: ${direction}, ${sourceLang} → ${finalTargetLang}`);
+          } else {
+            // Single Mic Mode: Use language detection
+            const detectedLanguage = whisperLanguage || "unknown";
+            console.log(`[autoTranslate] Whisper detected language: ${detectedLanguage}`);
+            
+            const result = determineDirection(detectedLanguage, targetLang, sourceText);
+            direction = result.direction;
+            sourceLang = result.sourceLang;
+            finalTargetLang = result.targetLang;
+          }
 
           console.log(`[autoTranslate] Direction: ${direction}, ${sourceLang} → ${finalTargetLang}`);
 

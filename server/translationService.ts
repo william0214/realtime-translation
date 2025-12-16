@@ -11,11 +11,149 @@ import { ASR_CONFIG, WHISPER_CONFIG, type ASRMode, getASRModeConfig } from "../s
 const CHINESE_LANGUAGES = ["zh", "zh-tw", "zh-cn", "cmn", "yue", "chinese"];
 
 /**
- * Determine translation direction based on detected language
+ * Common Whisper hallucination patterns
+ * These are phrases that Whisper often generates when there's no clear speech
+ * Usually from YouTube/video training data
+ */
+const WHISPER_HALLUCINATION_PATTERNS = [
+  // Chinese YouTube subscription prompts
+  "请不吝点赞",
+  "订阅",
+  "转发",
+  "打赏支持",
+  "明镜与点点",
+  "感谢观看",
+  "感谢收看",
+  "请订阅",
+  "请点赞",
+  "关注我",
+  "关注我们",
+  // English YouTube prompts
+  "subscribe",
+  "like and subscribe",
+  "thanks for watching",
+  "don't forget to",
+  // Vietnamese YouTube prompts
+  "đăng ký",
+  "like và đăng ký",
+  // Common filler/noise patterns
+  "...",
+  "www.",
+  "http",
+  "FEMA",
+  "For more information",
+];
+
+/**
+ * Check if text is a Whisper hallucination
+ * Returns true if the text matches common hallucination patterns
+ */
+function isWhisperHallucination(text: string): boolean {
+  if (!text || text.trim().length === 0) return true;
+  
+  const normalizedText = text.toLowerCase().trim();
+  
+  // Check for exact or partial matches with hallucination patterns
+  for (const pattern of WHISPER_HALLUCINATION_PATTERNS) {
+    if (normalizedText.includes(pattern.toLowerCase())) {
+      console.log(`[Whisper] ⚠️ Detected hallucination pattern: "${pattern}" in "${text}"`);
+      return true;
+    }
+  }
+  
+  // Check for repetitive patterns (e.g., "谢谢,谢谢,谢谢")
+  const words = normalizedText.split(/[,，\s]+/).filter(w => w.length > 0);
+  if (words.length >= 3) {
+    const uniqueWords = new Set(words);
+    if (uniqueWords.size === 1) {
+      console.log(`[Whisper] ⚠️ Detected repetitive hallucination: "${text}"`);
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Check if text contains primarily Chinese characters
+ * Used as a fallback when Whisper returns "unknown"
+ */
+function containsChineseCharacters(text: string): boolean {
+  if (!text) return false;
+  // Match CJK Unified Ideographs (Chinese characters)
+  const chineseRegex = /[\u4e00-\u9fff\u3400-\u4dbf]/g;
+  const chineseMatches = text.match(chineseRegex) || [];
+  // If more than 30% of the text is Chinese characters, consider it Chinese
+  const ratio = chineseMatches.length / text.replace(/\s/g, '').length;
+  return ratio > 0.3;
+}
+
+/**
+ * Check if text contains Vietnamese diacritics
+ * Vietnamese has unique diacritical marks that distinguish it from other languages
+ */
+function containsVietnameseDiacritics(text: string): boolean {
+  if (!text) return false;
+  // Vietnamese-specific diacritical marks
+  const vietnameseRegex = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]/;
+  return vietnameseRegex.test(text);
+}
+
+/**
+ * Check if text contains Arabic/Persian script
+ * These are clearly non-Chinese and should be treated as foreign language
+ */
+function containsArabicScript(text: string): boolean {
+  if (!text) return false;
+  // Arabic script range (includes Persian/Farsi)
+  const arabicRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+  return arabicRegex.test(text);
+}
+
+/**
+ * Check if text contains Japanese Hiragana/Katakana
+ */
+function containsJapaneseKana(text: string): boolean {
+  if (!text) return false;
+  // Hiragana and Katakana ranges
+  const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF]/;
+  return japaneseRegex.test(text);
+}
+
+/**
+ * Check if text contains Korean Hangul
+ */
+function containsKoreanHangul(text: string): boolean {
+  if (!text) return false;
+  // Hangul syllables and Jamo
+  const koreanRegex = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/;
+  return koreanRegex.test(text);
+}
+
+/**
+ * Check if text contains Thai script
+ */
+function containsThaiScript(text: string): boolean {
+  if (!text) return false;
+  const thaiRegex = /[\u0E00-\u0E7F]/;
+  return thaiRegex.test(text);
+}
+
+/**
+ * Determine translation direction based on detected language AND text content
+ * 
+ * IMPORTANT: Text content analysis takes PRIORITY over Whisper language detection
+ * because Whisper often misidentifies Vietnamese as Chinese.
+ * 
+ * Priority:
+ * 1. ALWAYS check text content first (Vietnamese diacritics are very distinctive)
+ * 2. If no Vietnamese diacritics, trust Whisper's language detection
+ * 3. Default to Chinese (Taiwan user assumption)
  */
 export function determineDirection(
   language: string,
-  preferredTargetLang?: string
+  preferredTargetLang?: string,
+  sourceText?: string
 ): {
   direction: "nurse_to_patient" | "patient_to_nurse";
   sourceLang: string;
@@ -23,8 +161,31 @@ export function determineDirection(
 } {
   const normalizedLang = language.toLowerCase();
 
-  // Rule 1: Chinese → Taiwanese → translate to preferred language
-  if (CHINESE_LANGUAGES.includes(normalizedLang)) {
+  // Rule 1: ALWAYS check for Vietnamese diacritics FIRST (highest priority)
+  // Vietnamese has very distinctive diacritical marks that are unmistakable
+  // This overrides Whisper's language detection because Whisper often misidentifies Vietnamese as Chinese
+  if (sourceText && containsVietnameseDiacritics(sourceText)) {
+    console.log(`[determineDirection] ✅ Detected Vietnamese from text content (overriding Whisper: ${normalizedLang}): "${sourceText.substring(0, 50)}..."`);
+    return {
+      direction: "patient_to_nurse",
+      sourceLang: "vi",
+      targetLang: "zh",
+    };
+  }
+
+  // Rule 2: If Whisper detected a specific non-Chinese language, trust it
+  if (normalizedLang !== "unknown" && !CHINESE_LANGUAGES.includes(normalizedLang)) {
+    console.log(`[determineDirection] Using Whisper detected language: ${normalizedLang}`);
+    return {
+      direction: "patient_to_nurse",
+      sourceLang: normalizedLang,
+      targetLang: "zh",
+    };
+  }
+
+  // Rule 3: If Whisper detected Chinese OR unknown, check for Chinese characters
+  if (sourceText && containsChineseCharacters(sourceText)) {
+    console.log(`[determineDirection] Detected Chinese from text content: "${sourceText.substring(0, 50)}..."`);
     return {
       direction: "nurse_to_patient",
       sourceLang: "zh",
@@ -32,11 +193,22 @@ export function determineDirection(
     };
   }
 
-  // Rule 2: Non-Chinese → Foreigner → translate to Chinese
+  // Rule 4: If Whisper detected Chinese, trust it
+  if (CHINESE_LANGUAGES.includes(normalizedLang)) {
+    console.log(`[determineDirection] Using Whisper detected Chinese: ${normalizedLang}`);
+    return {
+      direction: "nurse_to_patient",
+      sourceLang: "zh",
+      targetLang: preferredTargetLang || "vi",
+    };
+  }
+
+  // Rule 5: Default to Chinese (Taiwan user assumption)
+  console.log(`[determineDirection] Defaulting to Chinese (no clear indicators)`);
   return {
-    direction: "patient_to_nurse",
-    sourceLang: normalizedLang,
-    targetLang: "zh",
+    direction: "nurse_to_patient",
+    sourceLang: "zh",
+    targetLang: preferredTargetLang || "vi",
   };
 }
 
@@ -126,9 +298,15 @@ export async function transcribeAudio(
       }
     );
 
-    const text = response.data.text || "";
+    let text = response.data.text || "";
     const language = response.data.language || "unknown"; // Whisper returns ISO-639-1 language code
     console.log(`[Whisper] Transcript: "${text}", Language: ${language} (auto-detected)`);
+
+    // Filter out Whisper hallucinations
+    if (isWhisperHallucination(text)) {
+      console.log(`[Whisper] ❌ Filtered hallucination, returning empty text`);
+      text = ""; // Return empty text to trigger "No speech detected" handling
+    }
 
     // End ASR profiling
     const audioDuration = 1.0; // Estimated, can be calculated from buffer if needed
