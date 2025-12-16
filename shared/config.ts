@@ -264,7 +264,7 @@ export const ASR_MODE_CONFIG = {
     // VAD 參數
     minSpeechDurationMs: 400,  // 調整從 300ms 到 400ms
     silenceDurationMs: 600,    // 調整從 650ms 到 600ms
-    rmsThreshold: 0.055, // -55dB
+    rmsThreshold: 0.015, // 降低閾值以適應低音量麥克風 (from 0.055 to 0.015)
     
     // Chunk 參數
     partialChunkIntervalMs: 300,
@@ -299,9 +299,9 @@ export const ASR_MODE_CONFIG = {
    */
   precise: {
     // VAD 參數
-    minSpeechDurationMs: 400,  // 調整從 500ms 到 400ms（與 normal 一致）
-    silenceDurationMs: 600,    // 調整從 900ms 到 600ms（與 normal 一致）
-    rmsThreshold: 0.1, // -50dB
+    minSpeechDurationMs: 400,  // 調整從 500ms 到 400ms
+    silenceDurationMs: 600,    // 調整從 900ms 到 600ms
+    rmsThreshold: 0.025, // 降低閾值以適應低音量麥克風 (from 0.1 to 0.025)
     
     // Chunk 參數
     partialChunkIntervalMs: 400,
