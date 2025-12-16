@@ -1194,52 +1194,46 @@ export default function Home() {
         {/* Mobile: Stacked (外國人 top, 台灣人 bottom, both facing outward) */}
         <div className="flex flex-col-reverse md:grid md:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
           {/* Nurse (Chinese) - Bottom on mobile (rotated 180deg to face up), Left on desktop */}
-          <div className="bg-gray-900 rounded-lg p-3 md:p-4 md:rotate-0 rotate-180">
+          <div className="bg-gray-900 rounded-2xl p-3 md:p-4 md:rotate-0 rotate-180">
             <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">台灣人 (中文)</h2>
-            <div ref={nurseScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3">
+            <div ref={nurseScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-3 md:space-y-4">
               {/* Partial transcript (即時字幕) */}
               {conversations
                 .filter((msg) => msg.speaker === "nurse" && msg.status === "partial")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
-                    <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
+                  <div key={msg.id} className="bg-gray-800/70 p-3 md:p-4 rounded-2xl border-l-4 border-yellow-500">
+                    <div className="text-xs text-yellow-400 mb-2 flex items-center gap-2">
                       <span className="animate-pulse">●</span>
                       即時字幕
                     </div>
-                    <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
+                    <div className="font-medium text-base md:text-lg text-gray-200 italic">
                       {msg.originalText || "偵測中..."}
                     </div>
-                    {msg.originalText && (
-                      <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
-                    )}
                   </div>
                 ))}
               
-              {/* Final transcripts (完整句子) */}
-              {conversations
-                .filter((msg) => msg.speaker === "nurse" && msg.status === "final")
-                .map((msg) => (
-                  <div key={msg.id} className="bg-blue-900/30 p-2 md:p-3 rounded border border-blue-500/30">
-                    <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium text-sm md:text-base text-blue-100">{msg.originalText}</div>
-                  </div>
-                ))}
-              
-              {/* Translated messages (翻譯結果) */}
+              {/* Translated messages (翻譯結果) - iPhone 風格泡泡 */}
               {conversations
                 .filter((msg) => msg.speaker === "nurse" && msg.status === "translated")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
-                    <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium text-sm md:text-base mb-1">{msg.originalText}</div>
-                    <div className="text-xs md:text-sm text-gray-400">→ {msg.translatedText}</div>
+                  <div key={msg.id} className="bg-gray-800 p-4 md:p-5 rounded-2xl shadow-lg">
+                    {/* 原文 - 白色 */}
+                    <div className="font-semibold text-lg md:text-xl text-white mb-3 leading-relaxed">
+                      {msg.originalText}
+                    </div>
+                    {/* 分隔線 */}
+                    <div className="border-t border-gray-600 my-3"></div>
+                    {/* 翻譯 - 青色 */}
+                    <div className="font-medium text-lg md:text-xl text-cyan-400 leading-relaxed">
+                      {msg.translatedText}
+                    </div>
                   </div>
                 ))}
             </div>
           </div>
 
           {/* Patient (Foreign Language) - Top on mobile (normal, facing down), Right on desktop */}
-          <div className="bg-gray-900 rounded-lg p-3 md:p-4">
+          <div className="bg-gray-900 rounded-2xl p-3 md:p-4">
             <div className="flex items-center justify-center gap-3 mb-3 md:mb-4">
               <h2 className="text-lg md:text-xl font-semibold">外國人 (外語)</h2>
               <Button
@@ -1254,43 +1248,38 @@ export default function Home() {
             </div>
             <div 
               ref={patientScrollRef} 
-              className={`h-[250px] md:h-[400px] overflow-y-auto space-y-2 md:space-y-3 ${mirrorForeignView ? 'mirror-horizontal' : ''}`}
+              className={`h-[250px] md:h-[400px] overflow-y-auto space-y-3 md:space-y-4 ${mirrorForeignView ? 'mirror-horizontal' : ''}`}
             >
               {/* Partial transcript (即時字幕) */}
               {conversations
                 .filter((msg) => msg.speaker === "patient" && msg.status === "partial")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800/50 p-2 md:p-3 rounded border border-yellow-500/30">
-                    <div className="text-xs md:text-sm text-yellow-400 mb-1 flex items-center gap-2">
+                  <div key={msg.id} className="bg-gray-800/70 p-3 md:p-4 rounded-2xl border-l-4 border-yellow-500">
+                    <div className="text-xs text-yellow-400 mb-2 flex items-center gap-2">
                       <span className="animate-pulse">●</span>
                       即時字幕
                     </div>
-                    <div className="font-medium mb-1 text-sm md:text-base text-gray-300 italic">
+                    <div className="font-medium text-base md:text-lg text-gray-200 italic">
                       {msg.originalText || "偵測中..."}
                     </div>
-                    {msg.originalText && (
-                      <div className="text-gray-500 text-xs md:text-sm">等待完整識別...</div>
-                    )}
                   </div>
                 ))}
               
-              {/* Final transcripts (完整句子) */}
-              {conversations
-                .filter((msg) => msg.speaker === "patient" && msg.status === "final")
-                .map((msg) => (
-                  <div key={msg.id} className="bg-blue-900/30 p-2 md:p-3 rounded border border-blue-500/30">
-                    <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium text-sm md:text-base text-blue-100">{msg.originalText}</div>
-                  </div>
-                ))}
-              
-              {/* Translated messages (翻譯結果) */}
+              {/* Translated messages (翻譯結果) - iPhone 風格泡泡 */}
               {conversations
                 .filter((msg) => msg.speaker === "patient" && msg.status === "translated")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800 p-2 md:p-3 rounded">
-                    <div className="text-xs md:text-sm text-gray-400 mb-1">{msg.timestamp.toLocaleTimeString("zh-TW")}</div>
-                    <div className="font-medium text-sm md:text-base">{msg.translatedText}</div>
+                  <div key={msg.id} className="bg-gray-800 p-4 md:p-5 rounded-2xl shadow-lg">
+                    {/* 原文 - 白色 */}
+                    <div className="font-semibold text-lg md:text-xl text-white mb-3 leading-relaxed">
+                      {msg.originalText}
+                    </div>
+                    {/* 分隔線 */}
+                    <div className="border-t border-gray-600 my-3"></div>
+                    {/* 翻譯 - 青色 */}
+                    <div className="font-medium text-lg md:text-xl text-cyan-400 leading-relaxed">
+                      {msg.translatedText}
+                    </div>
                   </div>
                 ))}
             </div>
