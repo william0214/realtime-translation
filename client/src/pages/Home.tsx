@@ -441,9 +441,10 @@ export default function Home() {
               // Step 2: 非阻塞翻譯（async）
               if (result.translatedText) {
                 // Translation already done, add translated message immediately
+                // 🔥 FIX: Use sourceSpeaker so both original and translation appear on the same side (speaker's side)
                 const translatedMessage: ConversationMessage = {
                   id: messageIdRef.current++,
-                  speaker: targetSpeaker, // 🔥 FIX: Use target speaker for translated text
+                  speaker: sourceSpeaker, // 🔥 FIX: Use source speaker so translation appears on speaker's side
                   originalText: result.sourceText,
                   translatedText: result.translatedText,
                   detectedLanguage: result.sourceLang || "unknown",
@@ -451,7 +452,7 @@ export default function Home() {
                   status: "translated",
                 };
                 setConversations((prev) => [...prev, translatedMessage]);
-                console.log(`[Translated] Added translated message #${translatedMessage.id} (speaker: ${targetSpeaker})`);
+                console.log(`[Translated] Added translated message #${translatedMessage.id} (speaker: ${sourceSpeaker})`);
                 
                 // Save translation to database
                 if (currentConversationId) {

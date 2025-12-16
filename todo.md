@@ -356,3 +356,11 @@
   - 原文：text-white 白色文字
   - 翻譯：text-cyan-400 青色文字
   - 字體加大 (text-lg md:text-xl)
+
+
+## 🐛 Bug 修復（2025-12-16 新增）
+
+- [x] 修改泡泡顯示邏輯（v1.3.4）
+  - 問題：原文和翻譯顯示在不同側
+  - 修復：讓原文和翻譯都顯示在說話者那一側的同一個泡泡裡
+  - 改動：translatedMessage 的 speaker 改用 sourceSpeaker
