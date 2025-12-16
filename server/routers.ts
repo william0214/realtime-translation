@@ -116,8 +116,9 @@ export const appRouter = router({
 
           // Use Whisper's language detection directly (with Smart Language Hint retry mechanism)
           // No need for LLM language detection anymore (saves 0.5-1 second)
-          const detectedLanguage = whisperLanguage || "zh";
-          console.log(`[autoTranslate] Using Whisper detected language: ${detectedLanguage}`);
+          // FIX: Handle "unknown" as Chinese (default assumption for Taiwan users)
+          const detectedLanguage = (whisperLanguage && whisperLanguage !== "unknown") ? whisperLanguage : "zh";
+          console.log(`[autoTranslate] Using Whisper detected language: ${detectedLanguage} (raw: ${whisperLanguage})`);
 
           // Step 2: Determine translation direction
           const targetLang = input.preferredTargetLang || "vi";

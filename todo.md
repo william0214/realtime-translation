@@ -380,3 +380,12 @@
   - 修復：移除語音太長限制，改用 auto-cut（4秒自動切段）
   - 修復：加入 detectWhisperHallucination 函數過濾重複字串
   - 結果：長句翻譯正常，幻覺被自動過濾
+
+
+## 🐛 Bug 修復（2025-12-17 新增）
+
+- [x] 修復中文翻譯成中文的問題
+  - 問題：說中文時，翻譯結果也是中文，而不是目標語言（越南語）
+  - 原因：Whisper 回傳 language: "unknown" 時，determineDirection 把它當成「非中文」
+  - 修復：當 Whisper 回傳 "unknown" 時，預設為中文 "zh"
+  - 同時優化翻譯 prompt 讓 Gemini 更好地遵循翻譯指令

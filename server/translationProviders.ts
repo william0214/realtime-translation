@@ -54,8 +54,21 @@ async function translateWithOpenAI(
   const sourceName = LANGUAGE_NAMES[sourceLang] || sourceLang;
   const targetName = LANGUAGE_NAMES[targetLang] || targetLang;
 
-  // OPTIMIZED: Minimal prompt to reduce tokens and latency
-  const systemPrompt = `翻譯${sourceName}→${targetName}。只輸出譯文。`;
+  // OPTIMIZED: Very explicit translation prompt for Gemini
+  // Gemini needs very clear instructions to translate correctly
+  const systemPrompt = `TASK: Translate the following text from ${sourceName} to ${targetName}.
+
+RULES:
+1. Output ONLY the translated text in ${targetName}
+2. Do NOT respond or chat - just translate
+3. Do NOT output the original text
+4. Do NOT add any explanation
+
+Target language: ${targetName}`;
+  
+  console.log(`[Translation Debug] Source: ${sourceLang} (${sourceName}), Target: ${targetLang} (${targetName})`);
+  console.log(`[Translation Debug] Prompt: ${systemPrompt}`);
+  console.log(`[Translation Debug] Input text: "${text}"`);
 
   // Note: invokeLLM uses default model (currently gemini-2.5-flash)
   // TODO: Add model parameter support to invokeLLM if needed
@@ -69,6 +82,9 @@ async function translateWithOpenAI(
 
   const content = response.choices[0]?.message?.content;
   const translatedText = typeof content === "string" ? content.trim() : "";
+  
+  console.log(`[Translation Debug] Output: "${translatedText}"`);
+  console.log(`[Translation Debug] Is same as input: ${text === translatedText}`);
 
   const duration = Date.now() - startTime;
 
