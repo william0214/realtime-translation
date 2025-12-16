@@ -42,6 +42,51 @@ const LANGUAGE_OPTIONS = [
 const MAX_SEGMENT_DURATION = 0.5; // Maximum segment duration for chunking
 const SAMPLE_RATE = 48000; // 48kHz
 
+/**
+ * Detect Whisper hallucination (repeated strings)
+ * Common patterns:
+ * - "Ch-Ch-Ch-Ch-Ch-Ch..." (repeated syllables)
+ * - "謝謝,謝謝,謝謝,謝謝..." (repeated words)
+ * - "Thank you, thank you, thank you..." (repeated phrases)
+ */
+function detectWhisperHallucination(text: string): boolean {
+  if (!text || text.length < 10) return false;
+  
+  // Pattern 1: Check for repeated short patterns (e.g., "Ch-Ch-Ch" or "謝謝,謝謝")
+  const shortPatternRegex = /(.{1,5})\1{5,}/; // Same 1-5 chars repeated 5+ times
+  if (shortPatternRegex.test(text)) {
+    return true;
+  }
+  
+  // Pattern 2: Check for repeated words/phrases separated by comma or space
+  const words = text.split(/[,，\s]+/).filter(w => w.length > 0);
+  if (words.length >= 5) {
+    const uniqueWords = new Set(words);
+    // If 80%+ of words are the same, it's likely hallucination
+    if (uniqueWords.size <= 2 && words.length >= 8) {
+      return true;
+    }
+  }
+  
+  // Pattern 3: Known hallucination phrases (YouTube/Podcast artifacts)
+  const knownHallucinations = [
+    "請不吝點贊訂閱",
+    "本期視頻拍到這裡",
+    "Amara 字幕",
+    "lalaschool",
+    "請訂閱我的頻道",
+    "Thank you for watching",
+    "Don't forget to subscribe",
+  ];
+  for (const phrase of knownHallucinations) {
+    if (text.includes(phrase)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [conversations, setConversations] = useState<ConversationMessage[]>([]);
@@ -277,6 +322,13 @@ export default function Home() {
                 });
 
             if (result.success && result.sourceText) {
+              // 🔥 Filter Whisper hallucination (repeated strings)
+              const isHallucination = detectWhisperHallucination(result.sourceText);
+              if (isHallucination) {
+                console.warn(`[Partial] Whisper hallucination detected, skipping: "${result.sourceText.substring(0, 50)}..."`);
+                return;
+              }
+              
               // Update existing partial message (NEVER create new message)
               if (partialMessageIdRef.current !== null) {
                 setConversations((prev) =>
@@ -406,6 +458,19 @@ export default function Home() {
             console.log("[Translation] Backend response:", result);
             
             if (result.success && result.sourceText) {
+              // 🔥 Filter Whisper hallucination (repeated strings)
+              const isHallucination = detectWhisperHallucination(result.sourceText);
+              if (isHallucination) {
+                console.warn(`[Final] Whisper hallucination detected, skipping: "${result.sourceText.substring(0, 50)}..."`);
+                // Remove partial message if exists
+                if (partialMessageIdRef.current !== null) {
+                  setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageIdRef.current));
+                  console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (hallucination)`);
+                  partialMessageIdRef.current = null;
+                }
+                setProcessingStatus("listening");
+                return;
+              }
               // 🔥 FIX: Separate source and target speakers
               const sourceSpeaker = result.direction === "nurse_to_patient" ? "nurse" : "patient";
               const targetSpeaker = result.direction === "nurse_to_patient" ? "patient" : "nurse";
@@ -614,9 +679,7 @@ export default function Home() {
             // Check minimum speech duration to filter short noise (800ms, prevent Whisper hallucination)
             const speechDuration = lastSpeechTimeRef.current - speechStartTimeRef.current;
             
-            // 🔥 OPTIMIZATION #2: Only process speech between 800-2500ms
-            const MAX_SPEECH_DURATION_MS = 2500; // Maximum valid speech duration
-            
+            // Check minimum speech duration to filter short noise
             if (speechDuration < MIN_SPEECH_DURATION_MS) {
               // Too short, likely noise - discard
               console.log(`⚠️ Speech too short (${speechDuration}ms < ${MIN_SPEECH_DURATION_MS}ms), discarding as noise`);
@@ -632,22 +695,9 @@ export default function Home() {
               partialMessageIdRef.current = null;
               sentenceEndTriggeredRef.current = true;
               setProcessingStatus("listening");
-            } else if (speechDuration > MAX_SPEECH_DURATION_MS) {
-              // Too long, likely accumulated noise or continuous speech - discard
-              console.log(`⚠️ Speech too long (${speechDuration}ms > ${MAX_SPEECH_DURATION_MS}ms), discarding`);
-              
-              // Remove the partial message from UI (if exists)
-              if (partialMessageIdRef.current !== null) {
-                setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageIdRef.current));
-                console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (speech too long)`);
-              }
-              
-              isSpeakingRef.current = false;
-              sentenceBufferRef.current = [];
-              partialMessageIdRef.current = null;
-              sentenceEndTriggeredRef.current = true;
-              setProcessingStatus("listening");
             } else {
+              // Valid speech duration, process final transcript
+              // Note: No upper limit on speech duration - auto-cut handles long speech
               // Speech segment end (valid speech) - only trigger once
               sentenceEndTriggeredRef.current = true; // Set flag immediately to prevent multiple triggers
               isSpeakingRef.current = false;
