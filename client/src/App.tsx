@@ -11,6 +11,7 @@ import Test from "./pages/Test";
 import ConversationList from "./pages/ConversationList";
 import ConversationDetail from "./pages/ConversationDetail";
 import Simple from "./pages/Simple";
+import TwoMic from "./pages/TwoMic";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -23,6 +24,7 @@ function Router() {
       <Route path={"/conversations"} component={ConversationList} />
       <Route path={"/conversation/:id"} component={ConversationDetail} />
       <Route path={"/simple"} component={Simple} />
+      <Route path={"/two-mic"} component={TwoMic} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
