@@ -62,9 +62,10 @@ export const VAD_CONFIG = {
 export const WHISPER_CONFIG = {
   /**
    * Whisper 模型
-   * 目前只有 whisper-1 可用
+   * - whisper-1: 原版 Whisper 模型
+   * - gpt-4o-mini-transcribe: 更快速、更便宜的新模型
    */
-  MODEL: "whisper-1" as const,
+  MODEL: "gpt-4o-mini-transcribe" as const,
 
   /**
    * 回應格式

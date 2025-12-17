@@ -310,7 +310,7 @@ export async function transcribeAudio(
 
     // End ASR profiling
     const audioDuration = 1.0; // Estimated, can be calculated from buffer if needed
-    const asrProfile = profiler.end(audioDuration, audioBuffer.length, "whisper-1");
+    const asrProfile = profiler.end(audioDuration, audioBuffer.length, WHISPER_CONFIG.MODEL);
     console.log(`[ASR Profiler] Duration: ${asrProfile.duration.toFixed(0)}ms`);
 
     return { text, language, asrProfile };
