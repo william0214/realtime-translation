@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import { callGoTranslation } from "@/services/goBackend";
 import { HybridASRClient } from "@/services/hybridASRClient";
-import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG, ASR_MODE_CONFIG, WHISPER_CONFIG, type ASRMode, getASRModeConfig } from "@shared/config";
+import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG, ASR_MODE_CONFIG, WHISPER_CONFIG, TRANSLATION_CONFIG, type ASRMode, getASRModeConfig } from "@shared/config";
 
 type ConversationMessage = {
   id: number;
@@ -123,6 +123,12 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("asr-model", asrModel);
   }, [asrModel]);
+  
+  // Translation model selection
+  const [translationModel] = useState<string>(() => {
+    const saved = localStorage.getItem("translation-model");
+    return saved || TRANSLATION_CONFIG.LLM_MODEL;
+  });
   
   // Hybrid ASR client
   const hybridClientRef = useRef<HybridASRClient | null>(null);
@@ -413,6 +419,7 @@ export default function Home() {
                   transcriptOnly: true, // Partial: only transcription, no translation
                   asrMode,
                   asrModel, // Pass ASR model to backend
+                  translationModel, // Pass Translation model to backend
                 })
               : await callGoTranslation({
                   audioBase64: base64Audio,
@@ -555,6 +562,7 @@ export default function Home() {
                   preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                   asrMode, // Pass ASR mode to backend
                   asrModel, // Pass ASR model to backend
+                  translationModel, // Pass Translation model to backend
                   ...forceParams, // Add force language params in dual mic mode
                 })
               : await callGoTranslation({

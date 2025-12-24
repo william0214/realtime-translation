@@ -24,8 +24,11 @@ export default function Settings() {
     return saved || WHISPER_CONFIG.MODEL;
   });
 
-  // Translation Model (for future use)
-  const [translationModel] = useState<string>(TRANSLATION_CONFIG.LLM_MODEL);
+  // Translation Model
+  const [translationModel, setTranslationModel] = useState<string>(() => {
+    const saved = localStorage.getItem("translation-model");
+    return saved || TRANSLATION_CONFIG.LLM_MODEL;
+  });
 
   // VAD Parameters
   const [rmsThreshold, setRmsThreshold] = useState<number>(() => {
@@ -47,6 +50,11 @@ export default function Settings() {
   useEffect(() => {
     localStorage.setItem("asr-model", asrModel);
   }, [asrModel]);
+
+  // Save Translation model to localStorage
+  useEffect(() => {
+    localStorage.setItem("translation-model", translationModel);
+  }, [translationModel]);
 
   // Save VAD parameters to localStorage
   useEffect(() => {
@@ -129,18 +137,32 @@ export default function Settings() {
             <CardHeader>
               <CardTitle className="text-white">🌐 翻譯模型</CardTitle>
               <CardDescription className="text-gray-400">
-                用於翻譯的語言模型（目前統一使用 {translationModel}）
+                用於翻譯的語言模型
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-white">翻譯模型</Label>
-                <div className="p-3 bg-gray-900 border border-gray-700 rounded-md">
-                  <p className="text-white font-medium">{translationModel}</p>
-                  <p className="text-sm text-gray-400 mt-1">
-                    可在 shared/config.ts 中的 TRANSLATION_CONFIG.LLM_MODEL 修改
-                  </p>
-                </div>
+                <Select value={translationModel} onValueChange={setTranslationModel}>
+                  <SelectTrigger className="bg-gray-900 border-gray-700 text-white">
+                    <SelectValue placeholder="選擇翻譯模型" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-700">
+                    {TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        <div className="flex flex-col">
+                          <span className="text-white">
+                            {model.icon} {model.name}
+                          </span>
+                          <span className="text-xs text-gray-400">{model.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-gray-400">
+                  當前選擇：{TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS.find(m => m.id === translationModel)?.name || translationModel}
+                </p>
               </div>
             </CardContent>
           </Card>

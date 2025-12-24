@@ -33,6 +33,7 @@ export const appRouter = router({
           preferredTargetLang: z.string().optional(),
           asrMode: z.enum(["normal", "precise"]).optional(),
           asrModel: z.string().optional(), // ASR model selection (e.g., "gpt-4o-mini-transcribe", "gpt-4o-transcribe")
+          translationModel: z.string().optional(), // Translation model selection (e.g., "gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o")
           transcriptOnly: z.boolean().optional(), // If true, only do transcription, no translation
           // 🎙️ Dual Microphone Mode: Force source language and speaker
           forceSourceLang: z.string().optional(), // Force source language (skip language detection)
@@ -157,7 +158,7 @@ export const appRouter = router({
           const translateStartAt = new Date();
           console.log(`[時間戳記] 開始翻譯: ${translateStartAt.toISOString()}`);
           console.log(`[autoTranslate] Translating...`);
-          const { translatedText, translationProfile } = await translateText(sourceText, sourceLang, finalTargetLang, input.asrMode);
+          const { translatedText, translationProfile } = await translateText(sourceText, sourceLang, finalTargetLang, input.asrMode, input.translationModel);
           const translateEndAt = new Date();
           const translateDuration = translateEndAt.getTime() - translateStartAt.getTime();
           console.log(`[時間戳記] 翻譯完成: ${translateEndAt.toISOString()} (耗時 ${translateDuration}ms)`);
@@ -606,13 +607,14 @@ export const appRouter = router({
           text: z.string(),
           sourceLang: z.string(),
           targetLang: z.string(),
+          translationModel: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
         const { translateText } = await import("./translationService");
 
         try {
-          const translatedText = await translateText(input.text, input.sourceLang, input.targetLang);
+          const translatedText = await translateText(input.text, input.sourceLang, input.targetLang, undefined, input.translationModel);
 
           return {
             success: true,

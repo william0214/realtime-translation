@@ -339,7 +339,8 @@ export async function translateText(
   text: string,
   sourceLang: string,
   targetLang: string,
-  asrMode?: ASRMode
+  asrMode?: ASRMode,
+  translationModel?: string
 ): Promise<{ translatedText: string; translationProfile?: any }> {
   // Get ASR mode config for translation model selection
   const modeConfig = asrMode ? getASRModeConfig(asrMode) : getASRModeConfig("normal");
@@ -351,8 +352,8 @@ export async function translateText(
   // Use new Provider architecture with mode-specific model
   const { translate, getDefaultTranslationConfig } = await import("./translationProviders");
   const config = getDefaultTranslationConfig();
-  // Override model based on ASR mode
-  config.model = modeConfig.translationModel;
+  // Override model: prioritize translationModel parameter, then ASR mode config
+  config.model = translationModel || modeConfig.translationModel;
   
   const result = await translate(text, sourceLang, targetLang, config);
 

@@ -182,15 +182,45 @@ export const TRANSLATION_CONFIG = {
    * 用於執行翻譯任務的語言模型
    * 
    * 可用模型：
-   * - "gpt-4.1-mini": 最新的 GPT-4.1 mini 模型（推薦，速度快、品質高）
-   * - "gpt-4o-mini": GPT-4o mini 模型（平衡速度和品質）
-   * - "gpt-4": GPT-4 完整模型（最高品質，但較慢）
-   * - "gpt-3.5-turbo": GPT-3.5 Turbo（最快，但品質較低）
-   * - "gemini-2.5-flash": Google Gemini 2.5 Flash（透過 Manus 內建 API）
+   * - "gpt-4o-mini": 最快速、最低成本
+   * - "gpt-4.1-mini": 平衡速度和品質（推薦）
+   * - "gpt-4.1": 高品質
+   * - "gpt-4o": 最高品質、最慢
    * 
    * 當前設定：gpt-4.1-mini（最佳平衡）
    */
-  LLM_MODEL: "gpt-4.1-mini" as const,
+  LLM_MODEL: "gpt-4.1-mini" as string,
+
+  /**
+   * 可用的翻譯模型列表
+   * 使用者可在設定頁面選擇
+   */
+  AVAILABLE_TRANSLATION_MODELS: [
+    {
+      id: "gpt-4o-mini",
+      name: "GPT-4o Mini",
+      description: "最快速、最低成本",
+      icon: "⚡",
+    },
+    {
+      id: "gpt-4.1-mini",
+      name: "GPT-4.1 Mini",
+      description: "平衡速度和品質（推薦）",
+      icon: "⭐",
+    },
+    {
+      id: "gpt-4.1",
+      name: "GPT-4.1",
+      description: "高品質",
+      icon: "🎯",
+    },
+    {
+      id: "gpt-4o",
+      name: "GPT-4o",
+      description: "最高品質、最慢",
+      icon: "💎",
+    },
+  ] as const,
 
   /**
    * 翻譯 Provider
@@ -202,7 +232,7 @@ export const TRANSLATION_CONFIG = {
    * - "azure": Azure Cognitive Services（未實作）
    * - "deepl": DeepL API（未實作）
    */
-  TRANSLATION_PROVIDER: "openai" as const,
+  TRANSLATION_PROVIDER: "openai" as string,
 
   /**
    * 預設目標語言
