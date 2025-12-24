@@ -414,7 +414,7 @@ output: {
   discardBelow: 200,              // 丟棄低於此長度的音訊 (ms)
   whisperPrompt: "...",           // Whisper 語言提示
   temperature: 0,                 // Whisper 溫度
-  translationModel: "gpt-4o-mini" // 翻譯模型
+  translationModel: "gpt-4.1-mini" // 翻譯模型
 }
 ```
 
@@ -431,7 +431,7 @@ output: {
   discardBelow: 400,              // 丟棄低於此長度的音訊 (ms)
   whisperPrompt: "...",           // Whisper 語言提示
   temperature: 0,                 // Whisper 溫度
-  translationModel: "gpt-4o"      // 翻譯模型
+  translationModel: "gpt-4.1-mini"      // 翻譯模型
 }
 ```
 

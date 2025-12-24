@@ -25,7 +25,7 @@
 **檔案**: `server/translationProviders.ts`
 
 建立可插拔的翻譯服務架構，支援多種 Provider：
-- OpenAI GPT（預設：gpt-4o-mini）
+- OpenAI GPT（預設：gpt-4.1-mini）
 - Google Cloud Translation（待實作）
 - Azure Translator（待實作）
 - DeepL（待實作）
@@ -36,7 +36,7 @@
 - 支援 failover 機制
 
 ### 2. 預設使用 GPT-4o-mini
-**變更**: 從 `gemini-2.5-flash` 改為 `gpt-4o-mini`
+**變更**: 從 `gemini-2.5-flash` 改為 `gpt-4.1-mini`
 
 **效果**:
 - 翻譯延遲從 3.8-4.2s 降至 1.0-1.5s

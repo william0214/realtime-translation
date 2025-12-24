@@ -45,7 +45,7 @@
   whisperTemperature: 0,
   
   // Translation 參數
-  translationModel: "gpt-4o-mini", // 快速翻譯模型
+  translationModel: "gpt-4.1-mini", // 快速翻譯模型
 }
 ```
 
@@ -57,7 +57,7 @@
 **優點：**
 - 反應快速，使用者體驗流暢
 - 適合高流量場景，減少等待時間
-- 成本較低（使用 gpt-4o-mini）
+- 成本較低（使用 gpt-4.1-mini）
 
 **缺點：**
 - 準確率略低，可能出現小錯誤
@@ -97,7 +97,7 @@
   whisperTemperature: 0,
   
   // Translation 參數
-  translationModel: "gpt-4o",      // 高準確度翻譯模型
+  translationModel: "gpt-4.1-mini",      // 高準確度翻譯模型
 }
 ```
 
@@ -113,7 +113,7 @@
 
 **缺點：**
 - 反應較慢，需要更多等待時間
-- 成本較高（使用 gpt-4o）
+- 成本與 Normal 模式相同（均使用 gpt-4.1-mini）
 - 過濾更嚴格，短句可能被丟棄
 
 ---
@@ -152,7 +152,7 @@
 | **finalMaxDurationMs** | 1500ms | 3000ms | Precise 允許更長的句子 |
 | **discardBelowMs** | 200ms | 400ms | Precise 過濾更嚴格 |
 | **whisperPrompt** | 多語言提示 | 優先中文偵測 | Precise 針對中文優化 |
-| **translationModel** | gpt-4o-mini | gpt-4o | Precise 使用更強大的模型 |
+| **translationModel** | gpt-4.1-mini | gpt-4.1-mini | 兩種模式統一使用 gpt-4.1-mini |
 
 ### 行為對比
 
@@ -163,7 +163,7 @@
 | **最短 Final chunk** | 800ms | 1500ms |
 | **背景噪音過濾** | 一般 (-55dB) | 嚴格 (-50dB) |
 | **語言識別策略** | 多語言平衡 | 優先中文 |
-| **翻譯模型** | gpt-4o-mini | gpt-4o |
+| **翻譯模型** | gpt-4.1-mini | gpt-4.1-mini |
 | **成本** | 低 | 高 |
 
 ---
@@ -407,8 +407,12 @@ export const ASR_MODE_CONFIG = {
 ### Q5: 兩種模式的成本差異有多大？
 
 **A:** 
-- **Normal 模式**：使用 gpt-4o-mini，成本約為 Precise 的 1/10
-- **Precise 模式**：使用 gpt-4o，成本較高但準確率極高
+- **Normal 模式**：使用 gpt-4.1-mini
+- **Precise 模式**：使用 gpt-4.1-mini
+- **注意**：兩種模式現在統一使用 gpt-4.1-mini，可在 shared/config.ts 中的 TRANSLATION_CONFIG.LLM_MODEL 修改
+- **Normal 模式**：使用 gpt-4.1-mini
+- **Precise 模式**：使用 gpt-4.1-mini
+- **注意**：兩種模式現在統一使用 gpt-4.1-mini，可在 shared/config.ts 中的 TRANSLATION_CONFIG.LLM_MODEL 修改
 - 建議：日常對話用 Normal，敏感資訊用 Precise
 
 ---

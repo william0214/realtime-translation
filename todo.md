@@ -78,7 +78,7 @@
   - [ ] 測試延遲改善（目標：降低 50%）
 
 - [ ] 優化翻譯模型
-  - [ ] 測試不同模型（gpt-3.5-turbo-instruct, gpt-4o-mini）
+  - [ ] 測試不同模型（gpt-3.5-turbo-instruct, gpt-4.1-mini）
   - [ ] 比較延遲和品質
   - [ ] 選擇最佳模型
 
