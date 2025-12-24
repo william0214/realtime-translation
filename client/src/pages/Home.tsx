@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Download, History as HistoryIcon, Mic, Trash2, FileText } from "lucide-react";
+import { Download, History as HistoryIcon, Mic, Trash2, FileText, Settings as SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
@@ -283,9 +283,22 @@ export default function Home() {
 
   // Get current ASR mode config (must be before all useCallback that use these values)
   const currentConfig = getASRModeConfig(asrMode);
-  const RMS_THRESHOLD = currentConfig.rmsThreshold;
-  const SILENCE_DURATION_MS = currentConfig.silenceDurationMs;
-  const MIN_SPEECH_DURATION_MS = currentConfig.minSpeechDurationMs;
+  
+  // Use custom VAD parameters from localStorage if available, otherwise use config defaults
+  const RMS_THRESHOLD = (() => {
+    const saved = localStorage.getItem("vad-rms-threshold");
+    return saved ? parseFloat(saved) : currentConfig.rmsThreshold;
+  })();
+  
+  const SILENCE_DURATION_MS = (() => {
+    const saved = localStorage.getItem("vad-silence-duration");
+    return saved ? parseInt(saved) : currentConfig.silenceDurationMs;
+  })();
+  
+  const MIN_SPEECH_DURATION_MS = (() => {
+    const saved = localStorage.getItem("vad-min-speech-duration");
+    return saved ? parseInt(saved) : currentConfig.minSpeechDurationMs;
+  })();
   const PARTIAL_CHUNK_INTERVAL_MS = currentConfig.partialChunkIntervalMs;
   const PARTIAL_CHUNK_MIN_DURATION_MS = currentConfig.partialChunkMinDurationMs;
   const PARTIAL_CHUNK_MIN_BUFFERS = currentConfig.partialChunkMinBuffers;
@@ -1258,22 +1271,12 @@ export default function Home() {
             )}
           </h1>
           <div className="flex items-center gap-2 md:gap-4">
-            {/* ASR Model Selector */}
-            <Select value={asrModel} onValueChange={setAsrModel} disabled={isRecording}>
-              <SelectTrigger className="w-[110px] md:w-[150px] bg-gray-900 border-gray-700 text-sm md:text-base">
-                <SelectValue placeholder="ASR 模型" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700">
-                {WHISPER_CONFIG.AVAILABLE_MODELS.map((model) => (
-                  <SelectItem key={model.value} value={model.value}>
-                    <div className="flex flex-col">
-                      <span>{model.icon} {model.label}</span>
-                      <span className="text-xs text-gray-400">{model.description}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Settings Button */}
+            <Link href="/settings">
+              <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
+                <SettingsIcon className="h-3 w-3 md:h-4 md:w-4" />
+              </Button>
+            </Link>
             
             {/* ASR Mode Selector */}
             <Select value={asrMode} onValueChange={(value) => setAsrMode(value as ASRMode)} disabled={isRecording}>
