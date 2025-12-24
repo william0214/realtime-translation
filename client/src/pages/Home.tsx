@@ -102,16 +102,11 @@ export default function Home() {
     return (saved === "go" || saved === "nodejs" || saved === "hybrid") ? saved : "nodejs";
   });
   
-  // ASR mode selection: "normal" | "precise"
-  const [asrMode, setAsrMode] = useState<ASRMode>(() => {
+  // ASR mode selection: "normal" | "precise" (read from localStorage, set in Settings page)
+  const [asrMode] = useState<ASRMode>(() => {
     const saved = localStorage.getItem("asr-mode");
     return (saved === "normal" || saved === "precise") ? saved : "normal";
   });
-  
-  // Save ASR mode to localStorage when changed
-  useEffect(() => {
-    localStorage.setItem("asr-mode", asrMode);
-  }, [asrMode]);
   
   // ASR model selection: "gpt-4o-mini-transcribe" | "gpt-4o-transcribe"
   const [asrModel, setAsrModel] = useState<string>(() => {
@@ -1286,26 +1281,6 @@ export default function Home() {
               </Button>
             </Link>
             
-            {/* ASR Mode Selector */}
-            <Select value={asrMode} onValueChange={(value) => setAsrMode(value as ASRMode)} disabled={isRecording}>
-              <SelectTrigger className="w-[100px] md:w-[140px] bg-gray-900 border-gray-700 text-sm md:text-base">
-                <SelectValue placeholder="模式" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700">
-                <SelectItem value="normal">
-                  <div className="flex flex-col">
-                    <span>💨 快速</span>
-                    <span className="text-xs text-gray-400">0.6-1.2s</span>
-                  </div>
-                </SelectItem>
-                <SelectItem value="precise">
-                  <div className="flex flex-col">
-                    <span>🎯 精確</span>
-                    <span className="text-xs text-gray-400">1.0-2.0s</span>
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
             
             {/* Target Language Selector */}
             <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={isRecording}>
