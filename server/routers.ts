@@ -32,6 +32,7 @@ export const appRouter = router({
           filename: z.string().optional(),
           preferredTargetLang: z.string().optional(),
           asrMode: z.enum(["normal", "precise"]).optional(),
+          asrModel: z.string().optional(), // ASR model selection (e.g., "gpt-4o-mini-transcribe", "gpt-4o-transcribe")
           transcriptOnly: z.boolean().optional(), // If true, only do transcription, no translation
           // 🎙️ Dual Microphone Mode: Force source language and speaker
           forceSourceLang: z.string().optional(), // Force source language (skip language detection)
@@ -71,7 +72,7 @@ export const appRouter = router({
           const whisperStartAt = new Date();
           console.log(`[時間戳記] 開始 Whisper 識別: ${whisperStartAt.toISOString()}`);
           console.log(`[autoTranslate] Transcribing audio...`);
-          const { text: sourceText, language: whisperLanguage, asrProfile } = await transcribeAudio(audioBuffer, filename, input.asrMode);
+          const { text: sourceText, language: whisperLanguage, asrProfile } = await transcribeAudio(audioBuffer, filename, input.asrMode, input.asrModel);
           const whisperEndAt = new Date();
           const whisperDuration = whisperEndAt.getTime() - whisperStartAt.getTime();
           console.log(`[時間戳記] Whisper 完成: ${whisperEndAt.toISOString()} (耗時 ${whisperDuration}ms)`);

@@ -253,7 +253,8 @@ export async function identifyLanguage(text: string): Promise<string> {
 export async function transcribeAudio(
   audioBuffer: Buffer,
   filename: string,
-  asrMode?: ASRMode
+  asrMode?: ASRMode,
+  asrModel?: string // Optional ASR model override
 ): Promise<{
   text: string;
   language?: string;
@@ -277,7 +278,9 @@ export async function transcribeAudio(
     filename,
     contentType: "audio/webm",
   });
-  form.append("model", WHISPER_CONFIG.MODEL);
+  // Use provided ASR model or default from config
+  const modelToUse = asrModel || WHISPER_CONFIG.MODEL;
+  form.append("model", modelToUse);
   form.append("response_format", WHISPER_CONFIG.RESPONSE_FORMAT);
   form.append("temperature", modeConfig.whisperTemperature.toString());
   // Use mode-specific language settings
@@ -310,7 +313,7 @@ export async function transcribeAudio(
 
     // End ASR profiling
     const audioDuration = 1.0; // Estimated, can be calculated from buffer if needed
-    const asrProfile = profiler.end(audioDuration, audioBuffer.length, WHISPER_CONFIG.MODEL);
+    const asrProfile = profiler.end(audioDuration, audioBuffer.length, modelToUse);
     console.log(`[ASR Profiler] Duration: ${asrProfile.duration.toFixed(0)}ms`);
 
     return { text, language, asrProfile };

@@ -62,10 +62,33 @@ export const VAD_CONFIG = {
 export const WHISPER_CONFIG = {
   /**
    * Whisper 模型
-   * - whisper-1: 原版 Whisper 模型
-   * - gpt-4o-mini-transcribe: 更快速、更便宜的新模型
+   * 支援的模型：
+   * - "whisper-1": 原版 Whisper 模型
+   * - "gpt-4o-mini-transcribe": GPT-4o mini 轉錄模型（快速、低成本）
+   * - "gpt-4o-transcribe": GPT-4o 轉錄模型（高品質、較慢）
+   * 
+   * 當前設定：gpt-4o-mini-transcribe（預設）
    */
   MODEL: "gpt-4o-mini-transcribe" as const,
+
+  /**
+   * 可用的 ASR 模型列表
+   * 用於前端 UI 選擇器
+   */
+  AVAILABLE_MODELS: [
+    {
+      value: "gpt-4o-mini-transcribe",
+      label: "GPT-4o Mini",
+      description: "快速、低成本",
+      icon: "⚡",
+    },
+    {
+      value: "gpt-4o-transcribe",
+      label: "GPT-4o",
+      description: "高品質、較慢",
+      icon: "🎯",
+    },
+  ] as const,
 
   /**
    * 回應格式

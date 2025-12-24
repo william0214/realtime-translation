@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import { callGoTranslation } from "@/services/goBackend";
 import { HybridASRClient } from "@/services/hybridASRClient";
-import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG, ASR_MODE_CONFIG, type ASRMode, getASRModeConfig } from "@shared/config";
+import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG, ASR_MODE_CONFIG, WHISPER_CONFIG, type ASRMode, getASRModeConfig } from "@shared/config";
 
 type ConversationMessage = {
   id: number;
@@ -112,6 +112,17 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("asr-mode", asrMode);
   }, [asrMode]);
+  
+  // ASR model selection: "gpt-4o-mini-transcribe" | "gpt-4o-transcribe"
+  const [asrModel, setAsrModel] = useState<string>(() => {
+    const saved = localStorage.getItem("asr-model");
+    return saved || WHISPER_CONFIG.MODEL;
+  });
+  
+  // Save ASR model to localStorage when changed
+  useEffect(() => {
+    localStorage.setItem("asr-model", asrModel);
+  }, [asrModel]);
   
   // Hybrid ASR client
   const hybridClientRef = useRef<HybridASRClient | null>(null);
@@ -388,6 +399,7 @@ export default function Home() {
                   preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                   transcriptOnly: true, // Partial: only transcription, no translation
                   asrMode,
+                  asrModel, // Pass ASR model to backend
                 })
               : await callGoTranslation({
                   audioBase64: base64Audio,
@@ -529,6 +541,7 @@ export default function Home() {
                   filename: `translation-${Date.now()}.webm`,
                   preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                   asrMode, // Pass ASR mode to backend
+                  asrModel, // Pass ASR model to backend
                   ...forceParams, // Add force language params in dual mic mode
                 })
               : await callGoTranslation({
@@ -644,7 +657,7 @@ export default function Home() {
       toast.error(`❌ 語音處理失敗: ${error.message || '未知錯誤'}`);
       setProcessingStatus("listening");
     }
-  }, [targetLanguage, translateMutation, dualMicMode, currentSpeaker, backend, asrMode]);
+  }, [targetLanguage, translateMutation, dualMicMode, currentSpeaker, backend, asrMode, asrModel]);
 
   // Update ref for processFinalTranscript
   useEffect(() => {
@@ -1245,6 +1258,23 @@ export default function Home() {
             )}
           </h1>
           <div className="flex items-center gap-2 md:gap-4">
+            {/* ASR Model Selector */}
+            <Select value={asrModel} onValueChange={setAsrModel} disabled={isRecording}>
+              <SelectTrigger className="w-[110px] md:w-[150px] bg-gray-900 border-gray-700 text-sm md:text-base">
+                <SelectValue placeholder="ASR 模型" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-700">
+                {WHISPER_CONFIG.AVAILABLE_MODELS.map((model) => (
+                  <SelectItem key={model.value} value={model.value}>
+                    <div className="flex flex-col">
+                      <span>{model.icon} {model.label}</span>
+                      <span className="text-xs text-gray-400">{model.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
             {/* ASR Mode Selector */}
             <Select value={asrMode} onValueChange={(value) => setAsrMode(value as ASRMode)} disabled={isRecording}>
               <SelectTrigger className="w-[100px] md:w-[140px] bg-gray-900 border-gray-700 text-sm md:text-base">
