@@ -155,6 +155,33 @@ export const TRANSLATION_CONFIG = {
   ENABLE_TRANSLATION: true,
 
   /**
+   * LLM 翻譯模型
+   * 用於執行翻譯任務的語言模型
+   * 
+   * 可用模型：
+   * - "gpt-4.1-mini": 最新的 GPT-4.1 mini 模型（推薦，速度快、品質高）
+   * - "gpt-4o-mini": GPT-4o mini 模型（平衡速度和品質）
+   * - "gpt-4": GPT-4 完整模型（最高品質，但較慢）
+   * - "gpt-3.5-turbo": GPT-3.5 Turbo（最快，但品質較低）
+   * - "gemini-2.5-flash": Google Gemini 2.5 Flash（透過 Manus 內建 API）
+   * 
+   * 當前設定：gpt-4.1-mini（最佳平衡）
+   */
+  LLM_MODEL: "gpt-4.1-mini" as const,
+
+  /**
+   * 翻譯 Provider
+   * 選擇使用的翻譯服務提供商
+   * 
+   * 可用選項：
+   * - "openai": 使用 OpenAI GPT 模型（透過 Manus 內建 API）
+   * - "google": Google Cloud Translation API（未實作）
+   * - "azure": Azure Cognitive Services（未實作）
+   * - "deepl": DeepL API（未實作）
+   */
+  TRANSLATION_PROVIDER: "openai" as const,
+
+  /**
    * 預設目標語言
    * 台灣人說中文時，翻譯成此語言
    */
@@ -283,7 +310,7 @@ export const ASR_MODE_CONFIG = {
     whisperTemperature: 0,
     
     // Translation 參數
-    translationModel: "gpt-4o-mini",
+    translationModel: TRANSLATION_CONFIG.LLM_MODEL, // 使用統一配置的模型
   },
   
   /**
@@ -320,7 +347,7 @@ export const ASR_MODE_CONFIG = {
     whisperTemperature: 0,
     
     // Translation 參數
-    translationModel: "gpt-4o",
+    translationModel: TRANSLATION_CONFIG.LLM_MODEL, // 使用統一配置的模型
   },
 } as const;
 

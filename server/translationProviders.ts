@@ -6,6 +6,7 @@
  */
 
 import { invokeLLM } from "./_core/llm";
+import { TRANSLATION_CONFIG } from "../shared/config";
 
 export type TranslationProvider = "openai" | "google" | "azure" | "deepl";
 
@@ -70,13 +71,13 @@ Target language: ${targetName}`;
   console.log(`[Translation Debug] Prompt: ${systemPrompt}`);
   console.log(`[Translation Debug] Input text: "${text}"`);
 
-  // Note: invokeLLM uses default model (currently gemini-2.5-flash)
-  // TODO: Add model parameter support to invokeLLM if needed
+  // Use model from config (default: gpt-4.1-mini)
   const response = await invokeLLM({
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: text },
     ],
+    model: model || TRANSLATION_CONFIG.LLM_MODEL, // Use config model if not specified
     thinking: false, // Disable thinking mode for speed
   });
 
@@ -176,8 +177,9 @@ export async function translate(
  * - TRANSLATION_MODEL: e.g., "gpt-4o-mini", "gpt-3.5-turbo"
  */
 export function getDefaultTranslationConfig(): TranslationConfig {
-  const provider = (process.env.TRANSLATION_PROVIDER as TranslationProvider) || "openai";
-  const model = process.env.TRANSLATION_MODEL || "gpt-4o-mini";
+  // Use config values, with environment variable override support
+  const provider = (process.env.TRANSLATION_PROVIDER as TranslationProvider) || TRANSLATION_CONFIG.TRANSLATION_PROVIDER;
+  const model = process.env.TRANSLATION_MODEL || TRANSLATION_CONFIG.LLM_MODEL;
 
   return { provider, model };
 }
