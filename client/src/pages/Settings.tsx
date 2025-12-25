@@ -126,7 +126,13 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-gray-400">
-                  當前選擇：{asrModel === "gpt-4o-mini-transcribe" ? "GPT-4o Mini（快速、低成本）" : "GPT-4o（高品質、較慢）"}
+                  當前選擇：{
+                    asrModel === "whisper-1" ? "Whisper-1（原版 Whisper）" :
+                    asrModel === "gpt-4o-mini-transcribe" ? "GPT-4o Mini（快速、低成本）" :
+                    asrModel === "gpt-4o-transcribe" ? "GPT-4o（高品質、較慢）" :
+                    asrModel === "gpt-4o-transcribe-diarize" ? "GPT-4o Diarize（含說話者辨識）" :
+                    asrModel
+                  }
                 </p>
               </div>
             </CardContent>

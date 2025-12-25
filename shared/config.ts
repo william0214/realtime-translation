@@ -63,9 +63,10 @@ export const WHISPER_CONFIG = {
   /**
    * Whisper 模型
    * 支援的模型：
-   * - "whisper-1": 原版 Whisper 模型
+   * - "whisper-1": 原版 Whisper 模型（API 入口）
    * - "gpt-4o-mini-transcribe": GPT-4o mini 轉錄模型（快速、低成本）
    * - "gpt-4o-transcribe": GPT-4o 轉錄模型（高品質、較慢）
+   * - "gpt-4o-transcribe-diarize": GPT-4o 轉錄模型（含說話者辨識與時間資訊）
    * 
    * 當前設定：gpt-4o-mini-transcribe（預設）
    */
@@ -77,6 +78,12 @@ export const WHISPER_CONFIG = {
    */
   AVAILABLE_MODELS: [
     {
+      value: "whisper-1",
+      label: "Whisper-1",
+      description: "原版 Whisper（API 入口）",
+      icon: "🎙️",
+    },
+    {
       value: "gpt-4o-mini-transcribe",
       label: "GPT-4o Mini",
       description: "快速、低成本",
@@ -87,6 +94,12 @@ export const WHISPER_CONFIG = {
       label: "GPT-4o",
       description: "高品質、較慢",
       icon: "🎯",
+    },
+    {
+      value: "gpt-4o-transcribe-diarize",
+      label: "GPT-4o Diarize",
+      description: "含說話者辨識",
+      icon: "👥",
     },
   ] as const,
 

@@ -173,33 +173,43 @@ export function determineDirection(
     };
   }
 
-  // Rule 2: If Whisper detected a specific non-Chinese language, trust it
+  // Rule 2: Check for Chinese characters in text
+  // If text contains Chinese characters, it's definitely Chinese (high confidence)
+  if (sourceText && containsChineseCharacters(sourceText)) {
+    console.log(`[determineDirection] ✅ Detected Chinese from text content: "${sourceText.substring(0, 50)}..."`);
+    return {
+      direction: "nurse_to_patient",
+      sourceLang: "zh",
+      targetLang: preferredTargetLang || "vi",
+    };
+  }
+
+  // Rule 3: If Whisper detected Chinese but text has NO Chinese characters, it's likely a misidentification
+  // Check if text is primarily English (Latin alphabet)
+  if (CHINESE_LANGUAGES.includes(normalizedLang) && sourceText) {
+    // Check if text is primarily Latin alphabet (English, Vietnamese without diacritics, etc.)
+    const latinRegex = /[a-zA-Z]/g;
+    const latinMatches = sourceText.match(latinRegex) || [];
+    const latinRatio = latinMatches.length / sourceText.replace(/\s/g, '').length;
+    
+    if (latinRatio > 0.5) {
+      // More than 50% Latin characters, likely English or other Latin-based language
+      console.log(`[determineDirection] ⚠️ Whisper said Chinese (${normalizedLang}) but text is ${(latinRatio * 100).toFixed(0)}% Latin characters, treating as English`);
+      return {
+        direction: "patient_to_nurse",
+        sourceLang: "en",
+        targetLang: "zh",
+      };
+    }
+  }
+
+  // Rule 4: If Whisper detected a specific non-Chinese language, trust it
   if (normalizedLang !== "unknown" && !CHINESE_LANGUAGES.includes(normalizedLang)) {
     console.log(`[determineDirection] Using Whisper detected language: ${normalizedLang}`);
     return {
       direction: "patient_to_nurse",
       sourceLang: normalizedLang,
       targetLang: "zh",
-    };
-  }
-
-  // Rule 3: If Whisper detected Chinese OR unknown, check for Chinese characters
-  if (sourceText && containsChineseCharacters(sourceText)) {
-    console.log(`[determineDirection] Detected Chinese from text content: "${sourceText.substring(0, 50)}..."`);
-    return {
-      direction: "nurse_to_patient",
-      sourceLang: "zh",
-      targetLang: preferredTargetLang || "vi",
-    };
-  }
-
-  // Rule 4: If Whisper detected Chinese, trust it
-  if (CHINESE_LANGUAGES.includes(normalizedLang)) {
-    console.log(`[determineDirection] Using Whisper detected Chinese: ${normalizedLang}`);
-    return {
-      direction: "nurse_to_patient",
-      sourceLang: "zh",
-      targetLang: preferredTargetLang || "vi",
     };
   }
 
@@ -280,6 +290,7 @@ export async function transcribeAudio(
   });
   // Use provided ASR model or default from config
   const modelToUse = asrModel || WHISPER_CONFIG.MODEL;
+  console.log(`[ASR] 🎤 Using model: ${modelToUse} (mode: ${asrMode || 'normal'})`);
   form.append("model", modelToUse);
   form.append("response_format", WHISPER_CONFIG.RESPONSE_FORMAT);
   form.append("temperature", modeConfig.whisperTemperature.toString());
@@ -359,7 +370,9 @@ export async function translateText(
     const finalModel = translationModel || modeConfig.translationModel;
     config.model = finalModel;
     
-    console.log(`[Translation] Using model: ${finalModel}, sourceLang: ${sourceLang}, targetLang: ${targetLang}`);
+    console.log(`[Translation] 🌐 Using model: ${finalModel} (mode: ${asrMode || 'normal'})`);
+    console.log(`[Translation] 📝 Direction: ${sourceLang} -> ${targetLang}`);
+    console.log(`[Translation] 💬 Text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
     
     const result = await translate(text, sourceLang, targetLang, config);
 

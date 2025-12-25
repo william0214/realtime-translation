@@ -471,3 +471,43 @@
   - [x] 修正 translationService.ts 例外處理（完整 try/catch + 詳細 LOG）
   - [x] 新增單元測試覆蓋模型切換與錯誤處理（10個測試全通過）
   - 修復結果：所有模型切換測試通過，無效模型自動 fallback，不會造成服務崩潰
+
+
+## 🐛 Bug 修復（2025-12-25 新增）
+
+- [x] 修復英文語音被誤判為中文（台灣人）的語言識別問題
+  - 問題描述：使用者說英文，但文字都出現在台灣人區域，沒有出現在外國人區域
+  - 前端 LOG 顯示：`sourceLang: 'zh'`（應該是 'en'）
+  - 翻譯方向錯誤：`Direction: nurse_to_patient`（應該是 patient_to_nurse）
+  - 根本原因：Whisper 誤判英文為中文時，後端 determineDirection 函數直接信任 Whisper 結果
+  - 修復方案：
+    - 調整 determineDirection 函數的邏輯順序
+    - Rule 2: 優先檢查文字是否包含中文字符（高可信度）
+    - Rule 3: 如果 Whisper 說是中文但文字不包含中文字符，檢查拉丁字母比例
+    - 如果拉丁字母 > 50%，判定為英文（覆蓋 Whisper 的錯誤判斷）
+    - Rule 4: 如果 Whisper 偵測到非中文語言，信任它
+    - Rule 5: 預設為中文
+  - 修復檔案：server/translationService.ts
+
+
+## 🎤 ASR 模型更新（2025-12-25 新增）
+
+- [ ] 更新 ASR 模型配置以支援 OpenAI 官方的 4 個語音轉文字模型
+  - [ ] 在 shared/config.ts 的 WHISPER_CONFIG.AVAILABLE_MODELS 加入 4 個模型：
+    - whisper-1（Whisper 系列的 API 入口）
+    - gpt-4o-mini-transcribe（較省成本、較快的轉錄）✅ 已加入
+    - gpt-4o-transcribe（較高品質轉錄）✅ 已加入
+    - gpt-4o-transcribe-diarize（含說話者辨識/標記與時間資訊）
+  - [ ] 在設定頁面 (Settings.tsx) 加入所有 4 個 ASR 模型選項
+  - [ ] 確保前端可以選擇並儲存 ASR 模型到 localStorage
+  - [ ] 確保後端支援所有 4 個模型
+  - [ ] 測試所有模型切換功能
+
+## 🐛 Debug 改進（2025-12-25 新增）
+
+- [x] 在前後端 console 顯示使用的 ASR 模型和翻譯模型
+  - [x] 後端：在 transcribeAudio 函數加入 LOG 顯示使用的 ASR 模型
+  - [x] 後端：在 translateText 函數加入 LOG 顯示使用的翻譯模型
+  - [x] 前端：在發送請求時 LOG 顯示選擇的 ASR 模型和翻譯模型
+  - [x] 前端：在收到回應時 LOG 顯示實際使用的模型
+  - [x] 確保 LOG 格式清晰易讀，方便 debug 和 UAT 測試

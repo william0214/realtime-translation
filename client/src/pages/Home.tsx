@@ -405,6 +405,10 @@ export default function Home() {
           const base64Audio = (reader.result as string).split(",")[1];
 
           try {
+            // Log selected models for debugging (subtitle mode)
+            console.log(`[Frontend/Subtitle] 🎤 ASR Model: ${asrModel} (mode: ${asrMode})`);
+            console.log(`[Frontend/Subtitle] 🔧 Backend: ${backend}`);
+            
             // Call backend based on selection
             const result = backend === "nodejs"
               ? await translateMutation.mutateAsync({
@@ -550,6 +554,11 @@ export default function Home() {
               forceSpeaker: currentSpeaker,
             } : {};
             
+            // Log selected models for debugging
+            console.log(`[Frontend] 🎤 ASR Model: ${asrModel} (mode: ${asrMode})`);
+            console.log(`[Frontend] 🌐 Translation Model: ${translationModel}`);
+            console.log(`[Frontend] 🔧 Backend: ${backend}`);
+            
             const result = backend === "nodejs"
               ? await translateMutation.mutateAsync({
                   audioBase64: base64Audio,
@@ -567,6 +576,8 @@ export default function Home() {
                 });
 
             console.log("[Translation] Backend response:", result);
+            console.log(`[Frontend] ✅ Received: sourceLang=${result.sourceLang}, targetLang=${result.targetLang}, direction=${result.direction}`);
+            console.log(`[Frontend] 📝 Source text: "${result.sourceText?.substring(0, 50)}${(result.sourceText?.length || 0) > 50 ? '...' : ''}"`);
             
             if (result.success && result.sourceText) {
               // 🔥 Filter Whisper hallucination (repeated strings)
