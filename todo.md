@@ -102,7 +102,7 @@
 
 ---
 
-## 📋 v1.5.4 - VAD 設定 UI 移除（進行中，2025-12-25）
+## 📋 v1.5.4 - VAD 設定 UI 移除（完成，2025-12-25）
 
 ### 架構收斂目標
 - [x] 移除所有 VAD 相關設定 UI
@@ -139,8 +139,8 @@
 
 ### 文件與發布
 - [x] 更新 todo.md
-- [ ] 建立 checkpoint
-- [ ] 推送到 GitHub
+- [x] 建立 checkpoint (v7201f084)
+- [x] 建立 CHANGELOG-v1.5.4.md
 
 ---
 
@@ -425,3 +425,198 @@
 - [x] 定義 Stale response 丟棄規則（partialSeq）
 - [x] 定義 Final hard-trim 強制規則（所有路徑適用）
 - [x] 新增執行期一致性檢查清單（20 項）
+
+---
+
+## 🚀 v2.0.0 - 醫護品質最優方案（進行中，2025-12-25）
+
+### 目標
+實作醫護雙向翻譯的「品質最優」方案（方案2）：
+- 即時字幕/即時翻譯可用（Fast Pass）
+- 句尾定稿以高品質回填修正（Quality Pass）
+- 醫療情境：不能亂加資訊、不能漏數字/單位/否定詞、術語一致
+- 移除 VAD 設定 UI（不讓使用者調 VAD），但保留程式內可調（config 或 env）
+
+### A. 兩段式翻譯流程（Fast Pass + Quality Pass）
+- [ ] 新增 translationStage 欄位到 ConversationMessage（provisional/final）
+- [ ] 新增 qualityPassStatus 欄位（pending/processing/completed/failed）
+- [ ] 實作 Fast Pass 翻譯（gpt-4.1，快速顯示）
+- [ ] 實作 Quality Pass 翻譯（gpt-4o，醫療級定稿）
+- [ ] UI 回填更新機制（同一 bubble 從 provisional → final）
+- [ ] 後端支援 translationQuality 參數（fast/quality）
+- [ ] 新增 tRPC procedure：translation.qualityPass
+- [ ] 實作 Quality Pass 自動觸發機制（Fast Pass 完成後 3-6 秒）
+
+### B. 上下文注入（Context）
+- [ ] 實作對話 context 管理（最近 3-6 句）
+- [ ] Context 包含 speaker role、sourceLang、targetLang、previous translations
+- [ ] 實作 getConversationContext 函數
+- [ ] Quality Pass 翻譯時自動注入 context
+- [ ] 醫療專用 prompt 規則（忠實翻譯、數字單位保護、否定詞保護）
+- [ ] 建立 Fast Pass prompt template
+- [ ] 建立 Quality Pass prompt template（含 context）
+
+### C. Glossary 術語一致性
+- [ ] 建立醫療術語字典（shared/glossary.ts）
+- [ ] 支援 zh→vi 術語對照（BP/血壓、HR/心跳、SpO2/血氧、體溫、止痛藥、過敏、糖尿病、高血壓、懷孕、哺乳）
+- [ ] 支援其他語言 fallback
+- [ ] Quality Pass 翻譯時強制使用 glossary
+- [ ] 數字/單位保護機制（mg/ml/cc/℃/mmHg/天/週/次）
+- [ ] 實作 applyGlossary 函數
+- [ ] 實作 protectNumbers 函數
+
+### D. Quality Gate 守門機制
+- [ ] 實作翻譯品質檢查函數（detectTranslationIssues）
+- [ ] 檢查規則：數字遺漏檢測
+- [ ] 檢查規則：否定詞反轉檢測
+- [ ] 檢查規則：長度異常檢測
+- [ ] Gate fail 時自動觸發 Quality Pass 重跑
+- [ ] 加入詳細的 quality gate log
+- [ ] 實作 Quality Gate 統計（pass/fail 比例）
+
+### E. 分段策略調整
+- [ ] 保留完整 transcript 文字（不只最後 2 秒）
+- [ ] 修改 final chunk 處理邏輯（文字層完整保留）
+- [ ] 避免硬 trim 導致翻譯缺前文
+- [ ] 考慮多段 ASR → 文字合併 → 翻譯策略
+- [ ] 實作 transcript accumulation 機制
+- [ ] 測試長句翻譯品質（> 4 秒）
+
+### F. 移除 VAD 設定 UI（已在 v1.5.4 完成）
+- [x] 從 Settings.tsx 移除所有 VAD 相關 UI
+- [x] 清理 localStorage 舊 VAD 值
+- [x] 確認 VAD 參數只從 config 讀取
+- [x] 允許 env 覆寫 VAD 參數（但不提供 UI）
+
+### 測試與驗收
+- [ ] 測試 Fast Pass 翻譯速度（1-2 秒內顯示）
+- [ ] 測試 Quality Pass 回填（3-6 秒內更新）
+- [ ] 測試術語一致性（醫療術語正確翻譯）
+- [ ] 測試數字單位保護（不遺漏、不錯誤）
+- [ ] 測試否定詞保護（不反轉）
+- [ ] 測試完整句子翻譯（不缺前文）
+- [ ] 確認 Settings 頁面無 VAD UI
+- [ ] 確認 localStorage 舊值不影響行為
+- [ ] 測試 10 句連續對話（Fast Pass + Quality Pass）
+- [ ] 測試醫療情境對話（用藥、疼痛、過敏等）
+
+### 文件與發布
+- [ ] 建立 ARCHITECTURE-v2.0.md（架構設計文件）
+- [ ] 建立 MEDICAL_GLOSSARY.md（術語字典文件）
+- [ ] 建立 QUALITY_GATE.md（品質守門機制文件）
+- [ ] 建立 PROMPT_TEMPLATES.md（Fast Pass / Quality Pass prompt）
+- [ ] 更新 README.md
+- [ ] 建立 checkpoint (v2.0.0)
+
+### 驗收標準（Acceptance Criteria）
+- [ ] 使用者說一句中文（醫療問句），畫面 1–2 秒內先顯示 provisional 翻譯（gpt-4.1）
+- [ ] 3–6 秒內同一 bubble 被回填為高品質 final 翻譯（gpt-4o），且術語一致、數字單位不丟
+- [ ] 不再出現「只翻到後半句」的常見缺前文問題（至少在文字翻譯層面修正）
+- [ ] Settings 頁面沒有任何 VAD UI，且舊 localStorage 不再影響 VAD 行為
+- [ ] Quality Gate 檢測到問題時自動重跑 Quality Pass
+- [ ] 醫療術語翻譯一致（BP→huyết áp, HR→nhịp tim, SpO2→oxy máu）
+- [ ] 數字單位不遺漏（120/80 mmHg, 38.5℃, 500mg）
+- [ ] 否定詞不反轉（不痛→không đau, 沒有過敏→không dị ứng）
+
+
+---
+
+## ✅ v2.0.0 已完成項目（2025-12-25）
+
+### 核心架構實作
+- [x] 建立 shared/glossary.ts（醫療術語字典）
+- [x] 建立 shared/qualityGate.ts（品質守門機制）
+- [x] 建立 shared/translationPrompts.ts（Prompt 模板）
+- [x] 建立 server/twoPassTranslation.ts（兩段式翻譯服務）
+- [x] 更新 server/routers.ts（新增 fastPass, qualityPass procedures）
+- [x] 更新 client/src/pages/Home.tsx（ConversationMessage 資料結構）
+
+### 文件建立
+- [x] 建立 docs/ARCHITECTURE-v2.0.md（架構設計文件）
+- [x] 建立 docs/MEDICAL_GLOSSARY.md（術語字典文件）
+- [x] 建立 docs/QUALITY_GATE.md（品質守門機制文件）
+
+### Glossary 術語字典
+- [x] 支援 zh→vi 術語對照（47 個術語）
+- [x] 生命徵象（8 個）：BP/血壓、HR/心跳、SpO2/血氧等
+- [x] 症狀（10 個）：疼痛、噁心、頭暈等
+- [x] 藥物（5 個）：止痛藥、抗生素等
+- [x] 疾病狀況（6 個）：糖尿病、高血壓、過敏、懷孕、哺乳等
+- [x] 醫療程序（4 個）：打針、抽血等
+- [x] 身體部位（5 個）：頭、胸、腹等
+- [x] 時間單位（5 個）：天、週、次等
+- [x] 否定詞（4 個）：不、沒有、未、別等
+- [x] 保護單位（mg/ml/cc/℃/mmHg/天/週/次等）
+
+### Quality Gate 守門機制
+- [x] 實作 6 種檢查規則
+- [x] 空白翻譯檢測（Critical）
+- [x] 相同文字檢測（High）
+- [x] 數字遺漏檢測（Critical/High）
+- [x] 否定詞反轉檢測（Critical）
+- [x] 長度異常檢測（Medium）
+- [x] 可疑內容檢測（Medium）
+- [x] 品質分數計算（0-100，通過門檻 70）
+- [x] 建議動作機制（accept/retry_fast/retry_quality）
+
+### 兩段式翻譯流程
+- [x] Fast Pass 翻譯（gpt-4.1）
+- [x] Quality Pass 翻譯（gpt-4o）
+- [x] 自動重試機制（最多 1 次）
+- [x] Quality Gate 整合
+- [x] tRPC procedures（translate.fastPass, translate.qualityPass）
+
+### Prompt 模板
+- [x] Fast Pass Prompt（簡潔明確，速度優先）
+- [x] Quality Pass Prompt（含 context 和 glossary，品質優先）
+- [x] Retry Prompt（明確指出上次翻譯的問題）
+- [x] 醫療翻譯規則（忠實翻譯、數字單位保護、否定詞保護、術語一致性）
+
+### 資料結構
+- [x] ConversationMessage 新增 translationStage 欄位（provisional/final）
+- [x] ConversationMessage 新增 qualityPassStatus 欄位（pending/processing/completed/failed）
+- [x] ConversationMessage 新增 sourceLang, targetLang 欄位
+- [x] ConversationContext 介面定義
+
+## 🚧 v2.0.0 待完成項目
+
+### 前端整合
+- [ ] 實作 Fast Pass 翻譯呼叫（Home.tsx）
+- [ ] 實作 Quality Pass 翻譯呼叫（Home.tsx）
+- [ ] 實作 UI 回填更新機制（同一 bubble 從 provisional → final）
+- [ ] 實作對話 context 管理（最近 3-6 句）
+- [ ] 實作 Quality Pass 自動觸發機制（Fast Pass 完成後 3-6 秒）
+- [ ] 實作 translationStage 狀態顯示（provisional/final 標記）
+
+### 分段策略調整
+- [ ] 保留完整 transcript 文字（不只最後 2 秒）
+- [ ] 修改 final chunk 處理邏輯（文字層完整保留）
+- [ ] 避免硬 trim 導致翻譯缺前文
+- [ ] 考慮多段 ASR → 文字合併 → 翻譯策略
+
+### 測試與驗收
+- [ ] 測試 Fast Pass 翻譯速度（1-2 秒內顯示）
+- [ ] 測試 Quality Pass 回填（3-6 秒內更新）
+- [ ] 測試術語一致性（醫療術語正確翻譯）
+- [ ] 測試數字單位保護（不遺漏、不錯誤）
+- [ ] 測試否定詞保護（不反轉）
+- [ ] 測試完整句子翻譯（不缺前文）
+- [ ] 測試 10 句連續對話（Fast Pass + Quality Pass）
+- [ ] 測試醫療情境對話（用藥、疼痛、過敏等）
+- [ ] 測試 Quality Gate 檢測（數字遺漏、否定詞反轉、長度異常）
+- [ ] 測試自動重試機制
+
+### 單元測試
+- [ ] glossary.ts 單元測試
+- [ ] qualityGate.ts 單元測試
+- [ ] translationPrompts.ts 單元測試
+- [ ] twoPassTranslation.ts 單元測試
+
+### 文件補充
+- [ ] 建立 PROMPT_TEMPLATES.md（Fast Pass / Quality Pass prompt 範例）
+- [ ] 更新 README.md（v2.0.0 功能說明）
+- [ ] 建立 CHANGELOG-v2.0.md
+
+### 發布
+- [ ] 建立 checkpoint (v2.0.0)
+- [ ] 推送到 GitHub

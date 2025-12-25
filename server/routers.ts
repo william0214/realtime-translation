@@ -636,6 +636,87 @@ export const appRouter = router({
           };
         }
       }),
+
+    // Fast Pass Translation (gpt-4.1, quick provisional translation)
+    fastPass: publicProcedure
+      .input(
+        z.object({
+          sourceText: z.string(),
+          sourceLang: z.string(),
+          targetLang: z.string(),
+          speakerRole: z.enum(["nurse", "patient"]),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { fastPassTranslation } = await import("./twoPassTranslation");
+
+        try {
+          const result = await fastPassTranslation(
+            input.sourceText,
+            input.sourceLang,
+            input.targetLang,
+            input.speakerRole
+          );
+
+          return {
+            success: true,
+            ...result,
+          };
+        } catch (error: any) {
+          console.error("[translate.fastPass] Error:", error);
+          return {
+            success: false,
+            error: error.message || "Fast Pass translation failed",
+          };
+        }
+      }),
+
+    // Quality Pass Translation (gpt-4o, medical-grade final translation)
+    qualityPass: publicProcedure
+      .input(
+        z.object({
+          sourceText: z.string(),
+          sourceLang: z.string(),
+          targetLang: z.string(),
+          speakerRole: z.enum(["nurse", "patient"]),
+          context: z.array(
+            z.object({
+              speaker: z.enum(["nurse", "patient"]),
+              sourceLang: z.string(),
+              targetLang: z.string(),
+              sourceText: z.string(),
+              translatedText: z.string().optional(),
+              timestamp: z.date(),
+            })
+          ).optional(),
+          maxRetries: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { qualityPassTranslation } = await import("./twoPassTranslation");
+
+        try {
+          const result = await qualityPassTranslation(
+            input.sourceText,
+            input.sourceLang,
+            input.targetLang,
+            input.speakerRole,
+            input.context || [],
+            input.maxRetries || 1
+          );
+
+          return {
+            success: true,
+            ...result,
+          };
+        } catch (error: any) {
+          console.error("[translate.qualityPass] Error:", error);
+          return {
+            success: false,
+            error: error.message || "Quality Pass translation failed",
+          };
+        }
+      }),
   }),
 
 });

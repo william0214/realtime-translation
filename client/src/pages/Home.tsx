@@ -23,6 +23,11 @@ type ConversationMessage = {
   detectedLanguage: string;
   timestamp: Date;
   status: "partial" | "final" | "translated";
+  // 兩段式翻譯欄位
+  translationStage?: "provisional" | "final"; // provisional: Fast Pass, final: Quality Pass
+  qualityPassStatus?: "pending" | "processing" | "completed" | "failed"; // Quality Pass 狀態
+  sourceLang?: string; // 原文語言
+  targetLang?: string; // 目標語言
 };
 
 type ProcessingStatus = "idle" | "listening" | "vad-detected" | "recognizing" | "translating" | "speaking";
