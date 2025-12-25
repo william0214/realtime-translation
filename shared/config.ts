@@ -356,18 +356,18 @@ export const ASR_MODE_CONFIG = {
    */
   normal: {
     // VAD 參數
-    minSpeechDurationMs: 400,  // 調整從 300ms 到 400ms
+    minSpeechDurationMs: 300,  // v1.5.2: 降低從 400ms 到 300ms，減少短句丟棄
     silenceDurationMs: 600,    // 調整從 650ms 到 600ms
-    rmsThreshold: 0.015, // 降低閾值以適應低音量麥克風 (from 0.055 to 0.015)
+    rmsThreshold: 0.015, // 降低閖值以適應低音量麥克風 (from 0.055 to 0.015)
     
     // Chunk 參數
     partialChunkIntervalMs: 300,
-    partialChunkMinBuffers: 10, // 調整從 12 到 10（≈ 240ms，改善即時字幕延遲）
-    partialChunkMinDurationMs: 240,  // 調整從 300ms 到 240ms
+    partialChunkMinBuffers: 6, // v1.5.2: 降低從 10 到 6（≈ 150ms，改善即時字幕延遲）
+    partialChunkMinDurationMs: 150,  // v1.5.2: 降低從 240ms 到 150ms
     
     // Final 參數
-    finalMinDurationMs: 800,
-    finalMaxDurationMs: 4000,  // 調整從 1500ms 到 4000ms
+    finalMinDurationMs: 300,  // v1.5.2: 降低從 800ms 到 300ms
+    finalMaxDurationMs: 2000,  // v1.5.2: 降低從 4000ms 到 2000ms，符合 OpenAI API 限制
     discardBelowMs: 200,
     
     // Whisper 參數
@@ -395,16 +395,16 @@ export const ASR_MODE_CONFIG = {
     // VAD 參數
     minSpeechDurationMs: 400,  // 調整從 500ms 到 400ms
     silenceDurationMs: 600,    // 調整從 900ms 到 600ms
-    rmsThreshold: 0.025, // 降低閾值以適應低音量麥克風 (from 0.1 to 0.025)
+    rmsThreshold: 0.025, // 降低閖值以適應低音量麥克風 (from 0.1 to 0.025)
     
     // Chunk 參數
     partialChunkIntervalMs: 400,
-    partialChunkMinBuffers: 10, // 調整從 12 到 10（≈ 240ms，改善即時字幕延遲）
-    partialChunkMinDurationMs: 240,  // 調整從 300ms 到 240ms
+    partialChunkMinBuffers: 8, // v1.5.2: 降低從 10 到 8（≈ 200ms，改善即時字幕延遲）
+    partialChunkMinDurationMs: 200,  // v1.5.2: 降低從 240ms 到 200ms
     
     // Final 參數
-    finalMinDurationMs: 800,   // 調整從 1000ms 到 800ms
-    finalMaxDurationMs: 4000,  // 調整從 3000ms 到 4000ms
+    finalMinDurationMs: 400,   // v1.5.2: 降低從 800ms 到 400ms
+    finalMaxDurationMs: 2000,  // v1.5.2: 降低從 4000ms 到 2000ms，符合 OpenAI API 限制
     discardBelowMs: 300,       // 調整從 400ms 到 300ms
     
     // Whisper 參數

@@ -53,41 +53,60 @@ const SAMPLE_RATE = 48000; // 48kHz
  * - "This audio..." (audio description)
  */
 function detectWhisperHallucination(text: string): boolean {
-  if (!text || text.length < 10) return false;
-  
-  // Pattern 1: Check for repeated short patterns (e.g., "Ch-Ch-Ch" or "謝謝,謝謝")
-  const shortPatternRegex = /(.{1,5})\1{5,}/; // Same 1-5 chars repeated 5+ times
-  if (shortPatternRegex.test(text)) {
+  if (!text || text.trim() === "") {
     return true;
   }
-  
-  // Pattern 2: Check for repeated words/phrases separated by comma or space
-  const words = text.split(/[,，\s]+/).filter(w => w.length > 0);
-  if (words.length >= 5) {
-    const uniqueWords = new Set(words);
-    // If 80%+ of words are the same, it's likely hallucination
-    if (uniqueWords.size <= 2 && words.length >= 8) {
-      return true;
-    }
-  }
-  
-  // Pattern 3: Known hallucination phrases (YouTube/Podcast artifacts)
-  const knownHallucinations = [
-    "請不吝點讚訂閱",
+
+  // 🆕 Pattern 1: Known hallucination phrases (YouTube, Podcast, Amara subtitles)
+  const knownHallucinationPhrases = [
+    "請不吝點讚",
+    "訂閱轉發",
+    "打賞支持",
+    "明鏡與點點欄目",
     "本期視頻拍到這裡",
-    "Amara 字幕",
-    "lalaschool",
-    "請訂閱我的頻道",
+    "Amara",
+    "字幕",
     "Thank you for watching",
     "Don't forget to subscribe",
+    "like and subscribe",
   ];
-  for (const phrase of knownHallucinations) {
+  for (const phrase of knownHallucinationPhrases) {
     if (text.includes(phrase)) {
       return true;
     }
   }
+
+  // 🆕 Pattern 2: Repeated short patterns (e.g., "謝謝,謝謝,謝謝..." or "Ch-Ch-Ch-Ch...")
+  const repeatedPatterns = [
+    /(.{1,5})[,，]\1[,，]\1/, // Repeated 1-5 char patterns with comma (e.g., "謝謝,謝謝,謝謝")
+    /(.{1,3})-\1-\1/,          // Repeated 1-3 char patterns with dash (e.g., "Ch-Ch-Ch" or "Ah-Ah-Ah")
+  ];
+  for (const pattern of repeatedPatterns) {
+    if (pattern.test(text)) {
+      return true;
+    }
+  }
+
+  // 🆕 Pattern 3: Single repeated character (e.g., "AAAAA", "嗯嗯嗯嗯嗯")
+  if (/^(.)\1{4,}$/.test(text)) {
+    return true;
+  }
   
-  // 🆕 Pattern 4: Non-transcription output (language detection, speaker description, audio description)
+  // 🆕 Pattern 4: Prompt/Context leak detection
+  const promptLeakPatterns = [
+    /^context:/i,              // Prompt/context leak: "context: ..."
+    /^###/i,                   // Markdown header leak: "### ..."
+    /User is speaking/i,       // Prompt leak: "User is speaking..."
+    /Prioritize.*detection/i,  // Prompt leak: "Prioritize Chinese detection"
+  ];
+  for (const pattern of promptLeakPatterns) {
+    if (pattern.test(text)) {
+      console.warn(`[Whisper Hallucination] Detected prompt/context leak: "${text}"`);
+      return true;
+    }
+  }
+  
+  // 🆕 Pattern 5: Non-transcription output (language detection, speaker description, audio description)
   const nonTranscriptionPatterns = [
     /Speaker likely speaks/i,
     /The speaker is/i,
@@ -101,7 +120,7 @@ function detectWhisperHallucination(text: string): boolean {
     }
   }
   
-  // 🆕 Pattern 5: Very short text with multiple language names (e.g., "Chinese, Vietnamese, English, Indonesian")
+  // 🆕 Pattern 6: Very short text with multiple language names (e.g., "Chinese, Vietnamese, English, Indonesian")
   if (text.length < 100) {
     const languageNames = [
       "Chinese", "Vietnamese", "English", "Indonesian", "Filipino", "Thai", "Japanese", "Korean",
