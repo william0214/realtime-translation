@@ -360,6 +360,12 @@ export const ASR_MODE_CONFIG = {
     silenceDurationMs: 600,    // 調整從 650ms 到 600ms
     rmsThreshold: 0.015, // 降低閖值以適應低音量麥克風 (from 0.055 to 0.015)
     
+    // VAD Hysteresis 參數 (v1.5.4)
+    vadStartThreshold: 0.045,  // 語音開始門檻（連續幀數高於此值才算開始）
+    vadEndThreshold: 0.035,    // 語音結束門檻（連續幀數低於此值才算結束）
+    vadStartFrames: 2,         // 開始連續幀數（需連續 N 幀高於 startThreshold）
+    vadEndFrames: 8,           // 結束連續幀數（需連續 N 幀低於 endThreshold）
+    
     // Chunk 參數
     partialChunkIntervalMs: 300,
     partialChunkMinBuffers: 6, // v1.5.2: 降低從 10 到 6（≈ 150ms，改善即時字幕延遲）
@@ -396,6 +402,12 @@ export const ASR_MODE_CONFIG = {
     minSpeechDurationMs: 400,  // 調整從 500ms 到 400ms
     silenceDurationMs: 600,    // 調整從 900ms 到 600ms
     rmsThreshold: 0.025, // 降低閖值以適應低音量麥克風 (from 0.1 to 0.025)
+    
+    // VAD Hysteresis 參數 (v1.5.4)
+    vadStartThreshold: 0.050,  // 語音開始門檻（Precise 模式較高，減少誤觸發）
+    vadEndThreshold: 0.040,    // 語音結束門檻
+    vadStartFrames: 3,         // 開始連續幀數（Precise 模式較嚴格）
+    vadEndFrames: 10,          // 結束連續幀數（Precise 模式較長，確保完整句子）
     
     // Chunk 參數
     partialChunkIntervalMs: 400,

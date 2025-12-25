@@ -355,44 +355,15 @@ export default function Home() {
   // Get current ASR mode config (must be before all useCallback that use these values)
   const currentConfig = getASRModeConfig(asrMode);
   
-  // Use custom VAD parameters from localStorage if available, otherwise use config defaults
-  // 🆕 Dual-threshold VAD (Hysteresis) to prevent oscillation
-  // v1.5.3: Adjusted defaults to reduce false negatives
-  const VAD_START_THRESHOLD = (() => {
-    const saved = localStorage.getItem("vad-start-threshold");
-    return saved ? parseFloat(saved) : 0.045; // Lower threshold for speech start (was 0.060)
-  })();
-  
-  const VAD_END_THRESHOLD = (() => {
-    const saved = localStorage.getItem("vad-end-threshold");
-    return saved ? parseFloat(saved) : 0.035; // Lower threshold for speech end (was 0.045)
-  })();
-  
-  const VAD_START_FRAMES = (() => {
-    const saved = localStorage.getItem("vad-start-frames");
-    return saved ? parseInt(saved) : 2; // Consecutive frames above start threshold to trigger start (was 3)
-  })();
-  
-  const VAD_END_FRAMES = (() => {
-    const saved = localStorage.getItem("vad-end-frames");
-    return saved ? parseInt(saved) : 8; // Consecutive frames below end threshold to trigger end
-  })();
-  
-  // Legacy single threshold (for backward compatibility, not used in dual-threshold mode)
-  const RMS_THRESHOLD = (() => {
-    const saved = localStorage.getItem("vad-rms-threshold");
-    return saved ? parseFloat(saved) : currentConfig.rmsThreshold;
-  })();
-  
-  const SILENCE_DURATION_MS = (() => {
-    const saved = localStorage.getItem("vad-silence-duration");
-    return saved ? parseInt(saved) : currentConfig.silenceDurationMs;
-  })();
-  
-  const MIN_SPEECH_DURATION_MS = (() => {
-    const saved = localStorage.getItem("vad-min-speech-duration");
-    return saved ? parseInt(saved) : currentConfig.minSpeechDurationMs;
-  })();
+  // v1.5.4: VAD parameters now come exclusively from ASR_MODE_CONFIG
+  // No more localStorage overrides - single source of truth
+  const VAD_START_THRESHOLD = currentConfig.vadStartThreshold;
+  const VAD_END_THRESHOLD = currentConfig.vadEndThreshold;
+  const VAD_START_FRAMES = currentConfig.vadStartFrames;
+  const VAD_END_FRAMES = currentConfig.vadEndFrames;
+  const RMS_THRESHOLD = currentConfig.rmsThreshold;
+  const SILENCE_DURATION_MS = currentConfig.silenceDurationMs;
+  const MIN_SPEECH_DURATION_MS = currentConfig.minSpeechDurationMs;
   const PARTIAL_CHUNK_INTERVAL_MS = currentConfig.partialChunkIntervalMs;
   const PARTIAL_CHUNK_MIN_DURATION_MS = currentConfig.partialChunkMinDurationMs;
   const PARTIAL_CHUNK_MIN_BUFFERS = currentConfig.partialChunkMinBuffers;

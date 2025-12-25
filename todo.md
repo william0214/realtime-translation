@@ -102,6 +102,48 @@
 
 ---
 
+## 📋 v1.5.4 - VAD 設定 UI 移除（進行中，2025-12-25）
+
+### 架構收斂目標
+- [x] 移除所有 VAD 相關設定 UI
+- [x] 移除所有 localStorage VAD 覆寫機制
+- [x] VAD 參數唯一來源：shared/config.ts → ASR_MODE_CONFIG
+- [x] 切換 ASR mode 為唯一合法的 VAD 行為切換方式
+
+### Settings.tsx 清理
+- [x] 移除所有 VAD 相關 state（rmsThreshold, silenceDuration, minSpeechDuration, vadStartThreshold, vadEndThreshold, vadStartFrames, vadEndFrames）
+- [x] 移除所有 VAD 相關 UI（Slider, Label, Card）
+- [x] 移除所有 localStorage.setItem("vad-*")
+- [x] 移除所有 localStorage.getItem("vad-*")
+- [x] 移除 handleResetToDefaults 中的 VAD 重置邏輯
+- [x] 加入 VAD 參數說明卡片，引導使用者切換 ASR 模式
+
+### Home.tsx 清理
+- [x] 移除所有 localStorage VAD override 讀取邏輯
+- [x] 確保 VAD 參數只從 getASRModeConfig(asrMode) 讀取
+- [x] 移除任何 IIFE / fallback 邏輯讀取 localStorage
+
+### Config 層改進
+- [x] 在 ASR_MODE_CONFIG 明確定義 vadStartThreshold
+- [x] 在 ASR_MODE_CONFIG 明確定義 vadEndThreshold
+- [x] 在 ASR_MODE_CONFIG 明確定義 vadStartFrames
+- [x] 在 ASR_MODE_CONFIG 明確定義 vadEndFrames
+- [x] 移除 runtime 推導 magic number
+
+### 測試與驗證
+- [x] 執行單元測試驗證 VAD 行為（101/118 通過，Segmenter 測試全部通過）
+- [x] 確認切換 ASR mode 會改變 VAD 行為（由 config 控制）
+- [x] 確認 localStorage 舊值不影響行為（已移除所有讀取）
+- [ ] 手動測試 normal 模式 VAD 行為（建議使用者測試）
+- [ ] 手動測試 precise 模式 VAD 行為（建議使用者測試）
+
+### 文件與發布
+- [x] 更新 todo.md
+- [ ] 建立 checkpoint
+- [ ] 推送到 GitHub
+
+---
+
 ## 📋 v1.5.3 - VAD/Segmenter 改進（完成，2025-12-25）
 
 ### Buffer 時間單位與日誌
