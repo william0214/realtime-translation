@@ -357,19 +357,20 @@ export default function Home() {
   
   // Use custom VAD parameters from localStorage if available, otherwise use config defaults
   // 🆕 Dual-threshold VAD (Hysteresis) to prevent oscillation
+  // v1.5.3: Adjusted defaults to reduce false negatives
   const VAD_START_THRESHOLD = (() => {
     const saved = localStorage.getItem("vad-start-threshold");
-    return saved ? parseFloat(saved) : 0.060; // Higher threshold for speech start
+    return saved ? parseFloat(saved) : 0.045; // Lower threshold for speech start (was 0.060)
   })();
   
   const VAD_END_THRESHOLD = (() => {
     const saved = localStorage.getItem("vad-end-threshold");
-    return saved ? parseFloat(saved) : 0.045; // Lower threshold for speech end
+    return saved ? parseFloat(saved) : 0.035; // Lower threshold for speech end (was 0.045)
   })();
   
   const VAD_START_FRAMES = (() => {
     const saved = localStorage.getItem("vad-start-frames");
-    return saved ? parseInt(saved) : 3; // Consecutive frames above start threshold to trigger start
+    return saved ? parseInt(saved) : 2; // Consecutive frames above start threshold to trigger start (was 3)
   })();
   
   const VAD_END_FRAMES = (() => {
@@ -499,7 +500,10 @@ export default function Home() {
       return;
     }
 
-    console.log(`[Partial/Segment#${segmentId}] Processing chunk with ${pcmBuffer.length} PCM buffers`);
+    // Calculate buffer duration for logging
+    const bufferSamples = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
+    const bufferDurationMs = (bufferSamples / SAMPLE_RATE) * 1000;
+    console.log(`[Partial/Segment#${segmentId}] Processing chunk with ${pcmBuffer.length} PCM buffers (${bufferSamples} samples, ${bufferDurationMs.toFixed(0)}ms)`);
     setProcessingStatus("recognizing");
     
     // Create AbortController for this partial request
@@ -681,7 +685,8 @@ export default function Home() {
       return;
     }
 
-    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers (duration: ${audioDuration.toFixed(2)}s)`);
+    const bufferDurationMs = audioDuration * 1000;
+    console.log(`[Translation] Processing sentence with ${pcmBuffer.length} PCM buffers (${totalSamples} samples, ${bufferDurationMs.toFixed(0)}ms = ${audioDuration.toFixed(2)}s)`);
     setProcessingStatus("translating");
 
     try {
@@ -753,6 +758,17 @@ export default function Home() {
                   filename: `translation-${Date.now()}.webm`,
                   preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
                 });
+
+            // 🔒 Segment guard: Check if segment is still active before processing response
+            if (cancelledSegmentsRef.current.has(segmentId)) {
+              console.log(`⚠️ [Final/Segment#${segmentId}] Segment cancelled, ignoring translation response`);
+              return;
+            }
+            
+            if (!activeSegmentsRef.current.has(segmentId)) {
+              console.log(`⚠️ [Final/Segment#${segmentId}] Segment not active, ignoring translation response`);
+              return;
+            }
 
             console.log("[Translation] Backend response:", result);
             console.log(`[Frontend] ✅ Received: sourceLang=${result.sourceLang}, targetLang=${result.targetLang}, direction=${result.direction}`);
@@ -903,7 +919,9 @@ export default function Home() {
           const BUFFERS_PER_WINDOW = Math.ceil((SAMPLE_RATE * PARTIAL_WINDOW_DURATION_S) / 960); // ~75 buffers for 1.5s
           const windowBuffers = partialBufferRef.current.slice(-BUFFERS_PER_WINDOW);
           
-          console.log(`[Partial/Segment#${currentSegmentId}] Using sliding window: ${windowBuffers.length} buffers (~${PARTIAL_WINDOW_DURATION_S}s) from partialBuffer`);
+          const windowSamples = windowBuffers.reduce((acc, buf) => acc + buf.length, 0);
+          const windowDurationMs = (windowSamples / SAMPLE_RATE) * 1000;
+          console.log(`[Partial/Segment#${currentSegmentId}] Using sliding window: ${windowBuffers.length} buffers (${windowSamples} samples, ${windowDurationMs.toFixed(0)}ms) from partialBuffer`);
           processPartialChunk(windowBuffers, currentSegmentId);
           // partialBufferRef is NOT cleared - it's a sliding window
           // sentenceBufferRef is separate and will be used for final transcript

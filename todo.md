@@ -102,6 +102,46 @@
 
 ---
 
+## 📋 v1.5.3 - VAD/Segmenter 改進（完成，2025-12-25）
+
+### Buffer 時間單位與日誌
+- [x] 加入 buffer 時間單位 log（samples、ms），釐清「8 buffers ≈ 1.5s」的來源
+- [x] 在 Console 顯示每個 buffer 的實際時長（ms）
+- [x] 計算並顯示累積音訊總時長
+
+### 狀態機修正
+- [x] 修正狀態機：END detected 且 minSpeechMs 達標時立刻 final
+- [x] END 後停止累積 buffer（不再接收新音訊）
+- [x] 調整 auto-cut 邏輯：只作為超時保底，不干擾正常 END finalize
+
+### VAD Hysteresis 調整
+- [x] 調整 VAD hysteresis 預設值：
+  - startThreshold: 0.06 → 0.045
+  - endThreshold: 0.045 → 0.035
+  - startConsecutive: 3 → 2
+- [x] 在 Home.tsx 更新預設值
+- [x] 在設定頁面加入 VAD hysteresis 參數控制（startThreshold, endThreshold, startConsecutive, endConsecutive）
+
+### Async Response Guard
+- [x] 統一 async response guard：segment cancelled / stopRecording 後任何 response 不可新增訊息
+- [x] 在 processPartialChunk 加入 segment 檢查（已存在）
+- [x] 在 processFinalTranscript 加入 segment 檢查（新增翻譯回應檢查）
+- [x] 在翻譯回應處理加入 segment 檢查
+
+### 單元測試
+- [x] 補充 vitest 單測：END finalize 案例
+- [x] 補充 vitest 單測：auto-cut 案例
+- [x] 補充 vitest 單測：cancel guard 案例
+- [x] 執行測試驗證所有功能正常（10/10 測試通過）
+
+### 測試與發布
+- [ ] 手動測試所有修改功能
+- [ ] 更新測試報告
+- [ ] 建立 checkpoint
+- [ ] 推送到 GitHub
+
+---
+
 ## 📋 v1.4.0 - VAD/ASR 系統重構（預計 2025-12-26）
 
 ### 核心修復
