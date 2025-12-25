@@ -1,30 +1,93 @@
 # 專案待辦事項
 
 **專案：** 即時雙向翻譯系統（護理推車）  
-**當前版本：** v1.1.0  
-**最後更新：** 2025-12-15
+**當前版本：** v1.3.5  
+**最後更新：** 2025-12-25
 
 ---
 
 ## 🔥 緊急修復（立即處理）
 
-- [ ] 手動測試即時字幕清除功能（v1.1.0 bug 修復驗證）
-- [ ] 修復對話摘要功能（3 個測試失敗）
-- [ ] 修復翻譯數量統計錯誤（1 個測試失敗）
+### VAD/ASR 系統修復（2025-12-25 新增）
+
+#### 核心問題
+- [x] 修正 Partial 常被判定太短（buffers < 10），導致字幕不穩定
+- [x] 修正 Speech 太短被丟棄後，async 回來仍想更新 UI 的競態條件
+- [x] 修正 Final chunk 長度超出設計上限（> 2.0s）
+- [x] 修正 ASR 產生非轉錄性句子污染字幕（如 "Speaker likely speaks..."）
+- [x] 修正 VAD threshold 在臨界值抖動（RMS 0.053~0.056, threshold 0.055）
+
+#### 必做修改（核心設計）
+- [x] 1) 引入 Segment 機制（segmentId / requestId guard）
+  - [x] 每次 speech start 建立 segmentId（自增或 uuid）
+  - [x] Partial message 綁定 segmentId
+  - [x] Async response 回來前檢查 segmentId 是否仍為 active
+  - [x] Speech too short 或 stopRecording 時設為 cancelled
+  - [x] Async 回來若 segment cancelled → ignore（不更新 UI、不觸發翻譯）
+
+- [x] 2) Partial 與 Final 音訊資料路徑分離
+  - [x] Partial：固定滑動窗口（最後 1.0–1.5s）做即時字幕
+  - [x] Final：句子結束時送出累積音訊，但送前必須 hard-trim
+  - [x] Partial 不改動 final 的 buffer state
+  - [x] Final 不復用 partial 的 window buffer
+
+- [x] 3) 用「時間」取代「 buffer 數」當門檻
+  - [x] minPartialDurationMs：400–600ms（低於就不送 partial）
+  - [x] minFinalDurationMs：800–1000ms（低於就視為噪音）
+
+- [x] 4) VAD 加入 hysteresis（雙門檻）與連續幀數判定
+  - [x] startThreshold：0.060（連續 >= 3–5 幀才算 start）
+  - [x] endThreshold：0.045（連續 >= 6–10 幀低於才算 end）
+
+- [x] 5) Final hard-trim 強制保證 ≤ maxFinalSec（2.0s）
+  - [x] 若 finalDuration > maxFinalSec：只取最後 maxFinalSec
+
+- [x] 6) 後端/前端加入 ASR 輸出清洗
+  - [x] 過濾包含 "Speaker likely speaks"、"The speaker is"、"This audio" 的輸出
+  - [x] 過濾很短但包含多語名詞（Chinese/Vietnamese/English/Indonesian）的輸出
+
+#### 建議改良（高價值）
+- [x] 7) Partial 節流（throttle）
+  - [x] 限制 partial 最多每 250–350ms 送一次
+  - [x] 若文字無變化不更新 UI
+
+- [x] 8) stopRecording 時一致性清理
+  - [x] Cancel 當前 active segment
+  - [x] Abort 所有 pending partial/final 的 fetch（用 AbortController）
+  - [x] 清理 partial message list
+
+#### 驗收標準
+- [ ] 連續講 10 句：partial 更新不抖動，final 每句都出現且不重覆
+- [ ] 快速短音（<800ms）：會被丟棄且不再出現 UI 更新錯誤
+- [ ] 長句 >4s：會 auto-cut，且 final 每段 duration 符合上限
+- [ ] Console 中 "No partial message to update" 近乎消失
+- [ ] 不再出現 "Speaker likely speaks..." 被當成 transcript 顯示或送翻譯
 
 ---
 
 ## ✅ 已完成
 
+### v1.3.5 (2025-12-25)
+- [x] 加入所有 4 個 OpenAI ASR 模型支援
+- [x] 在設定頁面顯示所有 4 個 ASR 模型選項
+- [x] 加入前後端 Console Debug 日誌
+- [x] 修復 502 錯誤（translationModel 驗證）
+
+### v1.3.0 (2025-12-15)
+- [x] iPhone 風格 UI 改進
+- [x] 合併原文和翻譯到同一個泡泡
+- [x] 對話泡泡樣式設計
+- [x] 調整顏色方案
+
+### v1.2.0 (2025-12-15)
+- [x] 加入反向顯示開關功能（透明螢幕支援）
+
+### v1.1.1 (2025-12-15)
+- [x] 修復 UI 對話框顯示邏輯錯誤
+
 ### v1.1.0 (2025-12-15)
 - [x] 修復即時字幕在結束對話時不消失的問題
-- [x] 修改 stopRecording 函數加入清除 partial 訊息邏輯
-- [x] 修改 stopHybridRecording 函數加入清除邏輯
-- [x] 執行完整單元測試（89.1% 通過率）
-- [x] 建立測試報告（TEST_REPORT.md）
-- [x] 建立版本歷史（VERSION_HISTORY.md）
-- [x] 建立測試程序（TESTING_PROCEDURE.md）
-- [x] 建立開發時程（DEVELOPMENT_SCHEDULE.md）
+- [x] 建立測試報告、版本歷史、測試程序、開發時程
 
 ### v1.0.0 (2025-12-14)
 - [x] 即時雙向翻譯功能
@@ -39,36 +102,25 @@
 
 ---
 
-## 📋 v1.1.1 - 修復版本（預計 2025-12-16）
+## 📋 v1.4.0 - VAD/ASR 系統重構（預計 2025-12-26）
 
-### 高優先級
-- [ ] 修復對話摘要功能
-  - [ ] 檢查 server/routers.ts:444 的 undefined 錯誤
-  - [ ] 修復 LLM 回應格式處理
-  - [ ] 加入錯誤處理和 fallback 機制
-  - [ ] 更新相關測試
-
-### 中優先級
-- [ ] 修復翻譯數量統計錯誤
-  - [ ] 檢查翻譯數量計算邏輯
-  - [ ] 確保測試資料隔離
-  - [ ] 更新測試案例
-
-### 低優先級
-- [ ] 優化 TTS Profiler 時間閾值
-  - [ ] 調整時間閾值（80ms → 79ms）
-  - [ ] 或改用範圍判斷（75-85ms）
+### 核心修復
+- [ ] 實作 Segment 機制解決競態條件
+- [ ] 實作雙門檻 VAD 降低抖動
+- [ ] 實作音訊路徑分離（Partial/Final）
+- [ ] 實作 ASR 輸出清洗
+- [ ] 實作 Final chunk 強制長度限制
 
 ### 測試與發布
 - [ ] 執行完整單元測試
-- [ ] 確保通過率 > 95%
+- [ ] 手動測試所有驗收標準
 - [ ] 更新測試報告
 - [ ] 建立 checkpoint
 - [ ] 部署到生產環境
 
 ---
 
-## 🚀 v1.2.0 - 效能優化（預計 2025-12-20）
+## 🚀 v1.5.0 - 效能優化（預計 2025-12-30）
 
 ### 效能優化
 - [ ] 使用 Whisper Streaming API
@@ -108,7 +160,7 @@
 
 ---
 
-## 🎨 v1.3.0 - 進階功能（預計 2025-12-25）
+## 🎨 v2.0.0 - 進階功能（預計 2026-01-01）
 
 ### 多人對話支援
 - [ ] 設計多人對話架構
@@ -138,66 +190,23 @@
 
 ---
 
-## 🏗️ v2.0.0 - 重大架構升級（預計 2026-01-01）
-
-### 前端重構
-- [ ] 遷移到 Next.js
-- [ ] 設定 Next.js 專案
-- [ ] 遷移現有元件
-- [ ] 實作 SSR/SSG
-- [ ] 優化 SEO
-
-### 後端重構
-- [ ] 遷移到 NestJS
-- [ ] 設定 NestJS 專案
-- [ ] 遷移現有 API
-- [ ] 實作微服務架構
-- [ ] 優化效能
-
-### 離線模式支援
-- [ ] 實作 Service Worker
-- [ ] 實作離線資料同步
-- [ ] 實作本地儲存
-- [ ] 實作衝突解決
-
-### 自定義翻譯模型
-- [ ] 支援自訂翻譯模型
-- [ ] 支援模型微調
-- [ ] 支援本地模型部署
-
-### WebRTC 點對點通訊
-- [ ] 實作 WebRTC 連線
-- [ ] 實作點對點音訊傳輸
-- [ ] 實作即時翻譯疊加
-
----
-
 ## 🐛 已知問題
 
 ### 高優先級
-1. **對話摘要功能測試失敗**（3 個測試）
-   - 錯誤：TypeError: Cannot read properties of undefined (reading '0')
-   - 位置：server/routers.ts:444:36
-   - 影響：對話摘要功能無法使用
-   - 計劃：v1.1.1 修復
+1. **VAD/ASR 系統問題**（2025-12-25 新增）
+   - Partial 常被判定太短，字幕不穩定
+   - Speech 太短被丟棄後，async 回來仍想更新 UI
+   - Final chunk 長度超出設計上限
+   - ASR 產生非轉錄性句子污染字幕
+   - VAD threshold 在臨界值抖動
+   - 計劃：v1.4.0 完整重構
 
 ### 中優先級
-2. **翻譯數量統計錯誤**（1 個測試）
-   - 錯誤：預期 1，實際 4
-   - 影響：歷史記錄顯示的翻譯數量不正確
-   - 計劃：v1.1.1 修復
-
-### 低優先級
-3. **TTS Profiler 時間誤差**（1 個測試）
-   - 錯誤：時間測量誤差 0.37ms
-   - 影響：極小，可忽略
-   - 計劃：v1.1.1 修復
-
-4. **ASR 延遲過高**
+2. **ASR 延遲過高**
    - 當前：2.5-3.5 秒
    - 目標：< 1.5 秒
    - 影響：翻譯延遲 > 3 秒
-   - 計劃：v1.2.0 使用 Whisper Streaming API
+   - 計劃：v1.5.0 使用 Whisper Streaming API
 
 ---
 
@@ -226,7 +235,7 @@
 - [x] 歷史記錄測試
 - [x] 效能測試
 - [x] WebM 串流測試
-- [ ] 對話摘要測試（待修復）
+- [x] 翻譯模型切換測試
 
 ### 整合測試
 - [x] 對話整合測試
@@ -234,7 +243,7 @@
 - [ ] 前端 E2E 測試（待建立）
 
 ### 手動測試
-- [ ] 即時字幕清除功能（v1.1.0 修復驗證）
+- [ ] VAD/ASR 系統修復驗證（v1.4.0）
 - [ ] VAD 語音活動檢測
 - [ ] 多語言翻譯準確性
 - [ ] UI 互動流程
@@ -250,7 +259,7 @@
 - TTS 延遲：< 1 秒
 - E2E 延遲：3.9 秒
 
-### 目標效能指標（v1.2.0）
+### 目標效能指標（v1.5.0）
 - ASR 延遲：1.0-1.5 秒（-50%）
 - 翻譯延遲：0.5-0.8 秒（-30%）
 - TTS 延遲：< 0.5 秒（-50%）
@@ -310,204 +319,3 @@
 - [ ] 研究說話者識別技術
 - [ ] 研究離線翻譯技術
 - [ ] 研究模型微調技術
-
-
----
-
-## 🔥 緊急修復（2025-12-15 新增）
-
-- [x] 修復 UI 對話框顯示邏輯錯誤
-  - 問題：原文和譯文都顯示在同一側（speaker 判斷錯誤）
-  - 修復：分離 sourceSpeaker 和 targetSpeaker
-  - 修復：原文使用 sourceSpeaker，譯文使用 targetSpeaker
-  - 結果：台灣人說中文 → 原文在左側，譯文在右側
-  - 結果：外國人說外語 → 原文在右側，譯文在左側
-
-
-## 🎨 UI 改善（2025-12-15 新增）
-
-- [x] 加入「反向顯示」開關功能
-  - 需求：透明螢幕雙面顯示，讓兩邊的人都能看到正向文字
-  - 實作：新增 mirrorForeignView state 並儲存至 localStorage
-  - 實作：在外國人對話框標題旁加入 toggle 按鈕
-  - 實作：外國人字幕區域條件性加上 mirror-horizontal CSS class
-  - 實作：確保只有字幕內容被翻轉，標題和按鈕不受影響
-  - 結果：點擊「↔️ 翻轉」按鈕即可切換水平翻轉效果
-
-
-## 🐛 Bug 修復（2025-12-16 新增）
-
-- [x] 修復即時字幕「偵測中」泡泡重複顯示的 bug（v1.3.1）
-  - 問題：畫面有兩個「即時字幕 偵測中」的泡泡
-  - 原因：partial 訊息初始化邏輯有問題
-  - 修復：確保 partial 訊息只在說話時創建
-
-
-## 🎨 UI 改進 - iPhone 風格（2025-12-15 新增）
-
-- [x] 合併原文和翻譯到同一個泡泡
-  - 每個訊息泡泡同時顯示原文和翻譯
-  - 中間用分隔線區隔
-- [x] 改用對話泡泡樣式
-  - rounded-2xl 圓角泡泡設計
-  - shadow-lg 陰影效果
-  - 更大的內距 (p-4 md:p-5)
-- [x] 調整顏色方案
-  - 原文：text-white 白色文字
-  - 翻譯：text-cyan-400 青色文字
-  - 字體加大 (text-lg md:text-xl)
-
-
-## 🐛 Bug 修復（2025-12-16 新增）
-
-- [x] 修改泡泡顯示邏輯（v1.3.4）
-  - 問題：原文和翻譯顯示在不同側
-  - 修復：讓原文和翻譯都顯示在說話者那一側的同一個泡泡裡
-  - 改動：translatedMessage 的 speaker 改用 sourceSpeaker
-
-
-## 🔧 測試修復（2025-12-16 新增）
-
-- [x] 修復測試資料隔離問題
-  - 問題：測試之間的資料互相影響，導致 messageCount 和 translationCount 錯誤
-  - 修復：history.test.ts 使用唯一標題避免資料衝突
-  - 修復：conversation.summary.test.ts 已使用唯一標題
-  - 結果：所有 62 個測試通過（100% 通過率）
-
-- [x] 修復 VAD 和 Whisper 幻覺問題
-  - 問題：語音太長（>2.5s）被丟棄
-  - 問題：Whisper 產生重複字串幻覺（如「謝謝,謝謝,謝謝...」）
-  - 修復：移除語音太長限制，改用 auto-cut（4秒自動切段）
-  - 修復：加入 detectWhisperHallucination 函數過濾重複字串
-  - 結果：長句翻譯正常，幻覺被自動過濾
-
-
-## 🐛 Bug 修復（2025-12-17 新增）
-
-- [x] 修復中文翻譯成中文的問題
-  - 問題：說中文時，翻譯結果也是中文，而不是目標語言（越南語）
-  - 原因：Whisper 回傳 language: "unknown" 時，determineDirection 把它當成「非中文」
-  - 修復：當 Whisper 回傳 "unknown" 時，預設為中文 "zh"
-  - 同時優化翻譯 prompt 讓 Gemini 更好地遵循翻譯指令
-
-- [x] 修復對話框顯示邏輯問題
-  - 問題：越南語訊息顯示在台灣人那側，應該顯示在外國人那側
-  - 原因：Whisper 回傳 "unknown" 時預設為中文，導致越南語被誤判
-  - 修復：加入文字內容分析（越南語聲調符號、中文字符）作為 fallback
-
-- [x] 修復 Whisper 幻覺問題
-  - 問題：Whisper 產生「请不吝点赞 订阅 转发 打赏支持明镜与点点栏目」等幻覺文字
-  - 原因：音訊太短或太安靜時，Whisper 會產生訓練資料中的常見片段
-  - 修復：加入 isWhisperHallucination 函數，過濾常見的幻覺模式（YouTube 訂閱提示、重複字串等）
-
-
-## 🎤 手動切換說話者模式（2025-12-17 新增）
-
-- [x] 實作手動切換說話者模式（簡化版雙麥克風）
-  - 目標：讓使用者手動切換當前說話者，避免語言偵測錯誤
-  - 優勢：不需要語言偵測，直接根據使用者選擇判斷說話者
-  - 實作：
-    - [x] 前端：新增 dualMicMode 和 currentSpeaker state
-    - [x] 前端：新增「台灣人」和「外國人」切換按鈕
-    - [x] 前端：傳送 forceSourceLang 和 forceSpeaker 參數
-    - [x] 後端：支援強制語言參數（forceSourceLang, forceSpeaker）
-    - [x] 後端：台灣人強制 zh，外國人強制目標語言
-  - [ ] 測試手動切換說話者模式
-
-## 🎤 完整雙麥克風功能（待實作）
-
-- [ ] 實作完整雙麥克風功能
-  - 目標：同時監聽兩個麥克風，自動判斷說話者
-  - 實作：
-    - [ ] 前端：列出所有可用麥克風
-    - [ ] 前端：讓使用者選擇「台灣人麥克風」和「外國人麥克風」
-    - [ ] 前端：同時監聽兩個麥克風
-    - [ ] 前端：根據麥克風來源自動設定 forceSpeaker
-
-
-## 📱 簡化版翻譯頁面（2025-12-17 新增）
-
-- [x] 建立簡化版翻譯頁面 (/simple)
-  - 目標：單一說話框、下拉式語言選擇、中文自動翻譯成目標語言
-  - 功能：
-    - [x] 單一對話框顯示原文和翻譯
-    - [x] 下拉式選單選擇目標語言
-    - [x] 強制中文識別（forceSourceLang: "zh"）
-    - [x] 自動翻譯成選擇的語言
-    - [x] 簡潔的 UI 設計
-
-
-## 🎤 雙麥克風翻譯頁面（2025-12-17 規劃）
-
-- [x] 建立雙麥克風翻譯頁面 (/two-mic)
-  - 目標：使用兩個獨立麥克風，分別對應台灣人和外國人
-  - 優勢：不需要語言偵測，根據麥克風來源自動判斷說話者
-  - 功能：
-    - [x] 列出所有可用麥克風裝置
-    - [x] 讓使用者選擇「台灣人麥克風」和「外國人麥克風」
-    - [x] 同時監聽兩個麥克風
-    - [x] 根據麥克風來源自動設定 forceSpeaker 和 forceSourceLang
-    - [x] 台灣人麥克風：forceSourceLang="zh"，翻譯成目標語言
-    - [x] 外國人麥克風：forceSourceLang=目標語言，翻譯成中文
-    - [x] 雙欄顯示對話（左側台灣人、右側外國人）
-    - [ ] 支援 TTS 語音播放翻譯結果（待實作）
-
-## 🎨 UI 改進 - 翻譯模型選擇器（2025-12-24 新增）
-
-- [x] 在設定頁面加入翻譯模型選擇器
-  - 支援四種翻譯模型：gpt-4o-mini、gpt-4.1-mini、gpt-4.1、gpt-4o
-  - 前端：加入下拉選單和 localStorage 持久化
-  - 後端：支援動態 translationModel 參數
-  - 整合：Home.tsx 自動讀取並傳送使用者選擇的模型
-
-- [x] 從首頁移除 ASR 模式選擇器（快速/精確），因為已轉移到設定頁面
-
-
-## ✅ 502 錯誤修復完成（2025-12-25）
-
-- [x] 修復 502 錯誤：後端在處理翻譯請求時崩潰
-  - [x] 加入 tRPC 全域 onError logging（errorFormatter）
-  - [x] 驗證並正規化 translationModel（Zod transform + allowlist）
-  - [x] 修正 translationService.ts 例外處理（完整 try/catch + 詳細 LOG）
-  - [x] 新增單元測試覆蓋模型切換與錯誤處理（10個測試全通過）
-  - 修復結果：所有模型切換測試通過，無效模型自動 fallback，不會造成服務崩潰
-
-
-## 🐛 Bug 修復（2025-12-25 新增）
-
-- [x] 修復英文語音被誤判為中文（台灣人）的語言識別問題
-  - 問題描述：使用者說英文，但文字都出現在台灣人區域，沒有出現在外國人區域
-  - 前端 LOG 顯示：`sourceLang: 'zh'`（應該是 'en'）
-  - 翻譯方向錯誤：`Direction: nurse_to_patient`（應該是 patient_to_nurse）
-  - 根本原因：Whisper 誤判英文為中文時，後端 determineDirection 函數直接信任 Whisper 結果
-  - 修復方案：
-    - 調整 determineDirection 函數的邏輯順序
-    - Rule 2: 優先檢查文字是否包含中文字符（高可信度）
-    - Rule 3: 如果 Whisper 說是中文但文字不包含中文字符，檢查拉丁字母比例
-    - 如果拉丁字母 > 50%，判定為英文（覆蓋 Whisper 的錯誤判斷）
-    - Rule 4: 如果 Whisper 偵測到非中文語言，信任它
-    - Rule 5: 預設為中文
-  - 修復檔案：server/translationService.ts
-
-
-## 🎤 ASR 模型更新（2025-12-25 新增）
-
-- [ ] 更新 ASR 模型配置以支援 OpenAI 官方的 4 個語音轉文字模型
-  - [ ] 在 shared/config.ts 的 WHISPER_CONFIG.AVAILABLE_MODELS 加入 4 個模型：
-    - whisper-1（Whisper 系列的 API 入口）
-    - gpt-4o-mini-transcribe（較省成本、較快的轉錄）✅ 已加入
-    - gpt-4o-transcribe（較高品質轉錄）✅ 已加入
-    - gpt-4o-transcribe-diarize（含說話者辨識/標記與時間資訊）
-  - [ ] 在設定頁面 (Settings.tsx) 加入所有 4 個 ASR 模型選項
-  - [ ] 確保前端可以選擇並儲存 ASR 模型到 localStorage
-  - [ ] 確保後端支援所有 4 個模型
-  - [ ] 測試所有模型切換功能
-
-## 🐛 Debug 改進（2025-12-25 新增）
-
-- [x] 在前後端 console 顯示使用的 ASR 模型和翻譯模型
-  - [x] 後端：在 transcribeAudio 函數加入 LOG 顯示使用的 ASR 模型
-  - [x] 後端：在 translateText 函數加入 LOG 顯示使用的翻譯模型
-  - [x] 前端：在發送請求時 LOG 顯示選擇的 ASR 模型和翻譯模型
-  - [x] 前端：在收到回應時 LOG 顯示實際使用的模型
-  - [x] 確保 LOG 格式清晰易讀，方便 debug 和 UAT 測試

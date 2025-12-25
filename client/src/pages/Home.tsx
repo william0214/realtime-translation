@@ -43,11 +43,14 @@ const MAX_SEGMENT_DURATION = 0.5; // Maximum segment duration for chunking
 const SAMPLE_RATE = 48000; // 48kHz
 
 /**
- * Detect Whisper hallucination (repeated strings)
+ * Detect Whisper hallucination and non-transcription output
  * Common patterns:
  * - "Ch-Ch-Ch-Ch-Ch-Ch..." (repeated syllables)
  * - "謝謝,謝謝,謝謝,謝謝..." (repeated words)
  * - "Thank you, thank you, thank you..." (repeated phrases)
+ * - "Speaker likely speaks Chinese, Vietnamese..." (language detection output)
+ * - "The speaker is..." (speaker description)
+ * - "This audio..." (audio description)
  */
 function detectWhisperHallucination(text: string): boolean {
   if (!text || text.length < 10) return false;
@@ -70,7 +73,7 @@ function detectWhisperHallucination(text: string): boolean {
   
   // Pattern 3: Known hallucination phrases (YouTube/Podcast artifacts)
   const knownHallucinations = [
-    "請不吝點贊訂閱",
+    "請不吝點讚訂閱",
     "本期視頻拍到這裡",
     "Amara 字幕",
     "lalaschool",
@@ -80,6 +83,38 @@ function detectWhisperHallucination(text: string): boolean {
   ];
   for (const phrase of knownHallucinations) {
     if (text.includes(phrase)) {
+      return true;
+    }
+  }
+  
+  // 🆕 Pattern 4: Non-transcription output (language detection, speaker description, audio description)
+  const nonTranscriptionPatterns = [
+    /Speaker likely speaks/i,
+    /The speaker is/i,
+    /This audio/i,
+    /說話者可能說/i, // Chinese: "Speaker likely speaks"
+    /這段音頻/i, // Chinese: "This audio"
+  ];
+  for (const pattern of nonTranscriptionPatterns) {
+    if (pattern.test(text)) {
+      return true;
+    }
+  }
+  
+  // 🆕 Pattern 5: Very short text with multiple language names (e.g., "Chinese, Vietnamese, English, Indonesian")
+  if (text.length < 100) {
+    const languageNames = [
+      "Chinese", "Vietnamese", "English", "Indonesian", "Filipino", "Thai", "Japanese", "Korean",
+      "中文", "越南語", "英語", "印尼語", "菲律賓語", "泰語", "日語", "韓語",
+    ];
+    let languageCount = 0;
+    for (const lang of languageNames) {
+      if (text.includes(lang)) {
+        languageCount++;
+      }
+    }
+    // If text contains 3+ language names, it's likely a language detection output
+    if (languageCount >= 3) {
       return true;
     }
   }
@@ -218,6 +253,14 @@ export default function Home() {
     };
   }, []);
   
+  // 🆕 Segment mechanism for race condition prevention
+  const currentSegmentIdRef = useRef<number>(0); // Auto-incrementing segment ID
+  const activeSegmentsRef = useRef<Set<number>>(new Set()); // Track active segments
+  const cancelledSegmentsRef = useRef<Set<number>>(new Set()); // Track cancelled segments
+  const segmentToPartialMessageRef = useRef<Map<number, number>>(new Map()); // segmentId -> partialMessageId
+  const partialAbortControllersRef = useRef<Map<number, AbortController>>(new Map()); // segmentId -> AbortController for partial requests
+  const finalAbortControllersRef = useRef<Map<number, AbortController>>(new Map()); // segmentId -> AbortController for final requests
+  
   // Partial transcript state
   const partialMessageIdRef = useRef<number | null>(null); // Track current partial message ID
   const lastPartialTimeRef = useRef<number>(0); // Track last partial push time
@@ -241,8 +284,16 @@ export default function Home() {
   const speechStartTimeRef = useRef<number>(0); // Track when speech actually started
   const isSpeakingRef = useRef<boolean>(false);
   const vadIntervalRef = useRef<number | null>(null);
-  const sentenceBufferRef = useRef<Float32Array[]>([]);
-  const processSentenceForTranslationRef = useRef<((pcmBuffer: Float32Array[]) => Promise<void>) | null>(null);
+  
+  // 🆕 Audio path separation: Partial vs Final buffers
+  // Partial buffer: Sliding window for real-time subtitles (only last 1.0-1.5s)
+  const partialBufferRef = useRef<Float32Array[]>([]); // Separate buffer for partial transcripts
+  const PARTIAL_WINDOW_DURATION_S = 1.5; // Keep last 1.5 seconds for partial
+  
+  // Final buffer: Accumulated audio for final transcript (will be hard-trimmed before sending)
+  const sentenceBufferRef = useRef<Float32Array[]>([]); // Buffer for final transcript
+  
+  const processSentenceForTranslationRef = useRef<((pcmBuffer: Float32Array[], segmentId: number) => Promise<void>) | null>(null);
   const sentenceEndTriggeredRef = useRef<boolean>(false); // Prevent multiple sentence end triggers
 
   // tRPC mutations (for Node.js backend)
@@ -286,6 +337,28 @@ export default function Home() {
   const currentConfig = getASRModeConfig(asrMode);
   
   // Use custom VAD parameters from localStorage if available, otherwise use config defaults
+  // 🆕 Dual-threshold VAD (Hysteresis) to prevent oscillation
+  const VAD_START_THRESHOLD = (() => {
+    const saved = localStorage.getItem("vad-start-threshold");
+    return saved ? parseFloat(saved) : 0.060; // Higher threshold for speech start
+  })();
+  
+  const VAD_END_THRESHOLD = (() => {
+    const saved = localStorage.getItem("vad-end-threshold");
+    return saved ? parseFloat(saved) : 0.045; // Lower threshold for speech end
+  })();
+  
+  const VAD_START_FRAMES = (() => {
+    const saved = localStorage.getItem("vad-start-frames");
+    return saved ? parseInt(saved) : 3; // Consecutive frames above start threshold to trigger start
+  })();
+  
+  const VAD_END_FRAMES = (() => {
+    const saved = localStorage.getItem("vad-end-frames");
+    return saved ? parseInt(saved) : 8; // Consecutive frames below end threshold to trigger end
+  })();
+  
+  // Legacy single threshold (for backward compatibility, not used in dual-threshold mode)
   const RMS_THRESHOLD = (() => {
     const saved = localStorage.getItem("vad-rms-threshold");
     return saved ? parseFloat(saved) : currentConfig.rmsThreshold;
@@ -305,6 +378,10 @@ export default function Home() {
   const PARTIAL_CHUNK_MIN_BUFFERS = currentConfig.partialChunkMinBuffers;
   const FINAL_MIN_DURATION_MS = currentConfig.finalMinDurationMs;
   const FINAL_MAX_DURATION_MS = currentConfig.finalMaxDurationMs;
+  
+  // 🆕 Dual-threshold VAD state tracking
+  const vadStartFrameCountRef = useRef<number>(0); // Count consecutive frames above start threshold
+  const vadEndFrameCountRef = useRef<number>(0); // Count consecutive frames below end threshold
 
   // Show backend indicator
   useEffect(() => {
@@ -312,6 +389,7 @@ export default function Home() {
   }, [backend]);
 
   // Check audio level (VAD)
+  // 🆕 Dual-threshold VAD with hysteresis to prevent oscillation
   const checkAudioLevel = useCallback(() => {
     if (!analyserRef.current) {
       console.warn("[VAD] analyserRef is null");
@@ -330,20 +408,63 @@ export default function Home() {
     }
     const rms = Math.sqrt(sum / dataArray.length);
 
-    // Log RMS value every 2 seconds for debugging
-    if (Date.now() % 2000 < 100) {
-      console.log(`[VAD] RMS: ${rms.toFixed(4)}, Threshold: ${RMS_THRESHOLD.toFixed(4)}, Speaking: ${rms > RMS_THRESHOLD}`);
+    // Update audio level display (use start threshold as reference)
+    setAudioLevel(rms / VAD_START_THRESHOLD);
+
+    // Dual-threshold logic with consecutive frame counting
+    const currentlySpeaking = isSpeakingRef.current;
+    
+    if (!currentlySpeaking) {
+      // Not speaking: check if RMS exceeds START threshold
+      if (rms > VAD_START_THRESHOLD) {
+        vadStartFrameCountRef.current++;
+        vadEndFrameCountRef.current = 0; // Reset end counter
+        
+        // Need consecutive frames above start threshold to trigger speech start
+        if (vadStartFrameCountRef.current >= VAD_START_FRAMES) {
+          // Log RMS value when speech starts
+          console.log(`[VAD] 🔊 Speech START detected: RMS=${rms.toFixed(4)} > startThreshold=${VAD_START_THRESHOLD.toFixed(4)} (${vadStartFrameCountRef.current} consecutive frames)`);
+          vadStartFrameCountRef.current = 0; // Reset for next detection
+          return true; // Speech started
+        }
+      } else {
+        vadStartFrameCountRef.current = 0; // Reset if RMS drops below start threshold
+      }
+      return false; // Still not speaking
+    } else {
+      // Currently speaking: check if RMS drops below END threshold
+      if (rms < VAD_END_THRESHOLD) {
+        vadEndFrameCountRef.current++;
+        vadStartFrameCountRef.current = 0; // Reset start counter
+        
+        // Need consecutive frames below end threshold to trigger speech end
+        if (vadEndFrameCountRef.current >= VAD_END_FRAMES) {
+          // Log RMS value when speech ends
+          console.log(`[VAD] 🔇 Speech END detected: RMS=${rms.toFixed(4)} < endThreshold=${VAD_END_THRESHOLD.toFixed(4)} (${vadEndFrameCountRef.current} consecutive frames)`);
+          vadEndFrameCountRef.current = 0; // Reset for next detection
+          return false; // Speech ended
+        }
+      } else {
+        vadEndFrameCountRef.current = 0; // Reset if RMS rises above end threshold
+      }
+      return true; // Still speaking
     }
-
-    // Update audio level display
-    setAudioLevel(rms / RMS_THRESHOLD);
-
-    return rms > RMS_THRESHOLD;
-  }, [RMS_THRESHOLD]);
+  }, [VAD_START_THRESHOLD, VAD_END_THRESHOLD, VAD_START_FRAMES, VAD_END_FRAMES]);
 
   // Process partial chunk for immediate subtitle (250-350ms, update same message, no translation)
-  const processPartialChunk = useCallback(async (pcmBuffer: Float32Array[]) => {
+  const processPartialChunk = useCallback(async (pcmBuffer: Float32Array[], segmentId: number) => {
     if (pcmBuffer.length === 0) return;
+
+    // 🔒 Segment guard: Check if segment is still active
+    if (cancelledSegmentsRef.current.has(segmentId)) {
+      console.log(`⚠️ [Partial] Segment #${segmentId} cancelled, ignoring partial request`);
+      return;
+    }
+    
+    if (!activeSegmentsRef.current.has(segmentId)) {
+      console.log(`⚠️ [Partial] Segment #${segmentId} not active, ignoring partial request`);
+      return;
+    }
 
     // 🔥 OPTIMIZATION #4: Do NOT send ASR during silent loop
     if (!isSpeakingRef.current) {
@@ -351,8 +472,12 @@ export default function Home() {
       return;
     }
 
-    console.log(`[Subtitle] Processing chunk with ${pcmBuffer.length} PCM buffers`);
+    console.log(`[Partial/Segment#${segmentId}] Processing chunk with ${pcmBuffer.length} PCM buffers`);
     setProcessingStatus("recognizing");
+    
+    // Create AbortController for this partial request
+    const abortController = new AbortController();
+    partialAbortControllersRef.current.set(segmentId, abortController);
 
     try {
       // Concatenate PCM buffers
@@ -427,27 +552,39 @@ export default function Home() {
                   transcriptOnly: true, // Partial: only transcription, no translation
                 });
 
+            // 🔒 Segment guard: Check again before updating UI (async response)
+            if (cancelledSegmentsRef.current.has(segmentId)) {
+              console.log(`⚠️ [Partial/Segment#${segmentId}] Segment cancelled during async request, ignoring response`);
+              return;
+            }
+            
+            if (!activeSegmentsRef.current.has(segmentId)) {
+              console.log(`⚠️ [Partial/Segment#${segmentId}] Segment no longer active, ignoring response`);
+              return;
+            }
+            
             if (result.success && result.sourceText) {
               // 🔥 Filter Whisper hallucination (repeated strings)
               const isHallucination = detectWhisperHallucination(result.sourceText);
               if (isHallucination) {
-                console.warn(`[Partial] Whisper hallucination detected, skipping: "${result.sourceText.substring(0, 50)}..."`);
+                console.warn(`[Partial/Segment#${segmentId}] Whisper hallucination detected, skipping: "${result.sourceText.substring(0, 50)}..."`);
                 return;
               }
               
               // Update existing partial message (NEVER create new message)
-              if (partialMessageIdRef.current !== null) {
+              const partialMessageId = segmentToPartialMessageRef.current.get(segmentId);
+              if (partialMessageId !== undefined && partialMessageId !== null) {
                 setConversations((prev) =>
                   prev.map((msg) =>
-                    msg.id === partialMessageIdRef.current
+                    msg.id === partialMessageId
                       ? { ...msg, originalText: result.sourceText || "", timestamp: new Date() }
                       : msg
                   )
                 );
-                console.log(`[Partial] Updated partial message #${partialMessageIdRef.current}: "${result.sourceText}"`);
+                console.log(`[Partial/Segment#${segmentId}] Updated partial message #${partialMessageId}: "${result.sourceText}"`);
                 setCurrentSubtitle(result.sourceText);
               } else {
-                console.warn(`[Partial] No partial message to update, skipping`);
+                console.warn(`[Partial/Segment#${segmentId}] No partial message found for this segment, skipping`);
               }
             }
           } catch (error: any) {
@@ -468,16 +605,31 @@ export default function Home() {
   }, [targetLanguage, translateMutation]);
 
   // Process final transcript (覆蓋 partial) + 非阻塞翻譯
-  const processFinalTranscript = useCallback(async (pcmBuffer: Float32Array[]) => {
+  const processFinalTranscript = useCallback(async (pcmBuffer: Float32Array[], segmentId: number) => {
     if (pcmBuffer.length === 0) return;
+
+    // 🔒 Segment guard: Check if segment is still active
+    if (cancelledSegmentsRef.current.has(segmentId)) {
+      console.log(`⚠️ [Final/Segment#${segmentId}] Segment cancelled, ignoring final request`);
+      return;
+    }
+    
+    if (!activeSegmentsRef.current.has(segmentId)) {
+      console.log(`⚠️ [Final/Segment#${segmentId}] Segment not active, ignoring final request`);
+      return;
+    }
 
     // 🔥 OPTIMIZATION #3: Filter noise/silence WebM
     // Check 1: Buffer length (too short = noise)
     if (pcmBuffer.length < 12) {
-      console.log(`⚠️ [Translation] Buffer too short (${pcmBuffer.length} buffers < 12), skipping as noise`);
+      console.log(`⚠️ [Translation/Segment#${segmentId}] Buffer too short (${pcmBuffer.length} buffers < 12), skipping as noise`);
       setProcessingStatus("listening");
       return;
     }
+    
+    // Create AbortController for this final request
+    const abortController = new AbortController();
+    finalAbortControllersRef.current.set(segmentId, abortController);
 
     // Note: RMS check removed from translation stage
     // Noise/silence filtering should only happen at VAD stage and before final chunk generation
@@ -706,25 +858,28 @@ export default function Home() {
       // Track 1: Partial chunks (300ms fixed) for immediate subtitle (only when speaking)
       const partialDuration = now - lastPartialTimeRef.current;
       if (partialDuration >= PARTIAL_CHUNK_INTERVAL_MS && isSpeakingRef.current && !sentenceEndTriggeredRef.current) {
+        // Get current segment ID
+        const currentSegmentId = currentSegmentIdRef.current;
+        
+        // 🆕 Use separate partialBufferRef for sliding window (audio path separation)
         // Prohibit chunks < min buffers (prevent short chunks)
-        if (sentenceBufferRef.current.length < PARTIAL_CHUNK_MIN_BUFFERS) {
-          console.log(`⚠️ Partial chunk too short (${sentenceBufferRef.current.length} buffers < ${PARTIAL_CHUNK_MIN_BUFFERS}), discarding as noise`);
+        if (partialBufferRef.current.length < PARTIAL_CHUNK_MIN_BUFFERS) {
+          console.log(`⚠️ Partial chunk too short (${partialBufferRef.current.length} buffers < ${PARTIAL_CHUNK_MIN_BUFFERS}), discarding as noise`);
           lastPartialTimeRef.current = now;
           return;
         }
         
         // Check minimum chunk duration to avoid fragmentation
         const speechDuration = now - speechStartTimeRef.current;
-        if (speechDuration >= PARTIAL_CHUNK_MIN_DURATION_MS && sentenceBufferRef.current.length > 0) {
-          // Process partial chunk for subtitle (only use last 1 second of audio)
-          // Calculate how many buffers = 1 second (48kHz * 1s / samples_per_buffer)
-          // Assuming each buffer is ~960 samples (20ms at 48kHz), 1 second = ~50 buffers
-          const BUFFERS_PER_SECOND = Math.ceil(SAMPLE_RATE / 960); // ~50 buffers for 1 second
-          const recentBuffers = sentenceBufferRef.current.slice(-BUFFERS_PER_SECOND);
+        if (speechDuration >= PARTIAL_CHUNK_MIN_DURATION_MS && partialBufferRef.current.length > 0) {
+          // 🆕 Calculate sliding window size (last 1.5 seconds)
+          const BUFFERS_PER_WINDOW = Math.ceil((SAMPLE_RATE * PARTIAL_WINDOW_DURATION_S) / 960); // ~75 buffers for 1.5s
+          const windowBuffers = partialBufferRef.current.slice(-BUFFERS_PER_WINDOW);
           
-          console.log(`[Partial] Using last ${recentBuffers.length} buffers (out of ${sentenceBufferRef.current.length} total) for partial transcript`);
-          processPartialChunk(recentBuffers);
-          // Don't clear sentenceBuffer - it will be used for final transcript
+          console.log(`[Partial/Segment#${currentSegmentId}] Using sliding window: ${windowBuffers.length} buffers (~${PARTIAL_WINDOW_DURATION_S}s) from partialBuffer`);
+          processPartialChunk(windowBuffers, currentSegmentId);
+          // partialBufferRef is NOT cleared - it's a sliding window
+          // sentenceBufferRef is separate and will be used for final transcript
         }
         lastPartialTimeRef.current = now;
       }
@@ -745,11 +900,17 @@ export default function Home() {
           isSpeakingRef.current = true;
           sentenceEndTriggeredRef.current = false; // Reset flag when speech starts
           
-          // 🔥 CRITICAL FIX: Force clear buffer when new speech starts
-          sentenceBufferRef.current = [];
+          // 🆕 Create new segment
+          const newSegmentId = ++currentSegmentIdRef.current;
+          activeSegmentsRef.current.add(newSegmentId);
+          console.log(`🆕 [Segment#${newSegmentId}] Created new segment`);
+          
+          // 🔥 CRITICAL FIX: Force clear both buffers when new speech starts
+          sentenceBufferRef.current = []; // Clear final buffer
+          partialBufferRef.current = []; // Clear partial buffer (audio path separation)
           partialMessageIdRef.current = null;
           lastPartialTimeRef.current = 0;
-          console.log(`🔵 Speech started (buffer force-cleared)`);
+          console.log(`🔵 [Segment#${newSegmentId}] Speech started (both buffers force-cleared)`);
           
           setProcessingStatus("vad-detected");
           
@@ -765,8 +926,9 @@ export default function Home() {
               status: "partial",
             };
             partialMessageIdRef.current = newPartialMessage.id;
+            segmentToPartialMessageRef.current.set(newSegmentId, newPartialMessage.id);
             setConversations((prev) => [...prev, newPartialMessage]);
-            console.log(`[Partial] Created initial partial message #${newPartialMessage.id}`);
+            console.log(`[Partial/Segment#${newSegmentId}] Created initial partial message #${newPartialMessage.id}`);
           }
         }
         
@@ -783,13 +945,43 @@ export default function Home() {
           
           console.log(`🟢 Speech auto-cut (duration: ${speechDuration}ms, final chunk: ${finalChunkDuration.toFixed(2)}s), processing final transcript...`);
           
-          // Process final transcript (no upper limit check for auto-cut)
+          // Process final transcript (with hard-trim to ensure duration ≤ maxFinalSec)
           if (sentenceBufferRef.current.length > 0) {
-            processFinalTranscript([...sentenceBufferRef.current]);
+            const currentSegmentId = currentSegmentIdRef.current;
+            
+            // 🆕 Hard-trim final chunk to ensure duration ≤ maxFinalSec (2.0s)
+            const MAX_FINAL_DURATION_S = FINAL_MAX_DURATION_MS / 1000; // 2.0s from config
+            let finalBuffers = sentenceBufferRef.current;
+            
+            // Calculate current duration
+            const currentDuration = finalBuffers.reduce((acc, buf) => acc + buf.length, 0) / SAMPLE_RATE;
+            
+            if (currentDuration > MAX_FINAL_DURATION_S) {
+              // Hard-trim: only take last MAX_FINAL_DURATION_S seconds
+              const targetSamples = Math.floor(MAX_FINAL_DURATION_S * SAMPLE_RATE);
+              let accumulatedSamples = 0;
+              let startIndex = finalBuffers.length - 1;
+              
+              // Work backwards to find where to start
+              for (let i = finalBuffers.length - 1; i >= 0; i--) {
+                accumulatedSamples += finalBuffers[i].length;
+                if (accumulatedSamples >= targetSamples) {
+                  startIndex = i;
+                  break;
+                }
+              }
+              
+              finalBuffers = finalBuffers.slice(startIndex);
+              const trimmedDuration = finalBuffers.reduce((acc, buf) => acc + buf.length, 0) / SAMPLE_RATE;
+              console.log(`✂️ [Auto-cut] Hard-trimmed from ${currentDuration.toFixed(2)}s to ${trimmedDuration.toFixed(2)}s (max: ${MAX_FINAL_DURATION_S}s)`);
+            }
+            
+            processFinalTranscript(finalBuffers, currentSegmentId);
           }
           
           // Reset state after final
           sentenceBufferRef.current = [];
+          partialBufferRef.current = []; // Also clear partial buffer
           partialMessageIdRef.current = null;
           lastPartialTimeRef.current = 0;
           setProcessingStatus("listening");
@@ -804,16 +996,38 @@ export default function Home() {
             // Check minimum speech duration to filter short noise
             if (speechDuration < MIN_SPEECH_DURATION_MS) {
               // Too short, likely noise - discard
-              console.log(`⚠️ Speech too short (${speechDuration}ms < ${MIN_SPEECH_DURATION_MS}ms), discarding as noise`);
+              const currentSegmentId = currentSegmentIdRef.current;
+              console.log(`⚠️ [Segment#${currentSegmentId}] Speech too short (${speechDuration}ms < ${MIN_SPEECH_DURATION_MS}ms), discarding as noise`);
               
-              // Remove the partial message from UI (if exists)
-              if (partialMessageIdRef.current !== null) {
-                setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageIdRef.current));
-                console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (speech too short)`);
+              // 🚫 Cancel segment to prevent async responses from updating UI
+              activeSegmentsRef.current.delete(currentSegmentId);
+              cancelledSegmentsRef.current.add(currentSegmentId);
+              
+              // Abort all pending requests for this segment
+              const partialAbortController = partialAbortControllersRef.current.get(currentSegmentId);
+              if (partialAbortController) {
+                partialAbortController.abort();
+                partialAbortControllersRef.current.delete(currentSegmentId);
+              }
+              const finalAbortController = finalAbortControllersRef.current.get(currentSegmentId);
+              if (finalAbortController) {
+                finalAbortController.abort();
+                finalAbortControllersRef.current.delete(currentSegmentId);
               }
               
+              // Remove the partial message from UI (if exists)
+              const partialMessageId = segmentToPartialMessageRef.current.get(currentSegmentId);
+              if (partialMessageId !== undefined && partialMessageId !== null) {
+                setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageId));
+                console.log(`[ASR/Segment#${currentSegmentId}] Removed partial message #${partialMessageId} (speech too short)`);
+              }
+              
+              // Clean up segment mappings
+              segmentToPartialMessageRef.current.delete(currentSegmentId);
+              
               isSpeakingRef.current = false;
-              sentenceBufferRef.current = [];
+              sentenceBufferRef.current = []; // Clear final buffer
+              partialBufferRef.current = []; // Clear partial buffer
               partialMessageIdRef.current = null;
               sentenceEndTriggeredRef.current = true;
               setProcessingStatus("listening");
@@ -837,29 +1051,53 @@ export default function Home() {
               if (finalChunkDuration >= finalMinDurationS) {
                 // Process final transcript (only once)
                 if (sentenceBufferRef.current.length > 0) {
-                  // 🔥 OPTIMIZATION #1: Only take last 50-70 buffers (~1-1.5 seconds)
-                  // This prevents Whisper hallucination and reduces processing time
-                  const MAX_FINAL_BUFFERS = 70; // ~1.5 seconds at 48kHz
-                  let finalBuffers = sentenceBufferRef.current.slice(-MAX_FINAL_BUFFERS);
+                  // 🆕 Hard-trim final chunk to ensure duration ≤ maxFinalSec (2.0s)
+                  const MAX_FINAL_DURATION_S = finalMaxDurationS; // 2.0s from config
+                  let finalBuffers = sentenceBufferRef.current;
+                  
+                  // Calculate current duration
+                  const currentDuration = finalBuffers.reduce((acc, buf) => acc + buf.length, 0) / SAMPLE_RATE;
+                  
+                  if (currentDuration > MAX_FINAL_DURATION_S) {
+                    // Hard-trim: only take last MAX_FINAL_DURATION_S seconds
+                    const targetSamples = Math.floor(MAX_FINAL_DURATION_S * SAMPLE_RATE);
+                    let accumulatedSamples = 0;
+                    let startIndex = finalBuffers.length - 1;
+                    
+                    // Work backwards to find where to start
+                    for (let i = finalBuffers.length - 1; i >= 0; i--) {
+                      accumulatedSamples += finalBuffers[i].length;
+                      if (accumulatedSamples >= targetSamples) {
+                        startIndex = i;
+                        break;
+                      }
+                    }
+                    
+                    finalBuffers = finalBuffers.slice(startIndex);
+                    const trimmedDuration = finalBuffers.reduce((acc, buf) => acc + buf.length, 0) / SAMPLE_RATE;
+                    console.log(`✂️ [Final] Hard-trimmed from ${currentDuration.toFixed(2)}s to ${trimmedDuration.toFixed(2)}s (max: ${MAX_FINAL_DURATION_S}s)`);
+                  }
                   
                   const finalBufferDuration = finalBuffers.reduce((acc, buf) => acc + buf.length, 0) / SAMPLE_RATE;
                   console.log(`🔹 Final buffers: ${finalBuffers.length} buffers (~${finalBufferDuration.toFixed(2)}s)`);
                   
-                  // Additional check: if still too long after slicing, something is wrong
-                  if (finalBufferDuration > 2.0) {
-                    console.warn(`⚠️ Final buffer still too long (${finalBufferDuration.toFixed(2)}s > 2.0s), this should not happen`);
+                  // ✅ Guarantee: finalBufferDuration ≤ MAX_FINAL_DURATION_S
+                  if (finalBufferDuration > MAX_FINAL_DURATION_S + 0.1) {
+                    console.error(`❌ CRITICAL: Final buffer duration ${finalBufferDuration.toFixed(2)}s still exceeds ${MAX_FINAL_DURATION_S}s after hard-trim!`);
                   }
                   
                   // Reset buffer and timer IMMEDIATELY (before processFinalTranscript starts)
                   // But DO NOT reset partialMessageIdRef yet - let processFinalTranscript handle it
                   sentenceBufferRef.current = [];
+                  partialBufferRef.current = []; // Also clear partial buffer
                   lastPartialTimeRef.current = 0;
-                  console.log(`[ASR] Resetting segment state (buffer cleared, timer reset)`);
+                  console.log(`[ASR] Resetting segment state (both buffers cleared, timer reset)`);
                   
                   // Now call async function with copied buffer
                   // processFinalTranscript will update the existing partial message to final
                   // and reset partialMessageIdRef.current after success
-                  processFinalTranscript(finalBuffers);
+                  const currentSegmentId = currentSegmentIdRef.current;
+                  processFinalTranscript(finalBuffers, currentSegmentId);
                 }
               } else {
                 console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s < ${finalMinDurationS}s, discarding`);
@@ -1106,7 +1344,9 @@ export default function Home() {
           // Collect PCM data for both tracks
           currentChunkBufferRef.current.push(event.data.data);
           if (isSpeakingRef.current) {
-            sentenceBufferRef.current.push(event.data.data);
+            // 🆕 Audio path separation: accumulate to both buffers
+            sentenceBufferRef.current.push(event.data.data); // For final transcript
+            partialBufferRef.current.push(event.data.data); // For partial transcript (sliding window)
           }
         }
       };
@@ -1159,9 +1399,31 @@ export default function Home() {
       streamRef.current = null;
     }
 
+    // 🆕 Clean up all active segments
+    console.log(`[Stop Recording] Cleaning up ${activeSegmentsRef.current.size} active segments`);
+    activeSegmentsRef.current.forEach((segmentId) => {
+      // Abort all pending requests for this segment
+      const partialAbortController = partialAbortControllersRef.current.get(segmentId);
+      if (partialAbortController) {
+        partialAbortController.abort();
+        partialAbortControllersRef.current.delete(segmentId);
+      }
+      const finalAbortController = finalAbortControllersRef.current.get(segmentId);
+      if (finalAbortController) {
+        finalAbortController.abort();
+        finalAbortControllersRef.current.delete(segmentId);
+      }
+      
+      // Mark segment as cancelled
+      cancelledSegmentsRef.current.add(segmentId);
+    });
+    activeSegmentsRef.current.clear();
+    segmentToPartialMessageRef.current.clear();
+    
     // Clear buffers
     currentChunkBufferRef.current = [];
     sentenceBufferRef.current = [];
+    partialBufferRef.current = []; // Also clear partial buffer
     isSpeakingRef.current = false;
     setAudioLevel(0);
     setCurrentSubtitle("");
@@ -1181,6 +1443,10 @@ export default function Home() {
     partialMessageIdRef.current = null;
     lastPartialTimeRef.current = 0;
     sentenceEndTriggeredRef.current = false;
+    
+    // Reset VAD frame counters
+    vadStartFrameCountRef.current = 0;
+    vadEndFrameCountRef.current = 0;
 
     // End conversation
     if (currentConversationId) {
@@ -1192,7 +1458,7 @@ export default function Home() {
     }
 
     toast.success("停止錄音");
-  }, [stopVADMonitoring, currentConversationId, endConversationMutation]);
+  }, [stopVADMonitoring, currentConversationId, endConversationMutation, backend, stopHybridRecording]);
 
   // Toggle recording
   const toggleRecording = useCallback(() => {
