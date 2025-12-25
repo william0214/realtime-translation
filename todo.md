@@ -335,3 +335,11 @@
 - [x] 推送設計規格文件到 GitHub repo
 - [x] 確保文件格式符合 Markdown 標準
 - [x] 包含所有必要的圖表和表格
+
+### 規格補強（v1.5.0, 2025-12-25）
+- [x] 新增 3.4 節「Segment 執行期一致性規範」
+- [x] 補強 Segment 狀態機（IDLE → SPEAKING → ENDING → FINALIZING → DONE）
+- [x] 定義 Partial ASR in-flight lock 機制
+- [x] 定義 Stale response 丟棄規則（partialSeq）
+- [x] 定義 Final hard-trim 強制規則（所有路徑適用）
+- [x] 新增執行期一致性檢查清單（20 項）

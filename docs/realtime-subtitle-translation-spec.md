@@ -1,7 +1,7 @@
 # 即時雙向翻譯系統設計規格
 
 **專案名稱：** 護理推車即時雙向翻譯系統  
-**版本：** v1.4.0  
+**版本：** v1.5.0  
 **文件日期：** 2025-12-25  
 **作者：** Manus AI
 
@@ -251,6 +251,275 @@ stateDiagram-v2
 **Partial 路徑**採用滑動窗口機制，維護固定長度（1.0-1.5 秒）的音訊緩衝區。系統每隔 250-350ms 將窗口內的音訊送至 ASR 服務，產生即時字幕。Partial 路徑不會影響 Final Buffer 的狀態，兩者完全獨立。系統會過濾過短的 Partial 結果（< 400-600ms），避免雜訊干擾。
 
 **Final 路徑**採用累積機制，儲存整個語音片段的音訊資料。當 VAD 檢測到語音結束時，系統會對累積的音訊進行硬截斷（hard-trim），確保長度不超過 2.0 秒。若音訊長度符合要求（≥ 800-1000ms），系統將音訊送至 ASR 服務產生最終轉錄。若音訊太短，系統會丟棄該片段並取消對應的 Segment。
+
+
+### 3.4 Segment 執行期一致性規範
+
+本節定義 Segment 在執行期（runtime）的強制性行為規則,確保即時字幕（Partial）與最終翻譯（Final）的狀態一致性,避免非同步競態條件導致的 UI 污染、重複觸發與過期回應問題。
+
+#### 3.4.1 Segment 細化狀態機
+
+為精確控制即時字幕與 Final 處理的執行期行為,Segment 狀態機在原有 Created → Active → Completed/Cancelled 基礎上,細化為以下五個狀態:
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE: 系統就緒
+    
+    IDLE --> SPEAKING: VAD 檢測到語音開始 / 建立 Segment
+    
+    SPEAKING --> ENDING: VAD 檢測到語音結束 / 停止新 Partial
+    SPEAKING --> CANCELLED: 使用者中斷 / 標記取消
+    
+    ENDING --> FINALIZING: Final ASR 請求已送出 / 鎖定狀態
+    ENDING --> CANCELLED: 音訊太短 (< 800ms) / 標記取消
+    
+    FINALIZING --> DONE: Final 翻譯完成 / 更新 UI
+    FINALIZING --> CANCELLED: 處理失敗 / 標記取消
+    
+    CANCELLED --> IDLE: 清理資源
+    DONE --> IDLE: 清理資源
+    
+    note right of SPEAKING
+        允許 Partial ASR 請求
+        允許 Partial UI 更新
+        累積 Final Buffer
+    end note
+    
+    note right of ENDING
+        ❌ 禁止新 Partial ASR 請求
+        ❌ 禁止 Partial UI 更新
+        ✅ 準備 Final 音訊
+    end note
+    
+    note right of FINALIZING
+        ❌ 所有 Partial response 視為 stale
+        ✅ 只接受 Final response
+        ✅ 觸發翻譯引擎
+    end note
+```
+
+**狀態定義與轉換規則:**
+
+**IDLE 狀態**表示系統就緒,等待語音輸入。此狀態下無 Segment 實例存在,所有緩衝區已清空。
+
+**SPEAKING 狀態**表示語音活動進行中,系統執行以下操作:
+- ✅ 允許 Partial ASR 請求（受 in-flight lock 約束,見 3.4.2）
+- ✅ 允許 Partial response 更新 UI
+- ✅ 累積 Final Buffer（獨立於 Partial Buffer）
+- ✅ 持續監控 VAD 狀態
+
+當 VAD 檢測到語音結束時,系統**必須**立即轉換至 ENDING 狀態。
+
+**ENDING 狀態**表示語音已結束但 Final 處理尚未開始,系統執行以下操作:
+- ❌ **禁止**送出新的 Partial ASR 請求（即使 Partial throttle timer 觸發）
+- ❌ **禁止**接受任何 Partial response 更新 UI（即使 response 尚未回傳）
+- ✅ 對 Final Buffer 執行 hard-trim（見 3.4.4）
+- ✅ 檢查 Final 音訊長度是否符合 `minFinalDurationMs` 要求
+
+若 Final 音訊長度 < `minFinalDurationMs`,系統**必須**轉換至 CANCELLED 狀態並丟棄該 Segment。
+
+若 Final 音訊長度符合要求,系統**必須**轉換至 FINALIZING 狀態並送出 Final ASR 請求。
+
+**FINALIZING 狀態**表示 Final ASR 與翻譯處理進行中,系統執行以下操作:
+- ❌ **所有** Partial response（包含 in-flight 的請求）**必須**視為 stale 並丟棄
+- ✅ 只接受 Final ASR response
+- ✅ Final ASR 完成後觸發翻譯引擎
+- ✅ 翻譯完成後更新 UI 並儲存記錄
+
+當翻譯完成時,系統**必須**轉換至 DONE 狀態。
+
+**CANCELLED 狀態**表示 Segment 已取消,系統**必須**忽略所有後續的非同步回應（Partial 或 Final）,不更新 UI 也不觸發後續處理。
+
+**DONE 狀態**表示 Segment 處理完成,系統清理資源並返回 IDLE 狀態。
+
+#### 3.4.2 Partial ASR In-Flight Lock
+
+為避免 Partial ASR 請求並行導致的回應亂序與 UI 閃爍,系統**必須**實作 in-flight lock 機制:
+
+**規則 1: 單一 In-Flight 請求**
+- 每個 Segment 在 SPEAKING 狀態下,同時間**只能**有一個 Partial ASR 請求在處理中（in-flight）
+- 系統**必須**維護 `partialInFlight: boolean` 旗標追蹤狀態
+
+**規則 2: Throttle Tick 跳過邏輯**
+- 當 Partial throttle timer 觸發時（每 `partialThrottleMs` 毫秒）,系統**必須**先檢查:
+  1. Segment 狀態是否為 SPEAKING（若非 SPEAKING 則跳過）
+  2. `partialInFlight` 是否為 `false`（若為 `true` 則跳過）
+- 只有兩個條件**同時**滿足時,才允許送出新的 Partial ASR 請求
+
+**規則 3: 旗標生命週期**
+- 送出 Partial ASR 請求前:**必須**設定 `partialInFlight = true`
+- 收到 Partial ASR response 後:**必須**設定 `partialInFlight = false`（無論成功或失敗）
+- Segment 轉換至 ENDING/FINALIZING/CANCELLED 狀態時:**必須**重置 `partialInFlight = false`
+
+**實作範例（TypeScript 偽代碼）:**
+
+```typescript
+class Segment {
+  private partialInFlight = false;
+  private state: 'IDLE' | 'SPEAKING' | 'ENDING' | 'FINALIZING' | 'DONE' | 'CANCELLED' = 'IDLE';
+
+  async onPartialThrottleTick() {
+    // 規則 2: 檢查是否允許送出請求
+    if (this.state !== 'SPEAKING') return; // 跳過
+    if (this.partialInFlight) return; // 跳過（上一個請求尚未回傳）
+
+    // 規則 3: 設定旗標
+    this.partialInFlight = true;
+
+    try {
+      const response = await sendPartialASR(this.partialBuffer);
+      if (this.state === 'SPEAKING') { // 確認狀態未改變
+        this.updatePartialUI(response);
+      }
+    } finally {
+      // 規則 3: 重置旗標
+      this.partialInFlight = false;
+    }
+  }
+
+  onSpeechEnd() {
+    this.state = 'ENDING';
+    this.partialInFlight = false; // 規則 3: 重置旗標
+  }
+}
+```
+
+#### 3.4.3 Stale Response 丟棄規則
+
+為避免過期的 Partial response 更新 UI（導致字幕回跳）,系統**必須**實作序號機制追蹤請求新鮮度:
+
+**規則 1: 請求序號分配**
+- 每個 Segment **必須**維護 `partialSeq: number` 計數器,初始值為 `0`
+- 每次送出 Partial ASR 請求前,系統**必須**遞增 `partialSeq`
+- 請求**必須**攜帶當前的 `partialSeq` 值（作為 metadata 或 request ID）
+
+**規則 2: 回應新鮮度檢查**
+- 收到 Partial ASR response 時,系統**必須**檢查:
+  1. Segment 狀態是否為 SPEAKING（若非 SPEAKING 則丟棄）
+  2. Response 的 `partialSeq` 是否等於當前 Segment 的 `partialSeq`（若不等則丟棄）
+- 只有兩個條件**同時**滿足時,才允許更新 UI
+
+**規則 3: 狀態轉換時的序號處理**
+- Segment 轉換至 ENDING/FINALIZING 狀態時,系統**可選**遞增 `partialSeq`,使所有 in-flight 的 Partial response 自動失效
+- Segment 轉換至 CANCELLED 狀態時,系統**必須**忽略所有後續回應（無論序號）
+
+**實作範例（TypeScript 偽代碼）:**
+
+```typescript
+class Segment {
+  private partialSeq = 0;
+
+  async sendPartialASR() {
+    // 規則 1: 遞增序號
+    this.partialSeq++;
+    const currentSeq = this.partialSeq;
+
+    const response = await hybridASRClient.transcribe({
+      audio: this.partialBuffer,
+      metadata: { segmentId: this.id, partialSeq: currentSeq }
+    });
+
+    // 規則 2: 新鮮度檢查
+    if (this.state !== 'SPEAKING') return; // 丟棄
+    if (response.metadata.partialSeq !== this.partialSeq) return; // 丟棄（過期回應）
+
+    this.updatePartialUI(response.text);
+  }
+
+  onSpeechEnd() {
+    this.state = 'ENDING';
+    this.partialSeq++; // 規則 3: 使所有 in-flight Partial 失效
+  }
+}
+```
+
+#### 3.4.4 Final Hard-Trim 強制規則
+
+為確保 Final ASR 請求不會因音訊過長導致超時錯誤（如 OpenAI API 的 2 秒限制）,系統**必須**在**所有**觸發 Final 處理的路徑上執行 hard-trim:
+
+**規則 1: Hard-Trim 適用範圍**
+
+Final 音訊**必須**在以下**所有**情況下執行 hard-trim:
+1. **VAD speech-end**: VAD 檢測到語音結束時
+2. **Auto-cut**: 語音片段超過 `maxFinalDurationSec` 時自動切段
+3. **Manual stop**: 使用者手動按下停止錄音按鈕時
+4. **Timeout cut**: 系統因超時保護機制強制切段時
+
+**規則 2: Hard-Trim 執行時機**
+
+系統**必須**在 Segment 轉換至 ENDING 狀態時,立即對 Final Buffer 執行 hard-trim:
+
+```typescript
+function hardTrimFinalBuffer(buffer: Float32Array, maxDurationSec: number): Float32Array {
+  const sampleRate = 16000; // 16kHz
+  const maxSamples = Math.floor(maxDurationSec * sampleRate);
+  
+  if (buffer.length <= maxSamples) {
+    return buffer; // 無需截斷
+  }
+  
+  // 從尾部截取最後 maxDurationSec 秒
+  return buffer.slice(buffer.length - maxSamples);
+}
+```
+
+**規則 3: Hard-Trim 參數**
+
+- `maxFinalDurationSec` 預設值為 `2.0` 秒（對應 OpenAI API 限制）
+- 系統**不得**將超過 `maxFinalDurationSec` 的音訊送至 ASR 服務
+- Hard-trim 後的音訊**必須**仍符合 `minFinalDurationMs` 要求,否則**必須**取消 Segment
+
+**規則 4: 截斷策略**
+
+系統**必須**採用「保留尾部」策略（tail-preserving）:
+- 若音訊長度為 3.5 秒,`maxFinalDurationSec` 為 2.0 秒,系統**必須**保留最後 2.0 秒
+- 此策略確保保留最接近語音結束點的內容,提高 ASR 準確度
+
+**規則 5: 日誌記錄**
+
+當 hard-trim 實際執行截斷時（音訊長度 > `maxFinalDurationSec`）,系統**必須**記錄以下資訊:
+- Segment ID
+- 原始音訊長度
+- 截斷後音訊長度
+- 觸發路徑（VAD/auto-cut/manual/timeout）
+
+此資訊用於監控與優化 VAD 參數。
+
+#### 3.4.5 執行期一致性檢查清單
+
+實作者**必須**確保以下檢查點全部通過:
+
+**Segment 狀態機檢查:**
+- [ ] Segment 進入 ENDING 後,不再送出新的 Partial ASR 請求
+- [ ] Segment 進入 ENDING 後,不再接受 Partial response 更新 UI
+- [ ] Segment 進入 FINALIZING 後,所有 Partial response 被丟棄
+- [ ] Segment 在 CANCELLED 狀態下,忽略所有非同步回應
+
+**Partial ASR 並行控制檢查:**
+- [ ] 同時間只有一個 Partial ASR 請求 in-flight
+- [ ] Partial throttle tick 在 `partialInFlight = true` 時跳過
+- [ ] `partialInFlight` 旗標在 response 回傳後正確重置
+
+**Stale Response 檢查:**
+- [ ] 每個 Partial ASR 請求攜帶唯一的 `partialSeq`
+- [ ] Partial response 更新 UI 前檢查 `partialSeq` 是否匹配
+- [ ] 過期的 Partial response 被正確丟棄
+
+**Final Hard-Trim 檢查:**
+- [ ] VAD speech-end 路徑執行 hard-trim
+- [ ] Auto-cut 路徑執行 hard-trim
+- [ ] Manual stop 路徑執行 hard-trim
+- [ ] Hard-trim 後音訊長度 ≤ `maxFinalDurationSec`
+- [ ] Hard-trim 採用「保留尾部」策略
+
+**日誌與可觀測性檢查:**
+- [ ] Speech END 事件只觸發一次（記錄 Segment 狀態轉換）
+- [ ] Partial response 丟棄事件被記錄（含原因: stale/cancelled/wrong-state）
+- [ ] Final hard-trim 執行被記錄（含原始/截斷後長度）
+
+---
+
+**本節規範為強制性要求,所有實作**必須**嚴格遵守,以確保系統在高並發與複雜對話場景下的穩定性與一致性。**
 
 ---
 
@@ -1006,7 +1275,9 @@ Server -> Client: WebSocket Close Frame (Code: 1000, Reason: "Normal Closure")
 ## 版本歷史
 
 | 版本 | 日期 | 作者 | 變更說明 |
-|-----|------|------|---------|
+|-----|------|------|------|
+| v1.5.0 | 2025-12-25 | Manus AI | 新增 3.4 節「Segment 執行期一致性規範」，補強即時字幕與 Final 翻譯的執行期行為約束 |
+| v1.4.0 | 2025-12-25 | Manus AI | VAD/ASR 系統全面修復 |
 | v1.0 | 2025-12-25 | Manus AI | 初始版本，包含完整設計規格 |
 
 ---
