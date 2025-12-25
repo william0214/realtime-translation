@@ -461,3 +461,13 @@
   - 整合：Home.tsx 自動讀取並傳送使用者選擇的模型
 
 - [x] 從首頁移除 ASR 模式選擇器（快速/精確），因為已轉移到設定頁面
+
+
+## ✅ 502 錯誤修復完成（2025-12-25）
+
+- [x] 修復 502 錯誤：後端在處理翻譯請求時崩潰
+  - [x] 加入 tRPC 全域 onError logging（errorFormatter）
+  - [x] 驗證並正規化 translationModel（Zod transform + allowlist）
+  - [x] 修正 translationService.ts 例外處理（完整 try/catch + 詳細 LOG）
+  - [x] 新增單元測試覆蓋模型切換與錯誤處理（10個測試全通過）
+  - 修復結果：所有模型切換測試通過，無效模型自動 fallback，不會造成服務崩潰

@@ -33,7 +33,15 @@ export const appRouter = router({
           preferredTargetLang: z.string().optional(),
           asrMode: z.enum(["normal", "precise"]).optional(),
           asrModel: z.string().optional(), // ASR model selection (e.g., "gpt-4o-mini-transcribe", "gpt-4o-transcribe")
-          translationModel: z.string().optional(), // Translation model selection (e.g., "gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o")
+          translationModel: z.string().optional().transform((val) => {
+            // Allowlist of valid translation models
+            const ALLOWED_MODELS = ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"];
+            if (!val || !ALLOWED_MODELS.includes(val)) {
+              console.warn(`[autoTranslate] Invalid translationModel: ${val}, fallback to gpt-4.1-mini`);
+              return "gpt-4.1-mini"; // fallback to default
+            }
+            return val;
+          }), // Translation model selection (validated)
           transcriptOnly: z.boolean().optional(), // If true, only do transcription, no translation
           // 🎙️ Dual Microphone Mode: Force source language and speaker
           forceSourceLang: z.string().optional(), // Force source language (skip language detection)

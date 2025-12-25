@@ -342,26 +342,49 @@ export async function translateText(
   asrMode?: ASRMode,
   translationModel?: string
 ): Promise<{ translatedText: string; translationProfile?: any }> {
-  // Get ASR mode config for translation model selection
-  const modeConfig = asrMode ? getASRModeConfig(asrMode) : getASRModeConfig("normal");
-  // Start Translation profiling
-  const { TranslationProfiler } = await import("./profiler/translationProfiler");
-  const profiler = new TranslationProfiler();
-  profiler.start();
+  try {
+    // Get ASR mode config for translation model selection
+    const modeConfig = asrMode ? getASRModeConfig(asrMode) : getASRModeConfig("normal");
+    
+    // Start Translation profiling
+    const { TranslationProfiler } = await import("./profiler/translationProfiler");
+    const profiler = new TranslationProfiler();
+    profiler.start();
 
-  // Use new Provider architecture with mode-specific model
-  const { translate, getDefaultTranslationConfig } = await import("./translationProviders");
-  const config = getDefaultTranslationConfig();
-  // Override model: prioritize translationModel parameter, then ASR mode config
-  config.model = translationModel || modeConfig.translationModel;
-  
-  const result = await translate(text, sourceLang, targetLang, config);
+    // Use new Provider architecture with mode-specific model
+    const { translate, getDefaultTranslationConfig } = await import("./translationProviders");
+    const config = getDefaultTranslationConfig();
+    
+    // Override model: prioritize translationModel parameter, then ASR mode config
+    const finalModel = translationModel || modeConfig.translationModel;
+    config.model = finalModel;
+    
+    console.log(`[Translation] Using model: ${finalModel}, sourceLang: ${sourceLang}, targetLang: ${targetLang}`);
+    
+    const result = await translate(text, sourceLang, targetLang, config);
 
-  // End Translation profiling
-  const translationProfile = profiler.end(text, sourceLang, targetLang, result.model);
-  console.log(`[Translation Profiler] Provider: ${result.provider}, Model: ${result.model}, Duration: ${result.duration}ms`);
+    // End Translation profiling
+    const translationProfile = profiler.end(text, sourceLang, targetLang, result.model);
+    console.log(`[Translation Profiler] Provider: ${result.provider}, Model: ${result.model}, Duration: ${result.duration}ms`);
 
-  return { translatedText: result.translatedText, translationProfile };
+    return { translatedText: result.translatedText, translationProfile };
+  } catch (error: any) {
+    // Comprehensive error logging
+    console.error(`[Translation Error] ========================================`);
+    console.error(`[Translation Error] Model: ${translationModel}`);
+    console.error(`[Translation Error] Source: ${sourceLang} -> Target: ${targetLang}`);
+    console.error(`[Translation Error] Text: ${text.substring(0, 100)}...`);
+    console.error(`[Translation Error] Message: ${error.message}`);
+    console.error(`[Translation Error] Stack:`, error.stack);
+    if (error.response) {
+      console.error(`[Translation Error] Response Status: ${error.response.status}`);
+      console.error(`[Translation Error] Response Data:`, error.response.data);
+    }
+    console.error(`[Translation Error] ========================================`);
+    
+    // Re-throw with more context
+    throw new Error(`翻譯失敗 (model: ${translationModel}): ${error.message}`);
+  }
 }
 
 /**
