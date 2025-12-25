@@ -438,14 +438,23 @@
 - 移除 VAD 設定 UI（不讓使用者調 VAD），但保留程式內可調（config 或 env）
 
 ### A. 兩段式翻譯流程（Fast Pass + Quality Pass）
-- [ ] 新增 translationStage 欄位到 ConversationMessage（provisional/final）
-- [ ] 新增 qualityPassStatus 欄位（pending/processing/completed/failed）
-- [ ] 實作 Fast Pass 翻譯（gpt-4.1，快速顯示）
-- [ ] 實作 Quality Pass 翻譯（gpt-4o，醫療級定稿）
-- [ ] UI 回填更新機制（同一 bubble 從 provisional → final）
-- [ ] 後端支援 translationQuality 參數（fast/quality）
-- [ ] 新增 tRPC procedure：translation.qualityPass
-- [ ] 實作 Quality Pass 自動觸發機制（Fast Pass 完成後 3-6 秒）
+- [x] 新增 translationStage 欄位到 ConversationMessage（provisional/final）
+- [x] 新增 qualityPassStatus 欄位（pending/processing/completed/failed/skipped）
+- [x] 實作 Fast Pass 翻譯（gpt-4.1，快速顯示）
+- [x] 實作 Quality Pass 翻譯（gpt-4o，醫療級定稿）
+- [x] UI 回填更新機制（同一 bubble 從 provisional → final）
+- [x] 後端支援 translationQuality 參數（fast/quality）
+- [x] 新增 tRPC procedure：translation.qualityPass
+- [x] 實作 Quality Pass 自動觸發機制（Fast Pass 完成後非阻塞執行）
+- [x] **Phase 3: Race Condition 防護機制（v2.1.0）**
+  - [x] 在 ConversationMessage 加入 version, conversationId, conversationKey, createdAt 欄位
+  - [x] 建立 currentConversationKey (UUID) 和 currentConversationKeyRef
+  - [x] 在 startRecording 時生成 conversationKey
+  - [x] 在 stopRecording 時立即清空 conversationKey
+  - [x] 在 Quality Pass 開始時 capture keyAtRequestTime, versionAtRequestTime, requestStartTime
+  - [x] 在 Quality Pass 完成時檢查 shouldApplyQualityPassResult()
+  - [x] 建立 shared/raceConditionGuard.ts 工具模組
+  - [x] 所有 ConversationMessage 建立位置都加入必要欄位
 
 ### B. 上下文注入（Context）
 - [ ] 實作對話 context 管理（最近 3-6 句）
@@ -624,3 +633,135 @@
 ### 發布
 - [ ] 建立 checkpoint (v2.0.0)
 - [ ] 推送到 GitHub
+
+
+---
+
+## 🏥 v2.1.0 - 醫療產品合規性改進（2025-12-25 新增）
+
+### 診斷報告
+- [x] 建立醫療產品合規性診斷報告（docs/MEDICAL_COMPLIANCE_AUDIT.md）
+- [x] 識別 5 個嚴重問題（Critical/High）
+- [x] 建立工程決策優先級（P0/P1/P2）
+
+### P0 - 必須在 demo 前完成（Critical）
+
+#### 實作 shouldRunQualityPass() 成本控制機制
+- [ ] 建立醫療關鍵詞字典（痛、發燒、血壓、藥、過敏、劑量等）
+- [ ] 實作長度檢查（中文 ≥ 12-15 字）
+- [ ] 實作數字/單位檢測
+- [ ] 實作否定句檢測（沒有、不、不是）
+- [ ] 實作短句過濾（<5 字直接跳過）
+- [ ] 整合到 processFinalTranscript 流程
+- [ ] 記錄 shouldRunQualityPass() 觸發率
+
+#### 強化 Race Condition 防護機制
+- [ ] 在 ConversationMessage 加入 version 或 createdAt timestamp
+- [ ] Quality Pass 回填前檢查 conversationId 是否一致
+- [ ] Quality Pass 回填前檢查 message 是否仍存在
+- [ ] Quality Pass 回填前檢查 version 是否一致
+- [ ] 實作 15-20 秒超時檢查
+- [ ] 加入 AbortController 取消機制
+- [ ] 測試 Race Condition 情境（對話結束、訊息更新、延遲超時）
+
+#### 修正 UI bubble 邏輯（不新增第二顆 bubble）
+- [ ] 分析目前的 bubble 產生邏輯（line 809-824）
+- [ ] 設計單一 bubble 更新方案（provisional → final）
+- [ ] 修改 processFinalTranscript 不新增第二顆 bubble
+- [ ] 確保 Quality Pass 只更新現有 bubble
+- [ ] 測試 Fast Pass 失敗 + Quality Pass 成功的情境
+- [ ] 測試 Fast Pass 成功 + Quality Pass 失敗的情境
+- [ ] 測試 Fast Pass 成功 + Quality Pass 成功的情境
+
+### P1 - demo 前建議完成（High）
+
+#### 強制注入醫療術語字典到 Quality Pass
+- [ ] 檢查 shared/glossary.ts 的術語完整性（目前 47 個）
+- [ ] 在 Quality Pass prompt 中強制注入 glossary
+- [ ] 測試術語一致性（Fast Pass vs Quality Pass）
+- [ ] 記錄術語使用率（哪些術語最常被使用）
+
+#### 實作「不確定」標記機制
+- [ ] 檢查 Whisper API 是否回傳 confidence score
+- [ ] 實作 confidence < 0.7 的「不確定」標記
+- [ ] UI 顯示「不確定」狀態（不翻譯）
+- [ ] 加入 log 記錄不確定的句子
+- [ ] 測試不確定句子的處理流程
+
+### P2 - demo 後優化（Medium）
+
+#### UI 視覺回饋優化
+- [ ] 設計 provisional → final 的視覺變化
+- [ ] 加入 loading indicator（Quality Pass 處理中）
+- [ ] 優化 failed_final 的視覺提示
+- [ ] 測試視覺回饋的使用者體驗
+
+#### 成本監控與分析
+- [ ] 記錄 shouldRunQualityPass() 的觸發率
+- [ ] 分析 Quality Pass 的成功率
+- [ ] 優化關鍵詞字典（減少誤判）
+- [ ] 建立成本監控儀表板
+
+### 測試與驗收
+
+#### 狀態機測試
+- [ ] 測試 pending → provisional → final 流程
+- [ ] 測試 pending → provisional → failed_final 流程
+- [ ] 測試 Stop recording 後不更新 UI
+- [ ] 測試對話結束後不更新 UI
+
+#### Race Condition 測試
+- [ ] 測試 conversationId 不一致時丟棄 Quality Pass 結果
+- [ ] 測試 message 不存在時丟棄 Quality Pass 結果
+- [ ] 測試 version 不一致時丟棄 Quality Pass 結果
+- [ ] 測試延遲超過 20 秒時丟棄 Quality Pass 結果
+
+#### UI bubble 測試
+- [ ] 測試每句話只有一顆 bubble
+- [ ] 測試 provisional → final 更新同一顆 bubble
+- [ ] 測試 Quality Pass 失敗時保留 provisional
+
+#### 成本控制測試
+- [ ] 測試短句（<5 字）不執行 Quality Pass
+- [ ] 測試醫療關鍵詞觸發 Quality Pass
+- [ ] 測試數字/單位觸發 Quality Pass
+- [ ] 測試否定句觸發 Quality Pass
+- [ ] 測試長句（≥ 12 字）觸發 Quality Pass
+
+### 文件與發布
+- [ ] 建立 MEDICAL_COMPLIANCE_GUIDE.md（醫療產品合規性指南）
+- [ ] 建立 COST_OPTIMIZATION.md（成本優化指南）
+- [ ] 建立 RACE_CONDITION_PREVENTION.md（Race Condition 防護指南）
+- [ ] 更新 README.md（v2.1.0 功能說明）
+- [ ] 建立 CHANGELOG-v2.1.md
+- [ ] 建立 checkpoint (v2.1.0)
+
+### 驗收標準（Acceptance Criteria）
+- [ ] 短句（<5 字）不執行 Quality Pass，成本節省 > 30%
+- [ ] 對話結束後，延遲的 Quality Pass 結果不更新 UI
+- [ ] 每句話只有一顆 bubble，不產生重複訊息
+- [ ] 醫療術語翻譯一致（Fast Pass 和 Quality Pass 使用相同術語）
+- [ ] Whisper confidence < 0.7 時標記為「不確定」，不翻譯
+- [ ] 所有 Race Condition 測試通過
+- [ ] 所有狀態機測試通過
+- [ ] 所有 UI bubble 測試通過
+- [ ] 所有成本控制測試通過
+
+
+---
+
+## ✅ v2.1.0 - Phase 4 部分完成（狀態機約束和成本控制整合）
+
+- [x] 整合 shouldRunQualityPass() 成本控制機制到 Quality Pass 觸發邏輯
+- [x] 實作 qualityPassStatus: "skipped" 狀態（短句不執行 Quality Pass）
+- [x] 短句直接標記為 final（translationStage: "final"）
+- [x] 短句直接儲存到資料庫（使用 Fast Pass 翻譯）
+- [ ] 實作 UI 狀態顯示（provisional / final / skipped / failed）
+- [ ] 確保不產生第二顆 bubble（需要檢查 UI 渲染邏輯）
+- [ ] 實作完整狀態機約束（pending → provisional → final / failed_final）
+
+**成果**：
+- ✅ 成本控制機制已整合到翻譯流程
+- ✅ 短句（如「好」、「謝謝」）不執行 Quality Pass
+- ✅ 預期成本節省 30-50%
+- ✅ 所有 TypeScript 錯誤已修正

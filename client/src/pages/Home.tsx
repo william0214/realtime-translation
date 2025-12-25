@@ -25,11 +25,16 @@ type ConversationMessage = {
   status: "partial" | "final" | "translated";
   // 兩段式翻譯欄位
   translationStage?: "provisional" | "final"; // provisional: Fast Pass (gpt-4.1), final: Quality Pass (gpt-4o)
-  qualityPassStatus?: "pending" | "processing" | "completed" | "failed"; // Quality Pass 狀態
+  qualityPassStatus?: "pending" | "processing" | "completed" | "failed" | "skipped"; // Quality Pass 狀態
   sourceLang?: string; // 原文語言
   targetLang?: string; // 目標語言
   // 對話 context 相關
   conversationContext?: Array<{role: "user" | "assistant", content: string}>; // 最近 3-6 句對話 context
+  // Race Condition 防護欄位
+  version: number; // 訊息版本號，用於防止舊的 Quality Pass 結果覆蓋新的翻譯
+  conversationId: number | null; // 對話 ID（DB），用於 saveTranslation
+  conversationKey: string | null; // 對話 session key（UUID），用於 Race Condition 防護
+  createdAt: number; // 建立時間戳（timestamp in ms），用於超時檢查
 };
 
 type ProcessingStatus = "idle" | "listening" | "vad-detected" | "recognizing" | "translating" | "speaking";
@@ -48,6 +53,7 @@ const LANGUAGE_OPTIONS = [
 
 const MAX_SEGMENT_DURATION = 0.5; // Maximum segment duration for chunking
 const SAMPLE_RATE = 48000; // 48kHz
+const QUALITY_PASS_TIMEOUT_MS = 20000; // Quality Pass 超時時間（20 秒）
 
 /**
  * Detect Whisper hallucination and non-transcription output
@@ -156,6 +162,8 @@ export default function Home() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  const [currentConversationKey, setCurrentConversationKey] = useState<string | null>(null); // UUID for Race Condition guard
+  const currentConversationKeyRef = useRef<string | null>(null); // Ref for capturing key at request time
   
   // 對話 context 管理（最近 3-6 句）
   const conversationContextRef = useRef<Array<{speaker: "nurse" | "patient", originalText: string, translatedText: string}>>([]);
@@ -798,6 +806,10 @@ export default function Home() {
                   detectedLanguage: result.sourceLang || "unknown",
                   timestamp: new Date(),
                   status: "final",
+                  version: 1,
+                  conversationId: currentConversationId,
+                  conversationKey: currentConversationKeyRef.current,
+                  createdAt: Date.now(),
                 };
                 setConversations((prev) => [...prev, finalMessage]);
                 console.log(`[Final] Created final message #${finalMessage.id}: "${result.sourceText}" (speaker: ${sourceSpeaker})`);
@@ -819,6 +831,10 @@ export default function Home() {
                   qualityPassStatus: "pending", // Quality Pass 待處理
                   sourceLang: result.sourceLang,
                   targetLang: result.targetLang,
+                  version: 1,
+                  conversationId: currentConversationId,
+                  conversationKey: currentConversationKeyRef.current,
+                  createdAt: Date.now(),
                 };
                 setConversations((prev) => [...prev, provisionalMessage]);
                 console.log(`[Fast Pass] Added provisional translation #${provisionalMessageId} (speaker: ${sourceSpeaker})`);
@@ -845,6 +861,45 @@ export default function Home() {
                   timestamp: new Date(),
                 }));
                 
+                // 🔑 Step 2.2.1: 檢查是否需要執行 Quality Pass（成本控制）
+                const { shouldRunQualityPass } = await import('@shared/costControl');
+                const needsQualityPass = shouldRunQualityPass(result.sourceText, result.sourceLang || "unknown");
+                
+                if (!needsQualityPass) {
+                  // 不需要 Quality Pass，直接標記為 final
+                  setConversations((prev) =>
+                    prev.map((msg) =>
+                      msg.id === provisionalMessageId
+                        ? {
+                            ...msg,
+                            translationStage: "final" as const,
+                            qualityPassStatus: "skipped" as const,
+                          }
+                        : msg
+                    )
+                  );
+                  console.log(`[Cost Control] ❌ Skipped Quality Pass for message #${provisionalMessageId}`);
+                  
+                  // Save to database (using Fast Pass translation)
+                  if (currentConversationId && result.translatedText) {
+                    saveTranslationMutation.mutate({
+                      conversationId: currentConversationId,
+                      direction: result.direction!,
+                      sourceLang: result.sourceLang || "unknown",
+                      targetLang: result.targetLang || targetLanguage,
+                      sourceText: result.sourceText || "",
+                      translatedText: result.translatedText,
+                    });
+                  }
+                  return; // Skip Quality Pass
+                }
+                
+                // 🔑 Capture conversation key and message version at request time
+                const keyAtRequestTime = currentConversationKeyRef.current;
+                const versionAtRequestTime = provisionalMessage.version;
+                const requestStartTime = Date.now();
+                console.log(`[Race Guard] 📌 Captured key: ${keyAtRequestTime}, version: ${versionAtRequestTime}`);
+                
                 // 非阻塞執行 Quality Pass
                 (async () => {
                   try {
@@ -867,6 +922,28 @@ export default function Home() {
                     });
                     
                     if (qualityResult.success) {
+                      // 🔑 Race Condition Guard: Check if result should be applied
+                      const { shouldApplyQualityPassResult } = await import('@shared/raceConditionGuard');
+                      
+                      // Find target message to get current version
+                      const targetMessage = conversations.find(msg => msg.id === provisionalMessageId);
+                      if (!targetMessage) {
+                        console.log(`[Race Guard] ❌ Message #${provisionalMessageId} not found, discarding Quality Pass result`);
+                        return;
+                      }
+                      
+                      // Check if Quality Pass result should be applied
+                      if (!shouldApplyQualityPassResult(
+                        versionAtRequestTime,
+                        targetMessage.version,
+                        keyAtRequestTime,
+                        currentConversationKeyRef.current,
+                        requestStartTime,
+                        QUALITY_PASS_TIMEOUT_MS
+                      )) {
+                        return; // Discard result
+                      }
+                      
                       // 🔥 回填更新：將 provisional 更新為 final
                       const finalTranslation = "translatedText" in qualityResult ? qualityResult.translatedText : "";
                       setConversations((prev) =>
@@ -877,11 +954,12 @@ export default function Home() {
                                 translatedText: finalTranslation,
                                 translationStage: "final" as const,
                                 qualityPassStatus: "completed" as const,
+                                version: msg.version + 1, // Increment version
                               }
                             : msg
                         )
                       );
-                      console.log(`[Quality Pass] ✅ Updated message #${provisionalMessageId} with final translation`);
+                      console.log(`[Quality Pass] ✅ Updated message #${provisionalMessageId} with final translation (version: ${targetMessage.version} → ${targetMessage.version + 1})`);
                       
                       // Save to database
                       if (currentConversationId && finalTranslation) {
@@ -895,6 +973,26 @@ export default function Home() {
                         });
                       }
                     } else {
+                      // 🔑 Race Condition Guard: Check if result should be applied
+                      const { shouldApplyQualityPassResult } = await import('@shared/raceConditionGuard');
+                      
+                      const targetMessage = conversations.find(msg => msg.id === provisionalMessageId);
+                      if (!targetMessage) {
+                        console.log(`[Race Guard] ❌ Message #${provisionalMessageId} not found, discarding Quality Pass failure`);
+                        return;
+                      }
+                      
+                      if (!shouldApplyQualityPassResult(
+                        versionAtRequestTime,
+                        targetMessage.version,
+                        keyAtRequestTime,
+                        currentConversationKeyRef.current,
+                        requestStartTime,
+                        QUALITY_PASS_TIMEOUT_MS
+                      )) {
+                        return; // Discard result
+                      }
+                      
                       // Quality Pass 失敗，保留 provisional 翻譯
                       setConversations((prev) =>
                         prev.map((msg) =>
@@ -907,6 +1005,27 @@ export default function Home() {
                     }
                   } catch (error: any) {
                     console.error(`[Quality Pass] Error for message #${provisionalMessageId}:`, error);
+                    
+                    // 🔑 Race Condition Guard: Check if error should be applied
+                    const { shouldApplyQualityPassResult } = await import('@shared/raceConditionGuard');
+                    
+                    const targetMessage = conversations.find(msg => msg.id === provisionalMessageId);
+                    if (!targetMessage) {
+                      console.log(`[Race Guard] ❌ Message #${provisionalMessageId} not found, discarding Quality Pass error`);
+                      return;
+                    }
+                    
+                    if (!shouldApplyQualityPassResult(
+                      versionAtRequestTime,
+                      targetMessage.version,
+                      keyAtRequestTime,
+                      currentConversationKeyRef.current,
+                      requestStartTime,
+                      QUALITY_PASS_TIMEOUT_MS
+                    )) {
+                      return; // Discard error
+                    }
+                    
                     setConversations((prev) =>
                       prev.map((msg) =>
                         msg.id === provisionalMessageId
@@ -1037,6 +1156,10 @@ export default function Home() {
               detectedLanguage: "zh",
               timestamp: new Date(),
               status: "partial",
+              version: 1,
+              conversationId: currentConversationId,
+              conversationKey: currentConversationKeyRef.current,
+              createdAt: Date.now(),
             };
             partialMessageIdRef.current = newPartialMessage.id;
             segmentToPartialMessageRef.current.set(newSegmentId, newPartialMessage.id);
@@ -1286,6 +1409,10 @@ export default function Home() {
           detectedLanguage: data.detected_lang,
           timestamp: new Date(),
           status: "translated",
+          version: 1,
+          conversationId: currentConversationId,
+          conversationKey: currentConversationKeyRef.current,
+          createdAt: Date.now(),
         };
         
         setConversations((prev) => [...prev, newMessage]);
@@ -1413,6 +1540,13 @@ export default function Home() {
   // Start recording
   const startRecording = useCallback(async () => {
     try {
+      // 🔑 Generate conversation session key (UUID) for Race Condition guard
+      const { generateConversationKey } = await import('@shared/raceConditionGuard');
+      const newConversationKey = generateConversationKey();
+      setCurrentConversationKey(newConversationKey);
+      currentConversationKeyRef.current = newConversationKey;
+      console.log(`[Race Guard] 🆕 Generated conversation key: ${newConversationKey}`);
+
       // If using Hybrid mode, connect to WebSocket
       if (backend === "hybrid") {
         await startHybridRecording();
@@ -1497,6 +1631,11 @@ export default function Home() {
   // Stop recording
   const stopRecording = useCallback(() => {
     console.log("[stopRecording] Stopping recording");
+    
+    // 🔑 Immediately invalidate conversation session key to prevent late Quality Pass updates
+    console.log(`[Race Guard] ❌ Invalidating conversation key: ${currentConversationKeyRef.current}`);
+    setCurrentConversationKey(null);
+    currentConversationKeyRef.current = null;
     
     // If using Hybrid mode, stop Hybrid recording
     if (backend === "hybrid") {
