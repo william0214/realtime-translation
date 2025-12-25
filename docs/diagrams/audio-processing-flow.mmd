@@ -1,0 +1,34 @@
+stateDiagram-v2
+    [*] --> AudioCapture: 開始錄音
+    
+    AudioCapture --> VADAnalysis: 音訊片段 / 計算 RMS
+    
+    VADAnalysis --> SpeechStart: RMS > startThreshold (連續 3-5 幀)
+    VADAnalysis --> Silence: RMS < endThreshold (連續 6-10 幀)
+    
+    SpeechStart --> PartialBuffer: 語音活動 / 填充滑動窗口
+    PartialBuffer --> PartialASR: 每 250-350ms / 送出 Partial
+    
+    SpeechStart --> FinalBuffer: 語音活動 / 累積音訊
+    
+    Silence --> FinalTrim: 語音結束 / 硬截斷至 2.0s
+    FinalTrim --> FinalASR: 音訊長度檢查 / 送出 Final
+    FinalTrim --> Discard: 音訊太短 (< 800ms) / 丟棄
+    
+    PartialASR --> PartialUI: 轉錄完成 / 更新即時字幕
+    FinalASR --> Translation: 轉錄完成 / 觸發翻譯
+    
+    Translation --> [*]: 翻譯完成 / 儲存記錄
+    Discard --> [*]: 取消 Segment
+    
+    note right of PartialBuffer
+        滑動窗口：1.0-1.5s
+        不影響 Final Buffer
+        最小長度：400-600ms
+    end note
+    
+    note right of FinalBuffer
+        累積整個語音片段
+        硬截斷：max 2.0s
+        最小長度：800-1000ms
+    end note

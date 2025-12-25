@@ -1,0 +1,28 @@
+stateDiagram-v2
+    [*] --> Idle: 系統初始化
+    
+    Idle --> Recording: 按下錄音按鈕 / 開始音訊擷取
+    Recording --> Processing: 檢測到語音結束 / 停止錄音
+    Recording --> Idle: 使用者取消 / 清理資源
+    
+    Processing --> Playing: 翻譯完成 + TTS 啟用 / 播放語音
+    Processing --> Idle: 翻譯完成 + TTS 停用 / 顯示結果
+    Processing --> Error: 處理失敗 / 顯示錯誤
+    
+    Playing --> Idle: 播放完成 / 重置狀態
+    Playing --> Idle: 使用者中斷 / 停止播放
+    
+    Error --> Idle: 使用者確認 / 清除錯誤
+    Error --> [*]: 嚴重錯誤 / 系統終止
+    
+    note right of Recording
+        VAD 持續監控
+        Partial 即時更新
+        音訊串流至 ASR
+    end note
+    
+    note right of Processing
+        ASR 轉錄
+        翻譯引擎處理
+        儲存對話記錄
+    end note

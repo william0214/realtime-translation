@@ -409,6 +409,7 @@ export default function Home() {
 
   // Check audio level (VAD)
   // 🆕 Dual-threshold VAD with hysteresis to prevent oscillation
+  const lastRmsLogTimeRef = useRef<number>(0); // For RMS diagnostic logging
   const checkAudioLevel = useCallback(() => {
     if (!analyserRef.current) {
       console.warn("[VAD] analyserRef is null");
@@ -426,6 +427,13 @@ export default function Home() {
       sum += normalized * normalized;
     }
     const rms = Math.sqrt(sum / dataArray.length);
+    
+    // 🔍 Diagnostic: Log RMS value every 2 seconds
+    const now = Date.now();
+    if (now - lastRmsLogTimeRef.current >= 2000) {
+      console.log(`[VAD/Diagnostic] RMS: ${rms.toFixed(4)}, Start threshold: ${VAD_START_THRESHOLD.toFixed(4)}, End threshold: ${VAD_END_THRESHOLD.toFixed(4)}, Speaking: ${isSpeakingRef.current}`);
+      lastRmsLogTimeRef.current = now;
+    }
 
     // Update audio level display (use start threshold as reference)
     setAudioLevel(rms / VAD_START_THRESHOLD);
@@ -1056,6 +1064,15 @@ export default function Home() {
               // Speech segment end (valid speech) - only trigger once
               sentenceEndTriggeredRef.current = true; // Set flag immediately to prevent multiple triggers
               isSpeakingRef.current = false;
+              
+              // 🚫 Immediately abort all pending Partial requests for current segment
+              const currentSegmentId = currentSegmentIdRef.current;
+              const partialAbortController = partialAbortControllersRef.current.get(currentSegmentId);
+              if (partialAbortController) {
+                partialAbortController.abort();
+                partialAbortControllersRef.current.delete(currentSegmentId);
+                console.log(`🚫 [Segment#${currentSegmentId}] Aborted pending Partial requests (speech ended)`);
+              }
               
               // Calculate final chunk duration
               const totalSamples = sentenceBufferRef.current.reduce((acc, buf) => acc + buf.length, 0);

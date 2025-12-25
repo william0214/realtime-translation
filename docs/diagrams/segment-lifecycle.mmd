@@ -1,0 +1,23 @@
+stateDiagram-v2
+    [*] --> Created: 語音開始 / 建立 Segment ID
+    
+    Created --> Active: 音訊資料就緒 / 開始處理
+    
+    Active --> Completed: ASR + 翻譯完成 / 更新 UI
+    Active --> Cancelled: 語音太短 / 標記取消
+    Active --> Cancelled: 使用者中斷 / 標記取消
+    
+    Completed --> [*]: 清理資源
+    Cancelled --> [*]: 忽略後續回應
+    
+    note right of Active
+        綁定 Partial 訊息
+        綁定 Final 訊息
+        追蹤處理狀態
+    end note
+    
+    note right of Cancelled
+        非同步回應檢查
+        若 cancelled 則忽略
+        避免 UI 污染
+    end note
