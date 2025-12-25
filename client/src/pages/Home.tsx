@@ -24,10 +24,12 @@ type ConversationMessage = {
   timestamp: Date;
   status: "partial" | "final" | "translated";
   // 兩段式翻譯欄位
-  translationStage?: "provisional" | "final"; // provisional: Fast Pass, final: Quality Pass
+  translationStage?: "provisional" | "final"; // provisional: Fast Pass (gpt-4.1), final: Quality Pass (gpt-4o)
   qualityPassStatus?: "pending" | "processing" | "completed" | "failed"; // Quality Pass 狀態
   sourceLang?: string; // 原文語言
   targetLang?: string; // 目標語言
+  // 對話 context 相關
+  conversationContext?: Array<{role: "user" | "assistant", content: string}>; // 最近 3-6 句對話 context
 };
 
 type ProcessingStatus = "idle" | "listening" | "vad-detected" | "recognizing" | "translating" | "speaking";
@@ -154,6 +156,10 @@ export default function Home() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
+  
+  // 對話 context 管理（最近 3-6 句）
+  const conversationContextRef = useRef<Array<{speaker: "nurse" | "patient", originalText: string, translatedText: string}>>([]);
+  const MAX_CONTEXT_SIZE = 6; // 最多保留 6 句對話
   
   // Backend selection: "nodejs" | "go" | "hybrid"
   const [backend, setBackend] = useState<"nodejs" | "go" | "hybrid">(() => {
@@ -322,6 +328,7 @@ export default function Home() {
 
   // tRPC mutations (for Node.js backend)
   const translateMutation = trpc.translation.autoTranslate.useMutation();
+  const qualityPassMutation = trpc.translate.qualityPass.useMutation();
   const createConversationMutation = trpc.conversation.create.useMutation();
   const saveTranslationMutation = trpc.conversation.saveTranslation.useMutation();
   const endConversationMutation = trpc.conversation.end.useMutation();
@@ -796,34 +803,119 @@ export default function Home() {
                 console.log(`[Final] Created final message #${finalMessage.id}: "${result.sourceText}" (speaker: ${sourceSpeaker})`);
               }
               
-              // Step 2: 非阻塞翻譯（async）
+              // Step 2: 兩段式翻譯（Fast Pass + Quality Pass）
               if (result.translatedText) {
-                // Translation already done, add translated message immediately
-                // 🔥 FIX: Use sourceSpeaker so both original and translation appear on the same side (speaker's side)
-                const translatedMessage: ConversationMessage = {
-                  id: messageIdRef.current++,
-                  speaker: sourceSpeaker, // 🔥 FIX: Use source speaker so translation appears on speaker's side
+                // 🔥 Step 2.1: 立即顯示 Fast Pass 翻譯（provisional）
+                const provisionalMessageId = messageIdRef.current++;
+                const provisionalMessage: ConversationMessage = {
+                  id: provisionalMessageId,
+                  speaker: sourceSpeaker,
                   originalText: result.sourceText,
-                  translatedText: result.translatedText,
+                  translatedText: result.translatedText, // Fast Pass 翻譯結果
                   detectedLanguage: result.sourceLang || "unknown",
                   timestamp: new Date(),
                   status: "translated",
+                  translationStage: "provisional", // 標記為 provisional
+                  qualityPassStatus: "pending", // Quality Pass 待處理
+                  sourceLang: result.sourceLang,
+                  targetLang: result.targetLang,
                 };
-                setConversations((prev) => [...prev, translatedMessage]);
-                console.log(`[Translated] Added translated message #${translatedMessage.id} (speaker: ${sourceSpeaker})`);
+                setConversations((prev) => [...prev, provisionalMessage]);
+                console.log(`[Fast Pass] Added provisional translation #${provisionalMessageId} (speaker: ${sourceSpeaker})`);
                 
-                // Save translation to database
-                if (currentConversationId) {
-                  saveTranslationMutation.mutate({
-                    conversationId: currentConversationId,
-                    direction: result.direction!,
-                    sourceLang: result.sourceLang || "unknown",
-                    targetLang: result.targetLang || targetLanguage,
-                    sourceText: result.sourceText,
-                    translatedText: result.translatedText,
-                  });
-                  console.log(`[Conversation] Saved translation to conversation ID: ${currentConversationId}`);
+                // 🔥 Step 2.2: 非阻塞執行 Quality Pass 翻譯
+                // 更新 conversation context
+                conversationContextRef.current.push({
+                  speaker: sourceSpeaker,
+                  originalText: result.sourceText,
+                  translatedText: result.translatedText,
+                });
+                // 保留最近 6 句
+                if (conversationContextRef.current.length > MAX_CONTEXT_SIZE) {
+                  conversationContextRef.current = conversationContextRef.current.slice(-MAX_CONTEXT_SIZE);
                 }
+                
+                // 建立 Quality Pass context 格式
+                const qualityPassContext = conversationContextRef.current.slice(0, -1).map(ctx => ({
+                  speaker: ctx.speaker,
+                  sourceLang: ctx.speaker === "nurse" ? "zh" : result.sourceLang || "vi",
+                  targetLang: ctx.speaker === "nurse" ? result.targetLang || "vi" : "zh",
+                  sourceText: ctx.originalText,
+                  translatedText: ctx.translatedText,
+                  timestamp: new Date(),
+                }));
+                
+                // 非阻塞執行 Quality Pass
+                (async () => {
+                  try {
+                    console.log(`[Quality Pass] Starting for message #${provisionalMessageId}...`);
+                    setConversations((prev) =>
+                      prev.map((msg) =>
+                        msg.id === provisionalMessageId
+                          ? { ...msg, qualityPassStatus: "processing" as const }
+                          : msg
+                      )
+                    );
+                    
+                    const qualityResult = await qualityPassMutation.mutateAsync({
+                      sourceText: result.sourceText || "",
+                      sourceLang: result.sourceLang || "unknown",
+                      targetLang: result.targetLang || targetLanguage,
+                      speakerRole: sourceSpeaker,
+                      context: qualityPassContext,
+                      maxRetries: 1,
+                    });
+                    
+                    if (qualityResult.success) {
+                      // 🔥 回填更新：將 provisional 更新為 final
+                      const finalTranslation = "translatedText" in qualityResult ? qualityResult.translatedText : "";
+                      setConversations((prev) =>
+                        prev.map((msg) =>
+                          msg.id === provisionalMessageId
+                            ? {
+                                ...msg,
+                                translatedText: finalTranslation,
+                                translationStage: "final" as const,
+                                qualityPassStatus: "completed" as const,
+                              }
+                            : msg
+                        )
+                      );
+                      console.log(`[Quality Pass] ✅ Updated message #${provisionalMessageId} with final translation`);
+                      
+                      // Save to database
+                      if (currentConversationId && finalTranslation) {
+                        saveTranslationMutation.mutate({
+                          conversationId: currentConversationId,
+                          direction: result.direction!,
+                          sourceLang: result.sourceLang || "unknown",
+                          targetLang: result.targetLang || targetLanguage,
+                          sourceText: result.sourceText || "",
+                          translatedText: finalTranslation,
+                        });
+                      }
+                    } else {
+                      // Quality Pass 失敗，保留 provisional 翻譯
+                      setConversations((prev) =>
+                        prev.map((msg) =>
+                          msg.id === provisionalMessageId
+                            ? { ...msg, qualityPassStatus: "failed" as const }
+                            : msg
+                        )
+                      );
+                      console.warn(`[Quality Pass] ⚠️ Failed for message #${provisionalMessageId}, keeping provisional translation`);
+                    }
+                  } catch (error: any) {
+                    console.error(`[Quality Pass] Error for message #${provisionalMessageId}:`, error);
+                    setConversations((prev) =>
+                      prev.map((msg) =>
+                        msg.id === provisionalMessageId
+                          ? { ...msg, qualityPassStatus: "failed" as const }
+                          : msg
+                      )
+                    );
+                  }
+                })();
               }
               
               setCurrentSubtitle(""); // Clear subtitle after final
@@ -1682,7 +1774,7 @@ export default function Home() {
               {conversations
                 .filter((msg) => msg.speaker === "nurse" && msg.status === "translated")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800 p-4 md:p-5 rounded-2xl shadow-lg">
+                  <div key={msg.id} className="bg-gray-800 p-4 md:p-5 rounded-2xl shadow-lg relative">
                     {/* 原文 - 白色 */}
                     <div className="font-semibold text-lg md:text-xl text-white mb-3 leading-relaxed">
                       {msg.originalText}
@@ -1692,6 +1784,13 @@ export default function Home() {
                     {/* 翻譯 - 青色 */}
                     <div className="font-medium text-lg md:text-xl text-cyan-400 leading-relaxed">
                       {msg.translatedText}
+                      {/* 🔥 Quality Pass 狀態指示器 */}
+                      {msg.translationStage === "provisional" && msg.qualityPassStatus === "processing" && (
+                        <span className="ml-2 text-xs text-yellow-400 animate-pulse">⏳</span>
+                      )}
+                      {msg.translationStage === "final" && (
+                        <span className="ml-2 text-xs text-green-400">✅</span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1735,7 +1834,7 @@ export default function Home() {
               {conversations
                 .filter((msg) => msg.speaker === "patient" && msg.status === "translated")
                 .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800 p-4 md:p-5 rounded-2xl shadow-lg">
+                  <div key={msg.id} className="bg-gray-800 p-4 md:p-5 rounded-2xl shadow-lg relative">
                     {/* 原文 - 白色 */}
                     <div className="font-semibold text-lg md:text-xl text-white mb-3 leading-relaxed">
                       {msg.originalText}
@@ -1745,6 +1844,13 @@ export default function Home() {
                     {/* 翻譯 - 青色 */}
                     <div className="font-medium text-lg md:text-xl text-cyan-400 leading-relaxed">
                       {msg.translatedText}
+                      {/* 🔥 Quality Pass 狀態指示器 */}
+                      {msg.translationStage === "provisional" && msg.qualityPassStatus === "processing" && (
+                        <span className="ml-2 text-xs text-yellow-400 animate-pulse">⏳</span>
+                      )}
+                      {msg.translationStage === "final" && (
+                        <span className="ml-2 text-xs text-green-400">✅</span>
+                      )}
                     </div>
                   </div>
                 ))}

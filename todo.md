@@ -523,6 +523,18 @@
 
 ## ✅ v2.0.0 已完成項目（2025-12-25）
 
+### 前端整合實作（2025-12-25）
+- [x] 更新 ConversationMessage 資料結構（新增 conversationContext 欄位）
+- [x] 實作對話 context 管理（conversationContextRef, MAX_CONTEXT_SIZE = 6）
+- [x] 整合 Quality Pass tRPC mutation（trpc.translate.qualityPass）
+- [x] 實作兩段式翻譯流程（Fast Pass → Quality Pass）
+- [x] 實作 UI 回填更新機制（setConversations 更新 translatedText）
+- [x] 實作 Quality Pass 自動觸發（非阻塞 async 執行）
+- [x] 實作 translationStage 狀態顯示（⏳ processing, ✅ final）
+- [x] 建立兩段式翻譯單元測試（twoPassTranslation.test.ts, 6/6 通過）
+
+## ✅ v2.0.0 已完成項目（2025-12-25）
+
 ### 核心架構實作
 - [x] 建立 shared/glossary.ts（醫療術語字典）
 - [x] 建立 shared/qualityGate.ts（品質守門機制）
@@ -579,14 +591,6 @@
 - [x] ConversationContext 介面定義
 
 ## 🚧 v2.0.0 待完成項目
-
-### 前端整合
-- [ ] 實作 Fast Pass 翻譯呼叫（Home.tsx）
-- [ ] 實作 Quality Pass 翻譯呼叫（Home.tsx）
-- [ ] 實作 UI 回填更新機制（同一 bubble 從 provisional → final）
-- [ ] 實作對話 context 管理（最近 3-6 句）
-- [ ] 實作 Quality Pass 自動觸發機制（Fast Pass 完成後 3-6 秒）
-- [ ] 實作 translationStage 狀態顯示（provisional/final 標記）
 
 ### 分段策略調整
 - [ ] 保留完整 transcript 文字（不只最後 2 秒）
