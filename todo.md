@@ -750,18 +750,21 @@
 
 ---
 
-## ✅ v2.1.0 - Phase 4 部分完成（狀態機約束和成本控制整合）
+## ✅ v2.1.0 - Phase 4 完成（UI 狀態顯示系統）
 
 - [x] 整合 shouldRunQualityPass() 成本控制機制到 Quality Pass 觸發邏輯
 - [x] 實作 qualityPassStatus: "skipped" 狀態（短句不執行 Quality Pass）
 - [x] 短句直接標記為 final（translationStage: "final"）
 - [x] 短句直接儲存到資料庫（使用 Fast Pass 翻譯）
-- [ ] 實作 UI 狀態顯示（provisional / final / skipped / failed）
-- [ ] 確保不產生第二顆 bubble（需要檢查 UI 渲染邏輯）
-- [ ] 實作完整狀態機約束（pending → provisional → final / failed_final）
+- [x] 實作 UI 狀態顯示（provisional / final / skipped / failed）
+- [x] 確保不產生第二顆 bubble（移除 finalMessage 中間狀態）
+- [x] 實作完整狀態機約束（pending → provisional → final / failed_final）
 
 **成果**：
 - ✅ 成本控制機制已整合到翻譯流程
 - ✅ 短句（如「好」、「謝謝」）不執行 Quality Pass
 - ✅ 預期成本節省 30-50%
 - ✅ 所有 TypeScript 錯誤已修正
+- ✅ 建立 TranslationStatusBadge 組件（支援 5 種狀態顯示）
+- ✅ 修正 bubble 產生邏輯（移除 finalMessage，確保每句話只有一顆 bubble）
+- ✅ 驗證狀態機約束（pending → provisional → final / failed）

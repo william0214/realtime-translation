@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { callGoTranslation } from "@/services/goBackend";
 import { HybridASRClient } from "@/services/hybridASRClient";
 import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG, ASR_MODE_CONFIG, WHISPER_CONFIG, TRANSLATION_CONFIG, type ASRMode, getASRModeConfig } from "@shared/config";
+import { TranslationStatusBadge } from "@/components/TranslationStatusBadge";
 
 type ConversationMessage = {
   id: number;
@@ -785,59 +786,60 @@ export default function Home() {
               
               console.log(`[Speaker Logic] Direction: ${result.direction}, Source: ${sourceSpeaker}, Target: ${targetSpeaker}`);
               
-              // Step 1: Update partial message to final (覆蓋 partial)
-              if (partialMessageIdRef.current !== null) {
-                setConversations((prev) =>
-                  prev.map((msg) =>
-                    msg.id === partialMessageIdRef.current
-                      ? { ...msg, originalText: result.sourceText || "", status: "final" as const, timestamp: new Date() }
-                      : msg
-                  )
-                );
-                console.log(`[Final] Updated partial #${partialMessageIdRef.current} to final: "${result.sourceText}"`);
-                partialMessageIdRef.current = null; // Reset partial message ID
-              } else {
-                // No partial message, create new final message
-                const finalMessage: ConversationMessage = {
-                  id: messageIdRef.current++,
-                  speaker: sourceSpeaker, // Use source speaker for original text
-                  originalText: result.sourceText,
-                  translatedText: "",
-                  detectedLanguage: result.sourceLang || "unknown",
-                  timestamp: new Date(),
-                  status: "final",
-                  version: 1,
-                  conversationId: currentConversationId,
-                  conversationKey: currentConversationKeyRef.current,
-                  createdAt: Date.now(),
-                };
-                setConversations((prev) => [...prev, finalMessage]);
-                console.log(`[Final] Created final message #${finalMessage.id}: "${result.sourceText}" (speaker: ${sourceSpeaker})`);
-              }
-              
-              // Step 2: 兩段式翻譯（Fast Pass + Quality Pass）
+              // Step 1: 兩段式翻譯（Fast Pass + Quality Pass）
               if (result.translatedText) {
-                // 🔥 Step 2.1: 立即顯示 Fast Pass 翻譯（provisional）
-                const provisionalMessageId = messageIdRef.current++;
-                const provisionalMessage: ConversationMessage = {
-                  id: provisionalMessageId,
-                  speaker: sourceSpeaker,
-                  originalText: result.sourceText,
-                  translatedText: result.translatedText, // Fast Pass 翻譯結果
-                  detectedLanguage: result.sourceLang || "unknown",
-                  timestamp: new Date(),
-                  status: "translated",
-                  translationStage: "provisional", // 標記為 provisional
-                  qualityPassStatus: "pending", // Quality Pass 待處理
-                  sourceLang: result.sourceLang,
-                  targetLang: result.targetLang,
-                  version: 1,
-                  conversationId: currentConversationId,
-                  conversationKey: currentConversationKeyRef.current,
-                  createdAt: Date.now(),
-                };
-                setConversations((prev) => [...prev, provisionalMessage]);
-                console.log(`[Fast Pass] Added provisional translation #${provisionalMessageId} (speaker: ${sourceSpeaker})`);
+                // 🔥 Step 1.1: 立即顯示 Fast Pass 翻譯（provisional）
+                let provisionalMessageId: number;
+                
+                if (partialMessageIdRef.current !== null) {
+                  // Update partial message to translated (with Fast Pass translation)
+                  provisionalMessageId = partialMessageIdRef.current;
+                  setConversations((prev) =>
+                    prev.map((msg) =>
+                      msg.id === partialMessageIdRef.current
+                        ? {
+                            ...msg,
+                            originalText: result.sourceText || "",
+                            translatedText: result.translatedText || "", // Fast Pass 翻譯結果
+                            status: "translated" as const,
+                            timestamp: new Date(),
+                            translationStage: "provisional" as const,
+                            qualityPassStatus: "pending" as const,
+                            sourceLang: result.sourceLang,
+                            targetLang: result.targetLang,
+                            version: 1,
+                            conversationId: currentConversationId,
+                            conversationKey: currentConversationKeyRef.current,
+                            createdAt: Date.now(),
+                          }
+                        : msg
+                    )
+                  );
+                  console.log(`[Fast Pass] Updated partial #${provisionalMessageId} to translated: "${result.sourceText}"`);
+                  partialMessageIdRef.current = null; // Reset partial message ID
+                } else {
+                  // No partial message, create new provisional message
+                  provisionalMessageId = messageIdRef.current++;
+                  const provisionalMessage: ConversationMessage = {
+                    id: provisionalMessageId,
+                    speaker: sourceSpeaker,
+                    originalText: result.sourceText,
+                    translatedText: result.translatedText, // Fast Pass 翻譯結果
+                    detectedLanguage: result.sourceLang || "unknown",
+                    timestamp: new Date(),
+                    status: "translated",
+                    translationStage: "provisional", // 標記為 provisional
+                    qualityPassStatus: "pending", // Quality Pass 待處理
+                    sourceLang: result.sourceLang,
+                    targetLang: result.targetLang,
+                    version: 1,
+                    conversationId: currentConversationId,
+                    conversationKey: currentConversationKeyRef.current,
+                    createdAt: Date.now(),
+                  };
+                  setConversations((prev) => [...prev, provisionalMessage]);
+                  console.log(`[Fast Pass] Created provisional translation #${provisionalMessageId} (speaker: ${sourceSpeaker})`);
+                }
                 
                 // 🔥 Step 2.2: 非阻塞執行 Quality Pass 翻譯
                 // 更新 conversation context
@@ -896,7 +898,7 @@ export default function Home() {
                 
                 // 🔑 Capture conversation key and message version at request time
                 const keyAtRequestTime = currentConversationKeyRef.current;
-                const versionAtRequestTime = provisionalMessage.version;
+                const versionAtRequestTime = 1; // All new messages start with version 1
                 const requestStartTime = Date.now();
                 console.log(`[Race Guard] 📌 Captured key: ${keyAtRequestTime}, version: ${versionAtRequestTime}`);
                 
@@ -1924,12 +1926,10 @@ export default function Home() {
                     <div className="font-medium text-lg md:text-xl text-cyan-400 leading-relaxed">
                       {msg.translatedText}
                       {/* 🔥 Quality Pass 狀態指示器 */}
-                      {msg.translationStage === "provisional" && msg.qualityPassStatus === "processing" && (
-                        <span className="ml-2 text-xs text-yellow-400 animate-pulse">⏳</span>
-                      )}
-                      {msg.translationStage === "final" && (
-                        <span className="ml-2 text-xs text-green-400">✅</span>
-                      )}
+                      <TranslationStatusBadge
+                        translationStage={msg.translationStage}
+                        qualityPassStatus={msg.qualityPassStatus}
+                      />
                     </div>
                   </div>
                 ))}
@@ -1984,12 +1984,10 @@ export default function Home() {
                     <div className="font-medium text-lg md:text-xl text-cyan-400 leading-relaxed">
                       {msg.translatedText}
                       {/* 🔥 Quality Pass 狀態指示器 */}
-                      {msg.translationStage === "provisional" && msg.qualityPassStatus === "processing" && (
-                        <span className="ml-2 text-xs text-yellow-400 animate-pulse">⏳</span>
-                      )}
-                      {msg.translationStage === "final" && (
-                        <span className="ml-2 text-xs text-green-400">✅</span>
-                      )}
+                      <TranslationStatusBadge
+                        translationStage={msg.translationStage}
+                        qualityPassStatus={msg.qualityPassStatus}
+                      />
                     </div>
                   </div>
                 ))}
