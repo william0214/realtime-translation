@@ -101,6 +101,12 @@ export const WHISPER_CONFIG = {
       description: "含說話者辨識",
       icon: "👥",
     },
+    {
+      value: "gpt-4o-audio-preview",
+      label: "GPT-4o Audio Preview",
+      description: "音訊預覽版本",
+      icon: "🔊",
+    },
   ] as const,
 
   /**
@@ -438,9 +444,66 @@ export function getASRModeConfig(mode: ASRMode) {
 
 // ==================== 類型定義 ====================
 
+// ==================== 模型允許清單 ====================
+
+/**
+ * 所有允許的 ASR 模型
+ * 用於驗證文件和程式碼中的模型引用
+ */
+export const ALLOWED_ASR_MODELS = [
+  "whisper-1",
+  "gpt-4o-mini-transcribe",
+  "gpt-4o-transcribe",
+  "gpt-4o-transcribe-diarize",
+  "gpt-4o-audio-preview",
+  "gpt-4o-realtime-preview",
+] as const;
+
+/**
+ * Legacy ASR 模型（已棄用，僅供相容性）
+ * 不建議在新專案中使用
+ */
+export const LEGACY_ASR_MODELS = [
+  "gpt-4o-audio-preview-2024-10-01", // 使用 gpt-4o-audio-preview 替代
+] as const;
+
+/**
+ * Legacy 翻譯模型（已棄用，僅供相容性）
+ * 不建議在新專案中使用
+ */
+export const LEGACY_TRANSLATION_MODELS = [
+  "gpt-3.5-turbo",          // 使用 gpt-4.1-mini 替代
+  "gpt-3.5-turbo-instruct", // 使用 gpt-4.1-mini 替代
+] as const;
+
+/**
+ * 所有允許的翻譯模型
+ * 用於驗證文件和程式碼中的模型引用
+ */
+export const ALLOWED_TRANSLATION_MODELS = [
+  "gpt-4o-mini",
+  "gpt-4.1-mini",
+  "gpt-4.1",
+  "gpt-4o",
+] as const;
+
+/**
+ * 所有允許的模型（ASR + 翻譯 + Legacy）
+ * 用於統一驗證（包含 legacy 模型以支援相容性檢查）
+ */
+export const ALLOWED_MODELS = [
+  ...ALLOWED_ASR_MODELS,
+  ...ALLOWED_TRANSLATION_MODELS,
+  ...LEGACY_ASR_MODELS,
+  ...LEGACY_TRANSLATION_MODELS,
+] as const;
+
 export type VADConfig = typeof VAD_CONFIG;
 export type ASRConfig = typeof ASR_CONFIG;
 export type TranslationConfig = typeof TRANSLATION_CONFIG;
 export type AudioConfig = typeof AUDIO_CONFIG;
 export type VADPreset = keyof typeof VAD_PRESETS;
 export type ASRModeConfig = typeof ASR_MODE_CONFIG[ASRMode];
+export type AllowedASRModel = typeof ALLOWED_ASR_MODELS[number];
+export type AllowedTranslationModel = typeof ALLOWED_TRANSLATION_MODELS[number];
+export type AllowedModel = typeof ALLOWED_MODELS[number];

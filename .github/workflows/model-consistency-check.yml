@@ -1,0 +1,45 @@
+name: Model Consistency Check
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**/*.md'
+      - 'shared/config.ts'
+      - 'scripts/check-model-consistency.py'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**/*.md'
+      - 'shared/config.ts'
+      - 'scripts/check-model-consistency.py'
+
+jobs:
+  check-model-consistency:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Run model consistency check
+      run: |
+        python3 scripts/check-model-consistency.py
+    
+    - name: Report success
+      if: success()
+      run: |
+        echo "✅ 所有模型引用都與 shared/config.ts 一致！"
+    
+    - name: Report failure
+      if: failure()
+      run: |
+        echo "❌ 發現未定義的模型引用"
+        echo "💡 請確保所有模型都在 shared/config.ts 中定義"
+        echo "💡 或者從文件中移除這些未知模型的引用"
+        exit 1

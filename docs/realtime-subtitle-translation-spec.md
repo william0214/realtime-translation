@@ -17,9 +17,9 @@
 
 **語音處理模組**負責即時音訊擷取與處理，採用 WebAudio API 實現 16kHz 單聲道音訊串流，並透過語音活動檢測（VAD）技術自動識別語音片段起止點。該模組支援動態靜音檢測與雜訊過濾，確保只有有效語音片段進入後續處理流程。
 
-**語音識別模組**整合 OpenAI Whisper 系列模型，支援 `whisper-1`、`gpt-4o-audio-preview`、`gpt-4o-audio-preview-2024-10-01` 與 `gpt-4o-realtime-preview` 四種 ASR 模型。系統採用混合架構設計，透過 Hybrid ASR WebSocket 實現低延遲轉錄，並提供即時字幕（Partial）與最終確認（Final）兩階段輸出機制。
+**語音識別模組**整合 OpenAI Whisper 系列模型，支援 `whisper-1`、`gpt-4o-audio-preview`、`gpt-4o-realtime-preview` 等 ASR 模型。系統採用混合架構設計，透過 Hybrid ASR WebSocket 實現低延遲轉錄，並提供即時字幕（Partial）與最終確認（Final）兩階段輸出機制。
 
-**翻譯引擎模組**採用 OpenAI GPT 系列模型執行雙向翻譯任務，支援中文與八種外語（英語、越南語、印尼語、泰語、日語、韓語、菲律賓語、緬甸語）之間的互譯。翻譯引擎針對醫療場景進行優化，保留專業術語準確性，並支援多種翻譯模型（`gpt-4o`、`gpt-4o-mini`、`gpt-3.5-turbo`）動態切換。
+**翻譯引擎模組**採用 OpenAI GPT 系列模型執行雙向翻譯任務，支援中文與八種外語（英語、越南語、印尼語、泰語、日語、韓語、菲律賓語、緬甸語）之間的互譯。翻譯引擎針對醫療場景進行優化，保留專業術語準確性，並支援多種翻譯模型（`gpt-4o`、`gpt-4o-mini`、`gpt-4.1-mini`、`gpt-4.1`）動態切換。
 
 **語音合成模組**提供多語言 TTS 功能，支援翻譯結果的語音播放。系統整合 OpenAI TTS API，提供自然流暢的語音輸出，並支援語速調整與音量控制。
 
@@ -553,7 +553,7 @@ function hardTrimFinalBuffer(buffer: Float32Array, maxDurationSec: number): Floa
 
 | 參數名稱 | 資料型別 | 預設值 | 說明 | 可選值 |
 |---------|---------|--------|------|--------|
-| `model` | string | `gpt-4.1-mini` | 翻譯模型識別碼 | `gpt-4o`, `gpt-4o-mini`, `gpt-4.1-mini`, `gpt-4.1`, `gpt-3.5-turbo` |
+| `model` | string | `gpt-4.1-mini` | 翻譯模型識別碼 | `gpt-4o`, `gpt-4o-mini`, `gpt-4.1-mini`, `gpt-4.1` |
 | `temperature` | number | `0.3` | 取樣溫度，控制翻譯創意性 | `0.0` - `1.0` |
 | `max_tokens` | number | `500` | 最大輸出 Token 數 | `1` - `4096` |
 | `top_p` | number | `1.0` | Nucleus sampling 參數 | `0.0` - `1.0` |
@@ -571,7 +571,6 @@ function hardTrimFinalBuffer(buffer: Float32Array, maxDurationSec: number): Floa
 
 **gpt-4o-mini** 為輕量模型，在保持高品質的同時大幅降低延遲與成本。適用於一般對話場景，延遲約 0.8-1.3 秒。該模型提供良好的效能與成本平衡，可作為 Fast Pass 的替代選擇。
 
-**gpt-3.5-turbo** 為經濟模型，提供基礎翻譯品質與最低的 API 成本。適用於大量翻譯需求場景，延遲約 0.6-1.0 秒。該模型在專業術語處理上略遜於 GPT-4 系列，但仍能滿足一般需求。
 
 ### 4.3 TTS 參數
 
@@ -1179,7 +1178,7 @@ Server -> Client: WebSocket Close Frame (Code: 1000, Reason: "Normal Closure")
 
 **使用 Whisper Streaming API** 降低 ASR 延遲，目標從當前的 2.5-3.5 秒降低至 1.0-1.5 秒。Streaming API 支援邊錄邊轉，可大幅提升即時性。
 
-**優化翻譯模型** 測試不同模型的延遲與品質表現，選擇最佳的效能與成本平衡點。考慮使用 `gpt-3.5-turbo-instruct` 或 `gpt-4.1-mini` 替代當前模型。
+**優化翻譯模型** 測試不同模型的延遲與品質表現，選擇最佳的效能與成本平衡點。當前系統使用 `gpt-4.1-mini` 作為預設模型，提供最佳的速度與品質平衡。
 
 **實作音訊預處理** 加入降噪處理、音訊壓縮與靜音移除功能，提升 ASR 準確率並降低頻寬消耗。
 
@@ -1551,3 +1550,23 @@ function detectNumberLoss(source: string, translation: string): Issue[] {
 ---
 
 **文件結束**
+
+---
+
+## 附錄 A：已棄用模型
+
+以下模型已不再建議使用，請使用新版模型替代：
+
+### A.1 ASR 模型
+
+**gpt-4o-audio-preview-2024-10-01**（日期版本）已被 **gpt-4o-audio-preview**（canonical 版本）取代。日期版本僅供相容性使用，新專案請使用 canonical 版本。
+
+### A.2 翻譯模型
+
+**gpt-3.5-turbo** 系列模型（包含 `gpt-3.5-turbo` 和 `gpt-3.5-turbo-instruct`）已被 **gpt-4.1-mini** 取代。新版模型提供更好的翻譯品質、更快的回應速度，以及更優異的醫療術語處理能力。
+
+**遷移建議：**
+- 將所有 `gpt-3.5-turbo` 引用替換為 `gpt-4.1-mini`（Fast Pass 預設）
+- 將所有 `gpt-3.5-turbo-instruct` 引用替換為 `gpt-4.1-mini`
+- 將所有 `gpt-4o-audio-preview-2024-10-01` 引用替換為 `gpt-4o-audio-preview`
+
