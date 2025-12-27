@@ -59,8 +59,6 @@ jobs:
       
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
       
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -199,12 +197,28 @@ https://github.com/william0214/realtime-translation/actions
 
 1. ✅ **Checkout repository** - 下載程式碼
 2. ✅ **Setup Node.js** - 安裝 Node.js 22
-3. ✅ **Setup pnpm** - 安裝 pnpm 10
+3. ✅ **Setup pnpm** - 自動使用 package.json 中的版本（10.4.1）
 4. ✅ **Install dependencies** - 安裝專案依賴
 5. ⚠️ **Run documentation checks** - 執行檢查（可能有警告）
 6. ✅ **Generate Markdown report** - 產生報告
 7. ✅ **Upload check report** - 上傳報告
 8. ✅ **Success** - 檢查完成
+
+---
+
+## 🔧 關鍵修正說明
+
+### pnpm 版本設定
+
+**重要**：此 workflow 已移除 `version: 10` 設定，改為自動讀取 `package.json` 中的 `packageManager` 欄位。
+
+- ✅ **正確做法**：讓 pnpm/action-setup 自動讀取 package.json
+- ❌ **錯誤做法**：同時在 workflow 和 package.json 指定版本
+
+這樣可以避免版本衝突錯誤：
+```
+ERR_PNPM_BAD_PM_VERSION: Multiple versions of pnpm specified
+```
 
 ---
 
@@ -246,6 +260,12 @@ https://github.com/william0214/realtime-translation/actions
 1. 下載 doc-check-report.md artifact
 2. 根據報告修正文件
 3. 重新推送並驗證
+
+### 問題 4：pnpm 版本衝突
+
+**原因**：同時在 workflow 和 package.json 指定版本
+
+**解決**：已在此版本修正，workflow 會自動讀取 package.json 中的版本
 
 ---
 
