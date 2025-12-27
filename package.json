@@ -10,7 +10,10 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "doc-check": "tsx scripts/doc-check/index.ts",
+    "doc-check:md": "tsx scripts/doc-check/index.ts --format=markdown --output=doc-check-report.md",
+    "doc-check:json": "tsx scripts/doc-check/index.ts --format=json --output=doc-check-report.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

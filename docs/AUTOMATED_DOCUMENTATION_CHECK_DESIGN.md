@@ -111,7 +111,7 @@
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Documentation Check Script                  │
-│                  (scripts/check-docs.ts)                     │
+│                  (scripts/doc-check.ts)                     │
 └─────────────────────────────────────────────────────────────┘
                               │
                 ┌─────────────┼─────────────┐
@@ -279,7 +279,7 @@ function checkModelConsistency(
 
 #### 1.1 模型名稱檢查
 
-**實作檔案**：`scripts/check-docs/check-models.ts`
+**實作檔案**：`scripts/doc-check/check-models.ts`
 
 **檢查流程**：
 1. 從 `shared/config.ts` 提取 `WHISPER_CONFIG.AVAILABLE_MODELS` 和 `TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS`
@@ -311,7 +311,7 @@ const MODEL_PATTERNS = [
 
 #### 1.2 配置參數檢查
 
-**實作檔案**：`scripts/check-docs/check-params.ts`
+**實作檔案**：`scripts/doc-check/check-config.ts`
 
 **檢查流程**：
 1. 從 `shared/config.ts` 提取所有配置常數
@@ -348,7 +348,7 @@ function parseParamTable(tableNode: MdastTable): ParamTable[] {
 
 #### 1.3 檔案路徑檢查
 
-**實作檔案**：`scripts/check-docs/check-paths.ts`
+**實作檔案**：`scripts/doc-check/check-paths.ts`
 
 **檢查流程**：
 1. 掃描文件中的檔案路徑引用（使用正則表達式）
@@ -379,7 +379,7 @@ const PATH_PATTERNS = [
 
 #### 2.1 狀態機一致性檢查
 
-**實作檔案**：`scripts/check-docs/check-state-machines.ts`
+**實作檔案**：`scripts/doc-check/check-state-machines.ts`
 
 **檢查流程**：
 1. 使用 TypeScript Compiler API 提取狀態機定義（enum, type）
@@ -436,7 +436,7 @@ function parseMermaidStateDiagram(mermaidCode: string): StateMachine {
 
 #### 2.2 API 介面一致性檢查
 
-**實作檔案**：`scripts/check-docs/check-api.ts`
+**實作檔案**：`scripts/doc-check/check-api.ts`
 
 **檢查流程**：
 1. 使用 TypeScript Compiler API 提取 tRPC procedures
@@ -542,7 +542,7 @@ on:
     - 'server/routers.ts'
     - 'docs/**/*.md'
     - '*.md'
-    - 'scripts/check-docs/**'
+    - 'scripts/doc-check/**'
 
 jobs:
   check-docs:
@@ -589,7 +589,7 @@ jobs:
 
 ### 本地檢查腳本
 
-**檔案位置**：`scripts/check-docs.sh`
+**檔案位置**：`scripts/doc-check.sh`
 
 ```bash
 #!/bin/bash
@@ -597,17 +597,17 @@ jobs:
 echo "🔍 Running documentation consistency checks..."
 
 # Run all checks
-pnpm tsx scripts/check-docs/check-models.ts
-pnpm tsx scripts/check-docs/check-params.ts
-pnpm tsx scripts/check-docs/check-paths.ts
+pnpm tsx scripts/doc-check/check-models.ts
+pnpm tsx scripts/doc-check/check-config.ts
+pnpm tsx scripts/doc-check/check-paths.ts
 
 # Optional: Run advanced checks if available
-if [ -f "scripts/check-docs/check-state-machines.ts" ]; then
-  pnpm tsx scripts/check-docs/check-state-machines.ts
+if [ -f "scripts/doc-check/check-state-machines.ts" ]; then
+  pnpm tsx scripts/doc-check/check-state-machines.ts
 fi
 
-if [ -f "scripts/check-docs/check-api.ts" ]; then
-  pnpm tsx scripts/check-docs/check-api.ts
+if [ -f "scripts/doc-check/check-api.ts" ]; then
+  pnpm tsx scripts/doc-check/check-api.ts
 fi
 
 echo "✅ All checks completed"
@@ -619,7 +619,7 @@ echo "✅ All checks completed"
 pnpm run check:docs
 
 # 執行特定檢查
-pnpm tsx scripts/check-docs/check-models.ts
+pnpm tsx scripts/doc-check/check-models.ts
 
 # 自動修正（如果支援）
 pnpm run check:docs --fix
@@ -630,11 +630,11 @@ pnpm run check:docs --fix
 ```json
 {
   "scripts": {
-    "check:docs": "bash scripts/check-docs.sh",
-    "check:docs:models": "tsx scripts/check-docs/check-models.ts",
-    "check:docs:params": "tsx scripts/check-docs/check-params.ts",
-    "check:docs:paths": "tsx scripts/check-docs/check-paths.ts",
-    "check:docs:all": "tsx scripts/check-docs/index.ts"
+    "check:docs": "bash scripts/doc-check.sh",
+    "check:docs:models": "tsx scripts/doc-check/check-models.ts",
+    "check:docs:params": "tsx scripts/doc-check/check-config.ts",
+    "check:docs:paths": "tsx scripts/doc-check/check-paths.ts",
+    "check:docs:all": "tsx scripts/doc-check/index.ts"
   }
 }
 ```

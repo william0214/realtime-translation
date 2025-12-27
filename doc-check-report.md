@@ -1,0 +1,2124 @@
+# 文件檢查報告
+
+**檢查時間:** 2025-12-27T06:34:08.001Z
+
+## 📊 檢查摘要
+
+| 項目 | 數量 |
+|------|------|
+| 總檔案數 | 9 |
+| 總問題數 | 206 |
+| 錯誤 (❌) | 59 |
+| 警告 (⚠️) | 144 |
+| 資訊 (ℹ️) | 3 |
+| 總耗時 | 101ms |
+
+## 📝 模型名稱檢查
+
+- **檢查檔案數:** 9
+- **發現問題數:** 75
+- **耗時:** 43ms
+
+### 問題列表
+
+#### 1. ⚠️ 可能的未知模型名稱: "
+┌─────────────────────────────────────────────────────────────┐
+│                     使用者說話                                │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  VAD + ASR (Whisper)                         │
+│              語音活動偵測 + 語音識別                            │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Final Transcript 完整文字                        │
+│         （保留完整 transcript，不只最後 2 秒）                  │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                ┌───────────┴───────────┐
+                │                       │
+                ▼                       ▼
+┌───────────────────────┐   ┌───────────────────────┐
+│   Fast Pass (gpt-4.1) │   │ Quality Pass (gpt-4o) │
+│   快速翻譯（1-2 秒）    │   │ 醫療級定稿（3-6 秒）    │
+│   - 不含 context       │   │ - 含 context (3-6句)  │
+│   - 不強制 glossary    │   │ - 強制 glossary        │
+│   - 速度優先           │   │ - 品質優先             │
+└───────────────────────┘   └───────────────────────┘
+                │                       │
+                ▼                       │
+┌───────────────────────┐               │
+│  顯示 provisional 翻譯 │               │
+│  translationStage:     │               │
+│  "provisional"         │               │
+└───────────────────────┘               │
+                                        ▼
+                            ┌───────────────────────┐
+                            │   Quality Gate 檢查    │
+                            │   - 數字遺漏檢測       │
+                            │   - 否定詞反轉檢測     │
+                            │   - 長度異常檢測       │
+                            └───────────────────────┘
+                                        │
+                            ┌───────────┴───────────┐
+                            │                       │
+                         Pass                    Fail
+                            │                       │
+                            ▼                       ▼
+                ┌───────────────────────┐   ┌───────────────────────┐
+                │  回填 final 翻譯       │   │  重跑 Quality Pass     │
+                │  translationStage:     │   │  (最多 1 次)           │
+                │  "final"               │   └───────────────────────┘
+                └───────────────────────┘
+"
+
+- **檔案:** `docs/ARCHITECTURE-v2.0.md:20`
+- **實際:** `
+┌─────────────────────────────────────────────────────────────┐
+│                     使用者說話                                │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  VAD + ASR (Whisper)                         │
+│              語音活動偵測 + 語音識別                            │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Final Transcript 完整文字                        │
+│         （保留完整 transcript，不只最後 2 秒）                  │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                ┌───────────┴───────────┐
+                │                       │
+                ▼                       ▼
+┌───────────────────────┐   ┌───────────────────────┐
+│   Fast Pass (gpt-4.1) │   │ Quality Pass (gpt-4o) │
+│   快速翻譯（1-2 秒）    │   │ 醫療級定稿（3-6 秒）    │
+│   - 不含 context       │   │ - 含 context (3-6句)  │
+│   - 不強制 glossary    │   │ - 強制 glossary        │
+│   - 速度優先           │   │ - 品質優先             │
+└───────────────────────┘   └───────────────────────┘
+                │                       │
+                ▼                       │
+┌───────────────────────┐               │
+│  顯示 provisional 翻譯 │               │
+│  translationStage:     │               │
+│  "provisional"         │               │
+└───────────────────────┘               │
+                                        ▼
+                            ┌───────────────────────┐
+                            │   Quality Gate 檢查    │
+                            │   - 數字遺漏檢測       │
+                            │   - 否定詞反轉檢測     │
+                            │   - 長度異常檢測       │
+                            └───────────────────────┘
+                                        │
+                            ┌───────────┴───────────┐
+                            │                       │
+                         Pass                    Fail
+                            │                       │
+                            ▼                       ▼
+                ┌───────────────────────┐   ┌───────────────────────┐
+                │  回填 final 翻譯       │   │  重跑 Quality Pass     │
+                │  translationStage:     │   │  (最多 1 次)           │
+                │  "final"               │   └───────────────────────┘
+                └───────────────────────┘
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 2. ⚠️ 可能的未知模型名稱: "
+
+#### Context 使用
+
+- Fast Pass：不使用 context
+- Quality Pass：使用最近 3-6 句 context
+- Retry：使用相同 context + 上次翻譯的問題說明
+
+## 驗收標準
+
+1. **Fast Pass 速度**
+   - 使用者說一句中文（醫療問句）
+   - 畫面 1–2 秒內先顯示 provisional 翻譯（gpt-4.1）
+
+2. **Quality Pass 回填**
+   - 3–6 秒內同一 bubble 被回填為高品質 final 翻譯（gpt-4o）
+   - 術語一致、數字單位不丟
+
+3. **完整句子翻譯**
+   - 不再出現「只翻到後半句」的常見缺前文問題
+   - 至少在文字翻譯層面修正
+
+4. **VAD UI 移除**
+   - Settings 頁面沒有任何 VAD UI
+   - 舊 localStorage 不再影響 VAD 行為
+
+5. **Quality Gate 守門**
+   - 檢測到問題時自動重跑 Quality Pass
+   - 醫療術語翻譯一致（BP→huyết áp, HR→nhịp tim, SpO2→oxy máu）
+   - 數字單位不遺漏（120/80 mmHg, 38.5℃, 500mg）
+   - 否定詞不反轉（不痛→không đau, 沒有過敏→không dị ứng）
+
+## 效能指標
+
+### 目標延遲
+
+- **Fast Pass**：1-2 秒
+- **Quality Pass**：3-6 秒
+- **Total E2E**：< 7 秒（從語音結束到 final 翻譯顯示）
+
+### 品質指標
+
+- **Quality Gate 通過率**：> 90%
+- **重試率**：< 10%
+- **術語一致性**：100%（強制 glossary）
+- **數字保留率**：100%
+- **否定詞保留率**：> 95%
+
+## 檔案結構
+
+"
+
+- **檔案:** `docs/ARCHITECTURE-v2.0.md:353`
+- **實際:** `
+
+#### Context 使用
+
+- Fast Pass：不使用 context
+- Quality Pass：使用最近 3-6 句 context
+- Retry：使用相同 context + 上次翻譯的問題說明
+
+## 驗收標準
+
+1. **Fast Pass 速度**
+   - 使用者說一句中文（醫療問句）
+   - 畫面 1–2 秒內先顯示 provisional 翻譯（gpt-4.1）
+
+2. **Quality Pass 回填**
+   - 3–6 秒內同一 bubble 被回填為高品質 final 翻譯（gpt-4o）
+   - 術語一致、數字單位不丟
+
+3. **完整句子翻譯**
+   - 不再出現「只翻到後半句」的常見缺前文問題
+   - 至少在文字翻譯層面修正
+
+4. **VAD UI 移除**
+   - Settings 頁面沒有任何 VAD UI
+   - 舊 localStorage 不再影響 VAD 行為
+
+5. **Quality Gate 守門**
+   - 檢測到問題時自動重跑 Quality Pass
+   - 醫療術語翻譯一致（BP→huyết áp, HR→nhịp tim, SpO2→oxy máu）
+   - 數字單位不遺漏（120/80 mmHg, 38.5℃, 500mg）
+   - 否定詞不反轉（不痛→không đau, 沒有過敏→không dị ứng）
+
+## 效能指標
+
+### 目標延遲
+
+- **Fast Pass**：1-2 秒
+- **Quality Pass**：3-6 秒
+- **Total E2E**：< 7 秒（從語音結束到 final 翻譯顯示）
+
+### 品質指標
+
+- **Quality Gate 通過率**：> 90%
+- **重試率**：< 10%
+- **術語一致性**：100%（強制 glossary）
+- **數字保留率**：100%
+- **否定詞保留率**：> 95%
+
+## 檔案結構
+
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 3. ❌ 未知的模型名稱: "gpt-4o-audio-preview"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:301`
+- **實際:** `gpt-4o-audio-preview`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 4. ❌ 未知的模型名稱: "gpt-4o-mini-transcribe"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:309`
+- **實際:** `gpt-4o-mini-transcribe`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 5. ❌ 未知的模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:343`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 6. ❌ 未知的模型名稱: "gpt-4o-mini"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:344`
+- **實際:** `gpt-4o-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 7. ❌ 未知的模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:346`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 8. ❌ 未知的模型名稱: "gpt-4o-audio-preview"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:668`
+- **實際:** `gpt-4o-audio-preview`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 9. ❌ 未知的模型名稱: "gpt-4o-audio-preview"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:672`
+- **實際:** `gpt-4o-audio-preview`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 10. ❌ 未知的模型名稱: "gpt-4o-mini-transcribe"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:674`
+- **實際:** `gpt-4o-mini-transcribe`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 11. ❌ 未知的模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:679`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 12. ❌ 未知的模型名稱: "gpt-4o-mini"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:680`
+- **實際:** `gpt-4o-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 13. ❌ 未知的模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:682`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 14. ❌ 未知的模型名稱: "gpt-4o-audio-preview"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:761`
+- **實際:** `gpt-4o-audio-preview`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 15. ⚠️ 可能的未知模型名稱: "gpt-4o-audio-preview"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:38`
+- **實際:** `gpt-4o-audio-preview`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 16. ⚠️ 可能的未知模型名稱: "
+❌ docs/realtime-subtitle-translation-spec.md:534
+   Invalid ASR model: "gpt-4o-audio-preview"
+   
+   Valid models:
+   - whisper-1
+   - gpt-4o-mini-transcribe
+   - gpt-4o-transcribe
+   - gpt-4o-transcribe-diarize
+   
+   Suggestion: Replace with "gpt-4o-mini-transcribe"
+"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:299`
+- **實際:** `
+❌ docs/realtime-subtitle-translation-spec.md:534
+   Invalid ASR model: "gpt-4o-audio-preview"
+   
+   Valid models:
+   - whisper-1
+   - gpt-4o-mini-transcribe
+   - gpt-4o-transcribe
+   - gpt-4o-transcribe-diarize
+   
+   Suggestion: Replace with "gpt-4o-mini-transcribe"
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 17. ⚠️ 可能的未知模型名稱: "
+❌ docs/realtime-subtitle-translation-spec.md:556
+   Parameter "model" default value mismatch
+   
+   Expected: "gpt-4.1-mini" (from shared/config.ts:205)
+   Found:    "gpt-4o-mini"
+   
+   Suggestion: Update table cell to "gpt-4.1-mini"
+"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:339`
+- **實際:** `
+❌ docs/realtime-subtitle-translation-spec.md:556
+   Parameter "model" default value mismatch
+   
+   Expected: "gpt-4.1-mini" (from shared/config.ts:205)
+   Found:    "gpt-4o-mini"
+   
+   Suggestion: Update table cell to "gpt-4.1-mini"
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 18. ⚠️ 可能的未知模型名稱: "
+🔍 Documentation Consistency Check Report
+Generated: 2025-12-27 10:30:00
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Summary
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Total files checked: 31
+Total issues found: 5
+  - Critical: 2
+  - High: 1
+  - Medium: 2
+  - Low: 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 Critical Issues (2)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. docs/realtime-subtitle-translation-spec.md:534
+   Invalid ASR model: "gpt-4o-audio-preview"
+   
+   Expected: One of [whisper-1, gpt-4o-mini-transcribe, 
+                     gpt-4o-transcribe, gpt-4o-transcribe-diarize]
+   Found:    "gpt-4o-audio-preview"
+   
+   Fix: Replace with "gpt-4o-mini-transcribe"
+
+2. docs/realtime-subtitle-translation-spec.md:556
+   Parameter default value mismatch
+   
+   Expected: "gpt-4.1-mini" (from shared/config.ts:205)
+   Found:    "gpt-4o-mini"
+   
+   Fix: Update table cell to "gpt-4.1-mini"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟡 High Priority Issues (1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. docs/ARCHITECTURE-v2.0.md:456
+   API procedure signature mismatch
+   
+   Code: trpc.translate.qualityPass.useMutation()
+   Input: { messageId: number, conversationContext: ConversationContext }
+   
+   Doc shows: Input: { messageId: string }
+   
+   Fix: Update input type to "number"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔵 Medium Priority Issues (2)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. docs/ai/ManusAI_SystemPrompt_Engineering.md:273
+   Line number reference out of range
+   
+   File: shared/config.ts
+   Referenced line: 205
+   Actual file length: 180 lines
+   
+   Fix: Update line number or check if code moved
+
+5. README.md:45
+   File path does not exist: "docs/API_REFERENCE.md"
+   
+   Fix: Create missing file or remove reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 Statistics
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Check Type          | Issues | Pass Rate
+--------------------|--------|----------
+Model Names         |      2 |      93%
+Config Parameters   |      1 |      97%
+File Paths          |      2 |      95%
+State Machines      |      0 |     100%
+API Interfaces      |      0 |     100%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ Check failed with 5 issues
+"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:648`
+- **實際:** `
+🔍 Documentation Consistency Check Report
+Generated: 2025-12-27 10:30:00
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Summary
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Total files checked: 31
+Total issues found: 5
+  - Critical: 2
+  - High: 1
+  - Medium: 2
+  - Low: 0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔴 Critical Issues (2)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. docs/realtime-subtitle-translation-spec.md:534
+   Invalid ASR model: "gpt-4o-audio-preview"
+   
+   Expected: One of [whisper-1, gpt-4o-mini-transcribe, 
+                     gpt-4o-transcribe, gpt-4o-transcribe-diarize]
+   Found:    "gpt-4o-audio-preview"
+   
+   Fix: Replace with "gpt-4o-mini-transcribe"
+
+2. docs/realtime-subtitle-translation-spec.md:556
+   Parameter default value mismatch
+   
+   Expected: "gpt-4.1-mini" (from shared/config.ts:205)
+   Found:    "gpt-4o-mini"
+   
+   Fix: Update table cell to "gpt-4.1-mini"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🟡 High Priority Issues (1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. docs/ARCHITECTURE-v2.0.md:456
+   API procedure signature mismatch
+   
+   Code: trpc.translate.qualityPass.useMutation()
+   Input: { messageId: number, conversationContext: ConversationContext }
+   
+   Doc shows: Input: { messageId: string }
+   
+   Fix: Update input type to "number"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔵 Medium Priority Issues (2)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. docs/ai/ManusAI_SystemPrompt_Engineering.md:273
+   Line number reference out of range
+   
+   File: shared/config.ts
+   Referenced line: 205
+   Actual file length: 180 lines
+   
+   Fix: Update line number or check if code moved
+
+5. README.md:45
+   File path does not exist: "docs/API_REFERENCE.md"
+   
+   Fix: Create missing file or remove reference
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 Statistics
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Check Type          | Issues | Pass Rate
+--------------------|--------|----------
+Model Names         |      2 |      93%
+Config Parameters   |      1 |      97%
+File Paths          |      2 |      95%
+State Machines      |      0 |     100%
+API Interfaces      |      0 |     100%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ Check failed with 5 issues
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 19. ⚠️ 可能的未知模型名稱: "  
+**Severity**: 🔴 Critical
+
+**Problem**: Document references deprecated model "gpt-4o-audio-preview"
+
+**Expected**: One of "
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:758`
+- **實際:** `  
+**Severity**: 🔴 Critical
+
+**Problem**: Document references deprecated model "gpt-4o-audio-preview"
+
+**Expected**: One of `
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 20. ❌ 未知的模型名稱: "whisper-1"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:32`
+- **實際:** `whisper-1`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 21. ❌ 未知的模型名稱: "gpt-4o-mini-transcribe"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:33`
+- **實際:** `gpt-4o-mini-transcribe`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 22. ❌ 未知的模型名稱: "GPT-4o Mini"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:34`
+- **實際:** `GPT-4o Mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 23. ❌ 未知的模型名稱: "gpt-4o-transcribe"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:34`
+- **實際:** `gpt-4o-transcribe`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 24. ❌ 未知的模型名稱: "GPT-4o"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:35`
+- **實際:** `GPT-4o`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 25. ❌ 未知的模型名稱: "gpt-4o-transcribe-diarize"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:35`
+- **實際:** `gpt-4o-transcribe-diarize`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 26. ❌ 未知的模型名稱: "GPT-4o Diarize"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:36`
+- **實際:** `GPT-4o Diarize`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 27. ❌ 未知的模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:58`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 28. ❌ 未知的模型名稱: "gpt-4o-mini"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:59`
+- **實際:** `gpt-4o-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 29. ❌ 未知的模型名稱: "GPT-4o Mini"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:60`
+- **實際:** `GPT-4o Mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 30. ❌ 未知的模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:60`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 31. ❌ 未知的模型名稱: "gpt-4.1"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:61`
+- **實際:** `gpt-4.1`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 32. ❌ 未知的模型名稱: "gpt-4o"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:62`
+- **實際:** `gpt-4o`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 33. ❌ 未知的模型名稱: "GPT-4o"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:63`
+- **實際:** `GPT-4o`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 34. ⚠️ 可能的未知模型名稱: "typescript
+WHISPER_CONFIG.AVAILABLE_MODELS = [
+  { value: "whisper-1", label: "Whisper-1" },
+  { value: "gpt-4o-mini-transcribe", label: "GPT-4o Mini" },
+  { value: "gpt-4o-transcribe", label: "GPT-4o" },
+  { value: "gpt-4o-transcribe-diarize", label: "GPT-4o Diarize" }
+]
+"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:31`
+- **實際:** `typescript
+WHISPER_CONFIG.AVAILABLE_MODELS = [
+  { value: "whisper-1", label: "Whisper-1" },
+  { value: "gpt-4o-mini-transcribe", label: "GPT-4o Mini" },
+  { value: "gpt-4o-transcribe", label: "GPT-4o" },
+  { value: "gpt-4o-transcribe-diarize", label: "GPT-4o Diarize" }
+]
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 35. ⚠️ 可能的未知模型名稱: "typescript
+TRANSLATION_CONFIG.LLM_MODEL = "gpt-4.1-mini"
+TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS = [
+  { id: "gpt-4o-mini", name: "GPT-4o Mini" },
+  { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" }, // 預設
+  { id: "gpt-4.1", name: "GPT-4.1" },
+  { id: "gpt-4o", name: "GPT-4o" }
+]
+"
+
+- **檔案:** `docs/DOCUMENTATION_CONSISTENCY_AUDIT.md:57`
+- **實際:** `typescript
+TRANSLATION_CONFIG.LLM_MODEL = "gpt-4.1-mini"
+TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS = [
+  { id: "gpt-4o-mini", name: "GPT-4o Mini" },
+  { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" }, // 預設
+  { id: "gpt-4.1", name: "GPT-4.1" },
+  { id: "gpt-4o", name: "GPT-4o" }
+]
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 36. ⚠️ 可能的未知模型名稱: "
+
+**扣分**：-10 分
+
+**範例**：
+- 原文：「您的血壓是多少？」
+- 譯文：「[翻譯中] Huyết áp của bạn là bao nhiêu?」
+- 結果：⚠️ Medium（包含元資訊）
+
+## 品質分數計算
+
+### 初始分數
+
+- 所有翻譯初始分數：100 分
+
+### 扣分規則
+
+| 嚴重程度 | 扣分 |
+|---------|------|
+| Critical | -40 分 |
+| High | -30 分 |
+| Medium | -15 分 |
+| Low | -5 分 |
+
+### 通過門檻
+
+- **通過**：分數 >= 70
+- **不通過**：分數 < 70
+
+### 計算範例
+
+**範例 1（通過）**：
+- 初始分數：100
+- 問題：無
+- 最終分數：100
+- 結果：✅ 通過
+
+**範例 2（不通過 - Critical）**：
+- 初始分數：100
+- 問題：數字遺漏（Critical, -40）
+- 最終分數：60
+- 結果：❌ 不通過
+
+**範例 3（不通過 - 多個問題）**：
+- 初始分數：100
+- 問題 1：長度異常（Medium, -15）
+- 問題 2：可疑內容（Medium, -10）
+- 最終分數：75
+- 結果：✅ 通過（雖有問題但分數仍達標）
+
+## 建議動作（Recommendation）
+
+根據品質分數和問題嚴重程度，Quality Gate 會給出以下建議：
+
+### 1. Accept（接受）
+
+**條件**：分數 >= 70
+
+**動作**：接受翻譯結果，不重試
+
+**範例**：
+- 分數：100
+- 問題：無
+- 建議：Accept
+
+### 2. Retry Fast（快速重試）
+
+**條件**：
+- 分數 < 70
+- 只有 Medium 或 Low 問題
+- 無 Critical 或 High 問題
+
+**動作**：使用 Fast Pass（gpt-4.1）重試
+
+**範例**：
+- 分數：65
+- 問題：長度異常（Medium）
+- 建議：Retry Fast
+
+### 3. Retry Quality（品質重試）
+
+**條件**：
+- 分數 < 70
+- 有 Critical 或 High 問題
+
+**動作**：使用 Quality Pass（gpt-4o）重試
+
+**範例**：
+- 分數：60
+- 問題：數字遺漏（Critical）
+- 建議：Retry Quality
+
+## 重試機制
+
+### 重試流程
+
+"
+
+- **檔案:** `docs/QUALITY_GATE.md:175`
+- **實際:** `
+
+**扣分**：-10 分
+
+**範例**：
+- 原文：「您的血壓是多少？」
+- 譯文：「[翻譯中] Huyết áp của bạn là bao nhiêu?」
+- 結果：⚠️ Medium（包含元資訊）
+
+## 品質分數計算
+
+### 初始分數
+
+- 所有翻譯初始分數：100 分
+
+### 扣分規則
+
+| 嚴重程度 | 扣分 |
+|---------|------|
+| Critical | -40 分 |
+| High | -30 分 |
+| Medium | -15 分 |
+| Low | -5 分 |
+
+### 通過門檻
+
+- **通過**：分數 >= 70
+- **不通過**：分數 < 70
+
+### 計算範例
+
+**範例 1（通過）**：
+- 初始分數：100
+- 問題：無
+- 最終分數：100
+- 結果：✅ 通過
+
+**範例 2（不通過 - Critical）**：
+- 初始分數：100
+- 問題：數字遺漏（Critical, -40）
+- 最終分數：60
+- 結果：❌ 不通過
+
+**範例 3（不通過 - 多個問題）**：
+- 初始分數：100
+- 問題 1：長度異常（Medium, -15）
+- 問題 2：可疑內容（Medium, -10）
+- 最終分數：75
+- 結果：✅ 通過（雖有問題但分數仍達標）
+
+## 建議動作（Recommendation）
+
+根據品質分數和問題嚴重程度，Quality Gate 會給出以下建議：
+
+### 1. Accept（接受）
+
+**條件**：分數 >= 70
+
+**動作**：接受翻譯結果，不重試
+
+**範例**：
+- 分數：100
+- 問題：無
+- 建議：Accept
+
+### 2. Retry Fast（快速重試）
+
+**條件**：
+- 分數 < 70
+- 只有 Medium 或 Low 問題
+- 無 Critical 或 High 問題
+
+**動作**：使用 Fast Pass（gpt-4.1）重試
+
+**範例**：
+- 分數：65
+- 問題：長度異常（Medium）
+- 建議：Retry Fast
+
+### 3. Retry Quality（品質重試）
+
+**條件**：
+- 分數 < 70
+- 有 Critical 或 High 問題
+
+**動作**：使用 Quality Pass（gpt-4o）重試
+
+**範例**：
+- 分數：60
+- 問題：數字遺漏（Critical）
+- 建議：Retry Quality
+
+## 重試機制
+
+### 重試流程
+
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 37. ⚠️ 可能的未知模型名稱: "
+翻譯完成
+    │
+    ▼
+Quality Gate 檢查
+    │
+    ├─ 通過 (>= 70) ──→ Accept
+    │
+    └─ 不通過 (< 70)
+        │
+        ├─ 有 Critical/High ──→ Retry Quality (gpt-4o)
+        │                           │
+        │                           ▼
+        │                      Quality Gate 檢查
+        │                           │
+        │                           ├─ 通過 ──→ Accept
+        │                           │
+        │                           └─ 不通過 ──→ Accept（已達最大重試次數）
+        │
+        └─ 只有 Medium/Low ──→ Retry Fast (gpt-4.1)
+                                    │
+                                    ▼
+                               Quality Gate 檢查
+                                    │
+                                    ├─ 通過 ──→ Accept
+                                    │
+                                    └─ 不通過 ──→ Accept（已達最大重試次數）
+"
+
+- **檔案:** `docs/QUALITY_GATE.md:271`
+- **實際:** `
+翻譯完成
+    │
+    ▼
+Quality Gate 檢查
+    │
+    ├─ 通過 (>= 70) ──→ Accept
+    │
+    └─ 不通過 (< 70)
+        │
+        ├─ 有 Critical/High ──→ Retry Quality (gpt-4o)
+        │                           │
+        │                           ▼
+        │                      Quality Gate 檢查
+        │                           │
+        │                           ├─ 通過 ──→ Accept
+        │                           │
+        │                           └─ 不通過 ──→ Accept（已達最大重試次數）
+        │
+        └─ 只有 Medium/Low ──→ Retry Fast (gpt-4.1)
+                                    │
+                                    ▼
+                               Quality Gate 檢查
+                                    │
+                                    ├─ 通過 ──→ Accept
+                                    │
+                                    └─ 不通過 ──→ Accept（已達最大重試次數）
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 38. ❌ 表格中的未知模型名稱: "whisper-1"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:65`
+- **實際:** `whisper-1`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型
+
+#### 39. ❌ 表格中的未知模型名稱: "gpt-4o-mini-transcribe"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:66`
+- **實際:** `gpt-4o-mini-transcribe`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型
+
+#### 40. ❌ 表格中的未知模型名稱: "gpt-4o-transcribe"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:67`
+- **實際:** `gpt-4o-transcribe`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型
+
+#### 41. ❌ 表格中的未知模型名稱: "gpt-4o-transcribe-diarize"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:68`
+- **實際:** `gpt-4o-transcribe-diarize`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型
+
+#### 42. ❌ 表格中的未知模型名稱: "gpt-4o-mini"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:80`
+- **實際:** `gpt-4o-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型
+
+#### 43. ❌ 表格中的未知模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:81`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型
+
+#### 44. ❌ 表格中的未知模型名稱: "gpt-4.1"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:82`
+- **實際:** `gpt-4.1`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型
+
+#### 45. ❌ 表格中的未知模型名稱: "gpt-4o"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:83`
+- **實際:** `gpt-4o`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型
+
+#### 46. ⚠️ 可能的未知模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:45`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 47. ⚠️ 可能的未知模型名稱: "gpt-4.1"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:45`
+- **實際:** `gpt-4.1`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 48. ⚠️ 可能的未知模型名稱: "gpt-4o"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:51`
+- **實際:** `gpt-4o`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 49. ⚠️ 可能的未知模型名稱: "whisper-1"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:66`
+- **實際:** `whisper-1`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 50. ⚠️ 可能的未知模型名稱: "gpt-4o-mini-transcribe"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:67`
+- **實際:** `gpt-4o-mini-transcribe`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 51. ⚠️ 可能的未知模型名稱: "gpt-4o-transcribe"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:68`
+- **實際:** `gpt-4o-transcribe`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 52. ⚠️ 可能的未知模型名稱: "gpt-4o-transcribe-diarize"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:69`
+- **實際:** `gpt-4o-transcribe-diarize`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 53. ⚠️ 可能的未知模型名稱: "gpt-4o-mini-transcribe"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:71`
+- **實際:** `gpt-4o-mini-transcribe`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 54. ⚠️ 可能的未知模型名稱: "gpt-4o-mini"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:81`
+- **實際:** `gpt-4o-mini`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 55. ⚠️ 可能的未知模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:82`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 56. ⚠️ 可能的未知模型名稱: "gpt-4.1"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:83`
+- **實際:** `gpt-4.1`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 57. ⚠️ 可能的未知模型名稱: "gpt-4o"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:84`
+- **實際:** `gpt-4o`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 58. ⚠️ 可能的未知模型名稱: "gpt-4.1-mini"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:86`
+- **實際:** `gpt-4.1-mini`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 59. ⚠️ 可能的未知模型名稱: "gpt-4o"
+
+- **檔案:** `docs/ai/ManusAI_SystemPrompt_Engineering.md:91`
+- **實際:** `gpt-4o`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 60. ❌ 未知的模型名稱: "gpt-4o-mini-transcribe"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1297`
+- **實際:** `gpt-4o-mini-transcribe`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 61. ❌ 未知的模型名稱: "gpt-4o-transcribe"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1321`
+- **實際:** `gpt-4o-transcribe`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 62. ❌ 未知的模型名稱: "gpt-4o-transcribe-diarize"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1345`
+- **實際:** `gpt-4o-transcribe-diarize`
+- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
+
+#### 63. ⚠️ 可能的未知模型名稱: "whisper-1"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:20`
+- **實際:** `whisper-1`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 64. ⚠️ 可能的未知模型名稱: "gpt-4o-audio-preview"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:20`
+- **實際:** `gpt-4o-audio-preview`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 65. ⚠️ 可能的未知模型名稱: "gpt-4o-audio-preview-2024-10-01"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:20`
+- **實際:** `gpt-4o-audio-preview-2024-10-01`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 66. ⚠️ 可能的未知模型名稱: "gpt-4o-realtime-preview"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:20`
+- **實際:** `gpt-4o-realtime-preview`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 67. ⚠️ 可能的未知模型名稱: "gpt-4o"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:22`
+- **實際:** `gpt-4o`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 68. ⚠️ 可能的未知模型名稱: "gpt-4o-mini"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:22`
+- **實際:** `gpt-4o-mini`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 69. ⚠️ 可能的未知模型名稱: "gpt-3.5-turbo"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:22`
+- **實際:** `gpt-3.5-turbo`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 70. ⚠️ 可能的未知模型名稱: " |
+
+**模型選擇建議**如下：
+
+**whisper-1** 為基礎模型，提供穩定的轉錄品質與較低的 API 成本。適用於一般對話場景，延遲約 2.5-3.5 秒。該模型支援多語言轉錄，但不支援即時串流輸出。
+
+**gpt-4o-mini-transcribe** 為快速轉錄模型（**系統預設**），提供最佳的速度與成本平衡。適用於即時對話場景，延遲約 1.5-2.5 秒。該模型在保持良好轉錄品質的同時大幅降低 API 成本，是大多數場景的最佳選擇。
+
+**gpt-4o-transcribe** 為高品質轉錄模型，提供更高的轉錄準確度與更好的雜訊抑制能力。適用於複雜對話場景與醫療專業場景，延遲約 2.0-3.0 秒。該模型在專業術語識別與口音適應上表現優異。
+
+**gpt-4o-transcribe-diarize** 為進階轉錄模型，在 "
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:538`
+- **實際:** ` |
+
+**模型選擇建議**如下：
+
+**whisper-1** 為基礎模型，提供穩定的轉錄品質與較低的 API 成本。適用於一般對話場景，延遲約 2.5-3.5 秒。該模型支援多語言轉錄，但不支援即時串流輸出。
+
+**gpt-4o-mini-transcribe** 為快速轉錄模型（**系統預設**），提供最佳的速度與成本平衡。適用於即時對話場景，延遲約 1.5-2.5 秒。該模型在保持良好轉錄品質的同時大幅降低 API 成本，是大多數場景的最佳選擇。
+
+**gpt-4o-transcribe** 為高品質轉錄模型，提供更高的轉錄準確度與更好的雜訊抑制能力。適用於複雜對話場景與醫療專業場景，延遲約 2.0-3.0 秒。該模型在專業術語識別與口音適應上表現優異。
+
+**gpt-4o-transcribe-diarize** 為進階轉錄模型，在 `
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 71. ⚠️ 可能的未知模型名稱: " | 結構化輸出格式 | JSON Schema 定義 |
+
+**模型選擇建議**如下：
+
+**gpt-4o** 為旗艦模型，提供最高的翻譯品質與最佳的專業術語處理能力。適用於醫療場景與高品質要求場景（Quality Pass），延遲約 1.0-1.5 秒。該模型支援複雜句式翻譯與文化適應性調整，是兩段式翻譯流程中 Quality Pass 的預設選擇。
+
+**gpt-4.1-mini** 為快速翻譯模型（**系統預設**），提供最佳的速度與品質平衡。適用於即時翻譯場景（Fast Pass），延遲約 0.8-1.2 秒。該模型在保持良好翻譯品質的同時提供快速回應，是兩段式翻譯流程中 Fast Pass 的預設選擇。
+
+**gpt-4.1** 為高品質翻譯模型，提供優異的翻譯品質與專業術語處理能力。適用於進階翻譯場景，延遲約 1.2-1.8 秒。該模型在醫療術語翻譯與文化適應性上表現優異，可作為 Quality Pass 的替代選擇。
+
+**gpt-4o-mini** 為輕量模型，在保持高品質的同時大幅降低延遲與成本。適用於一般對話場景，延遲約 0.8-1.3 秒。該模型提供良好的效能與成本平衡，可作為 Fast Pass 的替代選擇。
+
+**gpt-3.5-turbo** 為經濟模型，提供基礎翻譯品質與最低的 API 成本。適用於大量翻譯需求場景，延遲約 0.6-1.0 秒。該模型在專業術語處理上略遜於 GPT-4 系列，但仍能滿足一般需求。
+
+### 4.3 TTS 參數
+
+系統整合 OpenAI TTS API 提供語音合成功能，支援多種語音與語速調整。
+
+| 參數名稱 | 資料型別 | 預設值 | 說明 | 可選值 |
+|---------|---------|--------|------|--------|
+| "
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:562`
+- **實際:** ` | 結構化輸出格式 | JSON Schema 定義 |
+
+**模型選擇建議**如下：
+
+**gpt-4o** 為旗艦模型，提供最高的翻譯品質與最佳的專業術語處理能力。適用於醫療場景與高品質要求場景（Quality Pass），延遲約 1.0-1.5 秒。該模型支援複雜句式翻譯與文化適應性調整，是兩段式翻譯流程中 Quality Pass 的預設選擇。
+
+**gpt-4.1-mini** 為快速翻譯模型（**系統預設**），提供最佳的速度與品質平衡。適用於即時翻譯場景（Fast Pass），延遲約 0.8-1.2 秒。該模型在保持良好翻譯品質的同時提供快速回應，是兩段式翻譯流程中 Fast Pass 的預設選擇。
+
+**gpt-4.1** 為高品質翻譯模型，提供優異的翻譯品質與專業術語處理能力。適用於進階翻譯場景，延遲約 1.2-1.8 秒。該模型在醫療術語翻譯與文化適應性上表現優異，可作為 Quality Pass 的替代選擇。
+
+**gpt-4o-mini** 為輕量模型，在保持高品質的同時大幅降低延遲與成本。適用於一般對話場景，延遲約 0.8-1.3 秒。該模型提供良好的效能與成本平衡，可作為 Fast Pass 的替代選擇。
+
+**gpt-3.5-turbo** 為經濟模型，提供基礎翻譯品質與最低的 API 成本。適用於大量翻譯需求場景，延遲約 0.6-1.0 秒。該模型在專業術語處理上略遜於 GPT-4 系列，但仍能滿足一般需求。
+
+### 4.3 TTS 參數
+
+系統整合 OpenAI TTS API 提供語音合成功能，支援多種語音與語速調整。
+
+| 參數名稱 | 資料型別 | 預設值 | 說明 | 可選值 |
+|---------|---------|--------|------|--------|
+| `
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 72. ⚠️ 可能的未知模型名稱: "typescript
+// shared/config.ts
+WHISPER_CONFIG.MODEL = "gpt-4o-mini-transcribe";
+"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1295`
+- **實際:** `typescript
+// shared/config.ts
+WHISPER_CONFIG.MODEL = "gpt-4o-mini-transcribe";
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 73. ⚠️ 可能的未知模型名稱: "typescript
+// shared/config.ts
+WHISPER_CONFIG.MODEL = "gpt-4o-transcribe";
+"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1319`
+- **實際:** `typescript
+// shared/config.ts
+WHISPER_CONFIG.MODEL = "gpt-4o-transcribe";
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 74. ⚠️ 可能的未知模型名稱: "typescript
+// shared/config.ts
+WHISPER_CONFIG.MODEL = "gpt-4o-transcribe-diarize";
+"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1343`
+- **實際:** `typescript
+// shared/config.ts
+WHISPER_CONFIG.MODEL = "gpt-4o-transcribe-diarize";
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+#### 75. ⚠️ 可能的未知模型名稱: "
+
+**實際執行流程**：
+
+1. **ASR 轉錄**：使用者說：「你有沒有過敏？」
+2. **Fast Pass**（gpt-4.1-mini，1.0 秒）：翻譯為「Bạn có dị ứng không?」
+3. **UI 顯示**：使用者看到 provisional 翻譯（標記 ⏳）
+4. **shouldRunQualityPass()**：檢測到「過敏」關鍵詞與「沒有」否定詞 → 觸發 Quality Pass
+5. **Quality Pass**（gpt-4o，1.5 秒）：翻譯為「Bạn có bị dị ứng không?」
+6. **UI 回填**：同一 bubble 更新為 final 翻譯（標記 ✅）
+
+**成本分析**：
+- Fast Pass：$0.002 / 句
+- Quality Pass：$0.008 / 句（僅觸發時）
+- 觸發率：約 30-40%（醫療對話）
+- 平均成本：$0.002 + $0.008 × 0.35 = $0.0048 / 句
+
+---
+
+#### 範例 5：Fast Pass 失敗 + Quality Pass 成功
+
+**場景描述**：Fast Pass 翻譯品質不佳，Quality Gate 檢測到問題並觸發重試。
+
+**執行流程**：
+
+1. **ASR 轉錄**：「血壓 120/80 mmHg」
+2. **Fast Pass**（gpt-4.1-mini）：翻譯為「Huyết áp 120/80」（遺漏 mmHg）
+3. **Quality Gate 檢測**：
+   - 檢測到數字遺漏（mmHg 未出現在譯文）
+   - 嚴重程度：Critical
+   - 建議動作：retry_quality
+4. **Quality Pass 重試**（gpt-4o）：翻譯為「Huyết áp 120/80 mmHg」
+5. **Quality Gate 再次檢測**：通過（數字單位完整）
+6. **UI 顯示**：直接顯示 Quality Pass 結果（跳過 Fast Pass）
+
+**Quality Gate 檢測細節**：
+
+"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1396`
+- **實際:** `
+
+**實際執行流程**：
+
+1. **ASR 轉錄**：使用者說：「你有沒有過敏？」
+2. **Fast Pass**（gpt-4.1-mini，1.0 秒）：翻譯為「Bạn có dị ứng không?」
+3. **UI 顯示**：使用者看到 provisional 翻譯（標記 ⏳）
+4. **shouldRunQualityPass()**：檢測到「過敏」關鍵詞與「沒有」否定詞 → 觸發 Quality Pass
+5. **Quality Pass**（gpt-4o，1.5 秒）：翻譯為「Bạn có bị dị ứng không?」
+6. **UI 回填**：同一 bubble 更新為 final 翻譯（標記 ✅）
+
+**成本分析**：
+- Fast Pass：$0.002 / 句
+- Quality Pass：$0.008 / 句（僅觸發時）
+- 觸發率：約 30-40%（醫療對話）
+- 平均成本：$0.002 + $0.008 × 0.35 = $0.0048 / 句
+
+---
+
+#### 範例 5：Fast Pass 失敗 + Quality Pass 成功
+
+**場景描述**：Fast Pass 翻譯品質不佳，Quality Gate 檢測到問題並觸發重試。
+
+**執行流程**：
+
+1. **ASR 轉錄**：「血壓 120/80 mmHg」
+2. **Fast Pass**（gpt-4.1-mini）：翻譯為「Huyết áp 120/80」（遺漏 mmHg）
+3. **Quality Gate 檢測**：
+   - 檢測到數字遺漏（mmHg 未出現在譯文）
+   - 嚴重程度：Critical
+   - 建議動作：retry_quality
+4. **Quality Pass 重試**（gpt-4o）：翻譯為「Huyết áp 120/80 mmHg」
+5. **Quality Gate 再次檢測**：通過（數字單位完整）
+6. **UI 顯示**：直接顯示 Quality Pass 結果（跳過 Fast Pass）
+
+**Quality Gate 檢測細節**：
+
+`
+- **建議:** 如果這是模型名稱，請檢查 shared/config.ts 中是否定義
+
+## 📝 配置參數檢查
+
+- **檢查檔案數:** 9
+- **發現問題數:** 106
+- **耗時:** 12ms
+
+### 問題列表
+
+#### 1. ⚠️ 文件中的參數 "minSpeechDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:112`
+- **實際:** `minSpeechDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 2. ⚠️ 文件中的參數 "partialChunkMinBuffers" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:113`
+- **實際:** `partialChunkMinBuffers`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 3. ⚠️ 文件中的參數 "partialChunkMinDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:114`
+- **實際:** `partialChunkMinDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 4. ⚠️ 文件中的參數 "finalMinDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:115`
+- **實際:** `finalMinDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 5. ⚠️ 文件中的參數 "finalMaxDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:116`
+- **實際:** `finalMaxDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 6. ⚠️ 文件中的參數 "partialChunkMinBuffers" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:145`
+- **實際:** `partialChunkMinBuffers`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 7. ⚠️ 文件中的參數 "partialChunkMinDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:146`
+- **實際:** `partialChunkMinDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 8. ⚠️ 文件中的參數 "finalMinDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:147`
+- **實際:** `finalMinDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 9. ⚠️ 文件中的參數 "finalMaxDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/BUG_FIX_REPORT_v1.5.2.md:148`
+- **實際:** `finalMaxDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 10. ⚠️ 文件中的參數 "model" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:533`
+- **實際:** `model`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 11. ⚠️ 文件中的參數 "language" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:534`
+- **實際:** `language`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 12. ⚠️ 文件中的參數 "temperature" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:535`
+- **實際:** `temperature`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 13. ⚠️ 文件中的參數 "responseformat" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:536`
+- **實際:** `responseformat`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 14. ⚠️ 文件中的參數 "timestampgranularities" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:537`
+- **實際:** `timestampgranularities`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 15. ⚠️ 文件中的參數 "model" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:555`
+- **實際:** `model`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 16. ⚠️ 文件中的參數 "temperature" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:556`
+- **實際:** `temperature`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 17. ⚠️ 文件中的參數 "maxtokens" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:557`
+- **實際:** `maxtokens`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 18. ⚠️ 文件中的參數 "topp" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:558`
+- **實際:** `topp`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 19. ⚠️ 文件中的參數 "frequencypenalty" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:559`
+- **實際:** `frequencypenalty`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 20. ⚠️ 文件中的參數 "presencepenalty" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:560`
+- **實際:** `presencepenalty`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 21. ⚠️ 文件中的參數 "responseformat" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:561`
+- **實際:** `responseformat`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 22. ⚠️ 文件中的參數 "model" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:581`
+- **實際:** `model`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 23. ⚠️ 文件中的參數 "voice" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:582`
+- **實際:** `voice`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 24. ⚠️ 文件中的參數 "speed" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:583`
+- **實際:** `speed`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 25. ⚠️ 文件中的參數 "responseformat" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:584`
+- **實際:** `responseformat`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 26. ⚠️ 文件中的參數 "startThreshold" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:606`
+- **實際:** `startThreshold`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 27. ⚠️ 文件中的參數 "endThreshold" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:607`
+- **實際:** `endThreshold`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 28. ⚠️ 文件中的參數 "startFrames" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:608`
+- **實際:** `startFrames`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 29. ⚠️ 文件中的參數 "endFrames" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:609`
+- **實際:** `endFrames`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 30. ⚠️ 文件中的參數 "minPartialDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:610`
+- **實際:** `minPartialDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 31. ⚠️ 文件中的參數 "minFinalDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:611`
+- **實際:** `minFinalDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 32. ⚠️ 文件中的參數 "maxFinalDurationSec" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:612`
+- **實際:** `maxFinalDurationSec`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 33. ⚠️ 文件中的參數 "partialWindowSec" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:613`
+- **實際:** `partialWindowSec`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 34. ⚠️ 文件中的參數 "partialThrottleMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:614`
+- **實際:** `partialThrottleMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 35. ⚠️ 文件中的參數 "id" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:642`
+- **實際:** `id`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 36. ⚠️ 文件中的參數 "openId" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:643`
+- **實際:** `openId`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 37. ⚠️ 文件中的參數 "name" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:644`
+- **實際:** `name`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 38. ⚠️ 文件中的參數 "email" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:645`
+- **實際:** `email`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 39. ⚠️ 文件中的參數 "loginMethod" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:646`
+- **實際:** `loginMethod`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 40. ⚠️ 文件中的參數 "role" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:647`
+- **實際:** `role`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 41. ⚠️ 文件中的參數 "createdAt" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:648`
+- **實際:** `createdAt`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 42. ⚠️ 文件中的參數 "updatedAt" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:649`
+- **實際:** `updatedAt`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 43. ⚠️ 文件中的參數 "lastSignedIn" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:650`
+- **實際:** `lastSignedIn`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 44. ⚠️ 文件中的參數 "id" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:660`
+- **實際:** `id`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 45. ⚠️ 文件中的參數 "userId" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:661`
+- **實際:** `userId`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 46. ⚠️ 文件中的參數 "title" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:662`
+- **實際:** `title`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 47. ⚠️ 文件中的參數 "sourceLanguage" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:663`
+- **實際:** `sourceLanguage`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 48. ⚠️ 文件中的參數 "targetLanguage" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:664`
+- **實際:** `targetLanguage`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 49. ⚠️ 文件中的參數 "asrModel" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:665`
+- **實際:** `asrModel`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 50. ⚠️ 文件中的參數 "translationModel" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:666`
+- **實際:** `translationModel`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 51. ⚠️ 文件中的參數 "ttsEnabled" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:667`
+- **實際:** `ttsEnabled`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 52. ⚠️ 文件中的參數 "createdAt" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:668`
+- **實際:** `createdAt`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 53. ⚠️ 文件中的參數 "updatedAt" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:669`
+- **實際:** `updatedAt`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 54. ⚠️ 文件中的參數 "endedAt" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:670`
+- **實際:** `endedAt`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 55. ⚠️ 文件中的參數 "id" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:680`
+- **實際:** `id`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 56. ⚠️ 文件中的參數 "conversationId" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:681`
+- **實際:** `conversationId`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 57. ⚠️ 文件中的參數 "segmentId" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:682`
+- **實際:** `segmentId`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 58. ⚠️ 文件中的參數 "originalText" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:683`
+- **實際:** `originalText`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 59. ⚠️ 文件中的參數 "translatedText" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:684`
+- **實際:** `translatedText`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 60. ⚠️ 文件中的參數 "sourceLanguage" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:685`
+- **實際:** `sourceLanguage`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 61. ⚠️ 文件中的參數 "targetLanguage" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:686`
+- **實際:** `targetLanguage`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 62. ⚠️ 文件中的參數 "messageType" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:687`
+- **實際:** `messageType`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 63. ⚠️ 文件中的參數 "asrDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:688`
+- **實際:** `asrDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 64. ⚠️ 文件中的參數 "translationDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:689`
+- **實際:** `translationDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 65. ⚠️ 文件中的參數 "ttsDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:690`
+- **實際:** `ttsDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 66. ⚠️ 文件中的參數 "createdAt" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:691`
+- **實際:** `createdAt`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 67. ⚠️ 文件中的參數 "id" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:701`
+- **實際:** `id`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 68. ⚠️ 文件中的參數 "conversationId" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:702`
+- **實際:** `conversationId`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 69. ⚠️ 文件中的參數 "messageId" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:703`
+- **實際:** `messageId`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 70. ⚠️ 文件中的參數 "asrLatencyMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:704`
+- **實際:** `asrLatencyMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 71. ⚠️ 文件中的參數 "translationLatencyMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:705`
+- **實際:** `translationLatencyMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 72. ⚠️ 文件中的參數 "ttsLatencyMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:706`
+- **實際:** `ttsLatencyMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 73. ⚠️ 文件中的參數 "e2eLatencyMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:707`
+- **實際:** `e2eLatencyMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 74. ⚠️ 文件中的參數 "audioDurationMs" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:708`
+- **實際:** `audioDurationMs`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 75. ⚠️ 文件中的參數 "audioBufferCount" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:709`
+- **實際:** `audioBufferCount`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 76. ⚠️ 文件中的參數 "vadStartThreshold" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:710`
+- **實際:** `vadStartThreshold`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 77. ⚠️ 文件中的參數 "vadEndThreshold" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:711`
+- **實際:** `vadEndThreshold`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 78. ⚠️ 文件中的參數 "createdAt" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:712`
+- **實際:** `createdAt`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 79. ⚠️ 文件中的參數 "ASR 延遲" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:956`
+- **實際:** `ASR 延遲`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 80. ⚠️ 文件中的參數 "翻譯延遲" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:957`
+- **實際:** `翻譯延遲`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 81. ⚠️ 文件中的參數 "TTS 延遲" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:958`
+- **實際:** `TTS 延遲`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 82. ⚠️ 文件中的參數 "端到端延遲" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:959`
+- **實際:** `端到端延遲`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 83. ⚠️ 文件中的參數 "Partial 更新頻率" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:960`
+- **實際:** `Partial 更新頻率`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 84. ⚠️ 文件中的參數 "VAD 檢測延遲" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:961`
+- **實際:** `VAD 檢測延遲`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 85. ⚠️ 文件中的參數 "ASR 準確率（WER）" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:979`
+- **實際:** `ASR 準確率（WER）`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 86. ⚠️ 文件中的參數 "翻譯準確率（BLEU）" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:980`
+- **實際:** `翻譯準確率（BLEU）`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 87. ⚠️ 文件中的參數 "VAD 準確率" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:981`
+- **實際:** `VAD 準確率`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 88. ⚠️ 文件中的參數 "專業術語保留率" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:982`
+- **實際:** `專業術語保留率`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 89. ⚠️ 文件中的參數 "系統可用性" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1000`
+- **實際:** `系統可用性`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 90. ⚠️ 文件中的參數 "API 成功率" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1001`
+- **實際:** `API 成功率`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 91. ⚠️ 文件中的參數 "Segment 取消率" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1002`
+- **實際:** `Segment 取消率`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 92. ⚠️ 文件中的參數 "UI 更新錯誤率" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1003`
+- **實際:** `UI 更新錯誤率`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 93. ⚠️ 文件中的參數 "記憶體洩漏率" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1004`
+- **實際:** `記憶體洩漏率`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 94. ⚠️ 文件中的參數 "即時字幕流暢度" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1024`
+- **實際:** `即時字幕流暢度`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 95. ⚠️ 文件中的參數 "翻譯自然度" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1025`
+- **實際:** `翻譯自然度`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 96. ⚠️ 文件中的參數 "操作易用性" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1026`
+- **實際:** `操作易用性`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 97. ⚠️ 文件中的參數 "錯誤恢復能力" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1027`
+- **實際:** `錯誤恢復能力`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 98. ⚠️ 文件中的參數 "中文" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1215`
+- **實際:** `中文`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 99. ⚠️ 文件中的參數 "英語" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1216`
+- **實際:** `英語`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 100. ⚠️ 文件中的參數 "越南語" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1217`
+- **實際:** `越南語`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 101. ⚠️ 文件中的參數 "印尼語" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1218`
+- **實際:** `印尼語`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 102. ⚠️ 文件中的參數 "泰語" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1219`
+- **實際:** `泰語`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 103. ⚠️ 文件中的參數 "日語" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1220`
+- **實際:** `日語`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 104. ⚠️ 文件中的參數 "韓語" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1221`
+- **實際:** `韓語`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 105. ⚠️ 文件中的參數 "菲律賓語" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1222`
+- **實際:** `菲律賓語`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+#### 106. ⚠️ 文件中的參數 "緬甸語" 未在 config.ts 中找到
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:1223`
+- **實際:** `緬甸語`
+- **建議:** 請檢查參數名稱是否正確，或在 config.ts 中加入此參數定義
+
+## 📝 檔案路徑檢查
+
+- **檢查檔案數:** 9
+- **發現問題數:** 25
+- **耗時:** 43ms
+
+### 問題列表
+
+#### 1. ❌ 引用的檔案不存在: "scripts/check-docs.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:114`
+- **實際:** `scripts/check-docs.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 2. ℹ️ 引用的行號指向空行: "docs/ARCHITECTURE-v2.0.md:456"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:466`
+- **實際:** `456`
+- **建議:** 請檢查行號引用是否正確
+
+#### 3. ❌ 引用的檔案不存在: "docs/check-report.md"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:573`
+- **實際:** `docs/check-report.md`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 4. ❌ 引用的檔案不存在: "docs/check-report.md"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:581`
+- **實際:** `docs/check-report.md`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 5. ❌ 引用的檔案不存在: "scripts/check-docs/check-models.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:600`
+- **實際:** `scripts/check-docs/check-models.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 6. ❌ 引用的檔案不存在: "scripts/check-docs/check-params.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:601`
+- **實際:** `scripts/check-docs/check-params.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 7. ❌ 引用的檔案不存在: "scripts/check-docs/check-paths.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:602`
+- **實際:** `scripts/check-docs/check-paths.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 8. ❌ 引用的檔案不存在: "scripts/check-docs/check-state-machines.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:605`
+- **實際:** `scripts/check-docs/check-state-machines.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 9. ❌ 引用的檔案不存在: "scripts/check-docs/check-state-machines.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:606`
+- **實際:** `scripts/check-docs/check-state-machines.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 10. ❌ 引用的檔案不存在: "scripts/check-docs/check-api.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:609`
+- **實際:** `scripts/check-docs/check-api.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 11. ❌ 引用的檔案不存在: "scripts/check-docs/check-api.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:610`
+- **實際:** `scripts/check-docs/check-api.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 12. ❌ 引用的檔案不存在: "scripts/check-docs/check-models.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:622`
+- **實際:** `scripts/check-docs/check-models.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 13. ❌ 引用的檔案不存在: "scripts/check-docs.sh"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:633`
+- **實際:** `scripts/check-docs.sh`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 14. ❌ 引用的檔案不存在: "scripts/check-docs/check-models.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:634`
+- **實際:** `scripts/check-docs/check-models.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 15. ❌ 引用的檔案不存在: "scripts/check-docs/check-params.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:635`
+- **實際:** `scripts/check-docs/check-params.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 16. ❌ 引用的檔案不存在: "scripts/check-docs/check-paths.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:636`
+- **實際:** `scripts/check-docs/check-paths.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 17. ❌ 引用的檔案不存在: "scripts/check-docs/index.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:637`
+- **實際:** `scripts/check-docs/index.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 18. ℹ️ 引用的行號指向空行: "docs/ARCHITECTURE-v2.0.md:456"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:687`
+- **實際:** `456`
+- **建議:** 請檢查行號引用是否正確
+
+#### 19. ❌ 引用的檔案不存在: "docs/API_REFERENCE.md"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:712`
+- **實際:** `docs/API_REFERENCE.md`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 20. ❌ 引用的檔案不存在: "scripts/check-docs.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:105`
+- **實際:** `scripts/check-docs.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 21. ℹ️ 引用的行號指向空行: "docs/ARCHITECTURE-v2.0.md:456"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:466`
+- **實際:** `456`
+- **建議:** 請檢查行號引用是否正確
+
+#### 22. ❌ 引用的檔案不存在: "scripts/check-docs/check-models.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:594`
+- **實際:** `scripts/check-docs/check-models.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 23. ❌ 引用的檔案不存在: "scripts/check-docs/check-models.ts"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:617`
+- **實際:** `scripts/check-docs/check-models.ts`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 24. ❌ 引用的檔案不存在: "scripts/check-docs.sh"
+
+- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:630`
+- **實際:** `scripts/check-docs.sh`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+#### 25. ❌ 引用的檔案不存在: "4.5/5.0"
+
+- **檔案:** `docs/realtime-subtitle-translation-spec.md:987`
+- **實際:** `4.5/5.0`
+- **建議:** 請檢查檔案路徑是否正確，或移除此引用
+
+## 結論
+
+❌ **發現 59 個錯誤，請修正後再次檢查**
