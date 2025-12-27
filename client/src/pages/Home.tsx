@@ -503,6 +503,10 @@ export default function Home() {
             console.warn(`⚠️ [VAD/Segment#${currentSegmentId}] Speech END detected but sentenceBuffer is empty`);
           }
           
+          // 🔄 Reset isSpeakingRef to allow next Speech START
+          isSpeakingRef.current = false;
+          console.log(`🔄 [VAD/Segment#${currentSegmentId}] Reset isSpeakingRef, ready for next speech`);
+          
           return false; // Speech ended
         }
       } else {
