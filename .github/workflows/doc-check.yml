@@ -7,17 +7,22 @@ on:
       - "README.md"
       - "shared/**"
       - "scripts/**"
-      - ".github/workflows/documentation-check.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/doc-check.yml"
   push:
-    branches: [ main ]
+    branches: [ "main" ]
     paths:
       - "docs/**"
       - "README.md"
       - "shared/**"
       - "scripts/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/doc-check.yml"
 
 concurrency:
-  group: docs-check-${{ github.ref }}
+  group: doc-check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,50 +30,51 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # PR：先 soft gate（降低歷史噪音）
-    # main：hard gate（嚴格）
     env:
+      # PR：soft gate（降低歷史遺留噪音，先阻擋違反 SSOT 的錯誤）
+      # main：hard gate（嚴格治理）
       DOC_CHECK_MODE: ${{ github.event_name == 'pull_request' && 'soft' || 'hard' }}
+
       DOC_CHECK_REPORT_DIR: artifacts/doc-check
       DOC_CHECK_REPORT_FILE: doc-check-report.md
-      # 若你的 checker 支援指定 SSOT 來源，建議加上
+
+      # SSOT allowlist 來源
       DOC_CHECK_SSOT_CONFIG_PATH: shared/config.ts
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          cache: "pnpm"
 
-      # 若你用 pnpm（你之前脈絡很像 pnpm），請改用 pnpm；否則保留 npm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
-      - name: Run documentation check (soft/hard)
+      - name: Run doc check (soft/hard)
         run: |
+          set -euo pipefail
           mkdir -p "${DOC_CHECK_REPORT_DIR}"
 
-          # 優先跑 package.json script：npm run doc:check
-          # 若沒有 script，再 fallback 直接執行 node/tsx
-          if npm run -s | grep -q "^  doc:check"; then
-            npm run -s doc:check -- \
-              --mode="${DOC_CHECK_MODE}" \
-              --report="${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" \
-              --ssot="${DOC_CHECK_SSOT_CONFIG_PATH}"
-          else
-            echo "No npm script doc:check found. Fallback to node runner."
-
-            # 你需要在 repo 內實際存在可執行入口，例如 scripts/doc-check/index.ts
-            # 請把這行改成你的實際入口
-            node scripts/doc-check/index.js \
-              --mode="${DOC_CHECK_MODE}" \
-              --report="${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" \
-              --ssot="${DOC_CHECK_SSOT_CONFIG_PATH}"
+          # 確保 script 存在
+          if ! pnpm -s run | grep -q "^doc:check"; then
+            echo "ERROR: pnpm script 'doc:check' not found in package.json"
+            echo "Please add: \"doc:check\": \"<your doc-check command>\""
+            exit 1
           fi
+
+          pnpm -s doc:check -- \
+            --mode="${DOC_CHECK_MODE}" \
+            --report="${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" \
+            --ssot="${DOC_CHECK_SSOT_CONFIG_PATH}"
 
       - name: Upload report artifact
         if: always()
@@ -78,18 +84,16 @@ jobs:
           path: ${{ env.DOC_CHECK_REPORT_DIR }}
           if-no-files-found: warn
 
-      # PR 上用 Job Summary 顯示摘要（方便 reviewer）
-      - name: Publish summary
+      - name: Publish job summary (first 200 lines)
         if: always()
         run: |
-          echo "## Documentation Check Result" >> $GITHUB_STEP_SUMMARY
+          echo "## Doc Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Mode: \`${DOC_CHECK_MODE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- SSOT: \`${DOC_CHECK_SSOT_CONFIG_PATH}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Report: \`${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}\` (see artifact)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" ]; then
-            echo "Mode: \`${DOC_CHECK_MODE}\`" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Report: \`${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}\` (see artifact)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            # 顯示前 200 行避免 summary 過長
             sed -n '1,200p' "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" >> $GITHUB_STEP_SUMMARY
           else
             echo "Report not found." >> $GITHUB_STEP_SUMMARY
