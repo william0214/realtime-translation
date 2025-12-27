@@ -1,106 +1,49 @@
-name: Doc Check
+name: Documentation Check
 
 on:
   pull_request:
     paths:
       - "docs/**"
-      - "README.md"
       - "shared/**"
-      - "scripts/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
+      - "scripts/doc-check/**"
       - ".github/workflows/doc-check.yml"
   push:
-    branches: [ "main" ]
-    paths:
-      - "docs/**"
-      - "README.md"
-      - "shared/**"
-      - "scripts/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - ".github/workflows/doc-check.yml"
-
-concurrency:
-  group: doc-check-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [main]
 
 jobs:
   doc-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    env:
-      DOC_CHECK_MODE: ${{ github.event_name == 'pull_request' && 'soft' || 'hard' }}
-      DOC_CHECK_REPORT_DIR: artifacts/doc-check
-      DOC_CHECK_REPORT_MD: doc-check-report.md
-      DOC_CHECK_SSOT_CONFIG_PATH: shared/config.ts
-      PNPM_VERSION: "10.4.1"
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1) Node 先裝好，但不要用 setup-node 的 pnpm cache（會先呼叫 pnpm）
+      # Node.js（指定 pnpm 快取）
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
+          cache: pnpm
 
-      # 2) 啟用 pnpm（對齊 packageManager）
-      - name: Enable pnpm via corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@${PNPM_VERSION} --activate
-          pnpm -v
-
-      # 3) 手動 cache pnpm store（最穩、無需 setup-node cache）
-      - name: Get pnpm store path
-        id: pnpm-store
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
+      # 安裝 pnpm（關鍵）
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          version: 10
+          run_install: false
 
+      # 安裝依賴
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run doc check (soft/hard) and write report to artifacts/
-        run: |
-          set -euo pipefail
-          mkdir -p "${DOC_CHECK_REPORT_DIR}"
+      # 執行文件一致性檢查
+      - name: Run documentation check
+        run: pnpm run doc-check:md
 
-          # scripts 裡是 doc-check（你 package.json 已確認）
-          pnpm -s doc-check -- \
-            --mode="${DOC_CHECK_MODE}" \
-            --format=markdown \
-            --output="${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_MD}" \
-            --ssot="${DOC_CHECK_SSOT_CONFIG_PATH}"
-
-      - name: Upload report artifact
+      # 上傳檢查報告（即使失敗也保留）
+      - name: Upload doc check report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: doc-check-report
-          path: ${{ env.DOC_CHECK_REPORT_DIR }}
-          if-no-files-found: warn
-
-      - name: Publish job summary (first 200 lines)
-        if: always()
-        run: |
-          echo "## Doc Check" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Mode: \`${DOC_CHECK_MODE}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- SSOT: \`${DOC_CHECK_SSOT_CONFIG_PATH}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Report: \`${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_MD}\` (artifact: doc-check-report)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_MD}" ]; then
-            sed -n '1,200p' "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_MD}" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Report not found." >> $GITHUB_STEP_SUMMARY
-          fi
+          path: doc-check-report.md
