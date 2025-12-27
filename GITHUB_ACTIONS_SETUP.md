@@ -59,6 +59,8 @@ jobs:
       
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          run_install: false
       
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -210,14 +212,41 @@ https://github.com/william0214/realtime-translation/actions
 
 ### pnpm 版本設定
 
-**重要**：此 workflow 已移除 `version: 10` 設定，改為自動讀取 `package.json` 中的 `packageManager` 欄位。
+**重要修正**：此 workflow 使用 `run_install: false` 設定，確保 pnpm 正確安裝。
 
-- ✅ **正確做法**：讓 pnpm/action-setup 自動讀取 package.json
-- ❌ **錯誤做法**：同時在 workflow 和 package.json 指定版本
-
-這樣可以避免版本衝突錯誤：
+```yaml
+- name: Setup pnpm
+  uses: pnpm/action-setup@v4
+  with:
+    run_install: false  # 關鍵設定
 ```
-ERR_PNPM_BAD_PM_VERSION: Multiple versions of pnpm specified
+
+**為什麼需要這個設定？**
+
+1. ✅ **自動讀取版本**：從 `package.json` 的 `packageManager` 欄位讀取版本（10.4.1）
+2. ✅ **確保 pnpm 可用**：明確告訴 action 安裝 pnpm 但不自動安裝依賴
+3. ✅ **避免版本衝突**：不在 workflow 中指定版本號
+4. ✅ **完全控制**：讓我們在後續步驟用 `pnpm install --frozen-lockfile` 安裝依賴
+
+**常見錯誤對比**：
+
+```yaml
+# ❌ 錯誤 1：版本衝突
+- name: Setup pnpm
+  uses: pnpm/action-setup@v4
+  with:
+    version: 10  # 與 package.json 衝突
+
+# ❌ 錯誤 2：pnpm 未安裝
+- name: Setup pnpm
+  uses: pnpm/action-setup@v4
+  # 沒有任何設定，可能導致 "pnpm: command not found"
+
+# ✅ 正確：明確設定
+- name: Setup pnpm
+  uses: pnpm/action-setup@v4
+  with:
+    run_install: false
 ```
 
 ---
