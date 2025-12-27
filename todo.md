@@ -794,3 +794,57 @@
   - [x] 排除 error report 內容（❌ docs/...）
   - [x] 排除 diagnostics 內容（Documentation Consistency Check Report）
 - [x] 驗證並推送到 GitHub
+
+---
+
+## 📦 v1.5.5 - 模型治理 SSOT 重構（完成，2025-12-27）
+
+### 目標
+實現模型治理 Single Source of Truth (SSOT)，消除重複宣告，確保 UI 選單與 allowlist 完全同步
+
+### 重構項目
+- [x] 在 config.ts 上方建立 SSOT 區塊（VAD_CONFIG 之前）
+  - [x] ALLOWED_ASR_MODELS + AllowedASRModel
+  - [x] ALLOWED_TRANSLATION_MODELS + AllowedTranslationModel
+  - [x] ALLOWED_MODELS + AllowedModel
+  - [x] ASR_MODEL_META（使用 satisfies 強制覆蓋所有 key）
+  - [x] AVAILABLE_ASR_MODELS（由 allowlist .map() 生成）
+  - [x] TRANSLATION_MODEL_META（使用 satisfies 強制覆蓋所有 key）
+  - [x] AVAILABLE_TRANSLATION_MODELS（由 allowlist .map() 生成）
+
+- [x] 重寫 WHISPER_CONFIG 引用 SSOT
+  - [x] MODEL: "gpt-4o-mini-transcribe" as AllowedASRModel
+  - [x] AVAILABLE_MODELS: AVAILABLE_ASR_MODELS（引用 SSOT）
+  - [x] 加入註解說明「一次性 Audio → Text」ASR，非 Realtime
+
+- [x] 修正 TRANSLATION_CONFIG 引用 SSOT
+  - [x] LLM_MODEL: "gpt-4.1-mini" as AllowedTranslationModel
+  - [x] AVAILABLE_TRANSLATION_MODELS: AVAILABLE_TRANSLATION_MODELS（引用 SSOT）
+
+- [x] 移除底部重複宣告（Line 441-493）
+  - [x] 刪除重複的 ALLOWED_ASR_MODELS
+  - [x] 刪除重複的 ALLOWED_TRANSLATION_MODELS
+  - [x] 刪除重複的 ALLOWED_MODELS
+  - [x] 刪除重複的 type 宣告
+
+### 驗收標準
+- [x] config.ts 中 ALLOWED_* 清單只存在一份（上方 SSOT）
+- [x] WHISPER_CONFIG.AVAILABLE_MODELS 不再手寫，引用 AVAILABLE_ASR_MODELS
+- [x] TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS 不再手寫，引用 AVAILABLE_TRANSLATION_MODELS
+- [x] TypeScript 編譯無重複宣告錯誤
+- [x] UI 選單顯示與 allowlist 完全一致（由 SSOT 自動生成）
+
+### 技術細節
+- 使用 `satisfies Record<AllowedASRModel, ...>` 強制 meta 覆蓋所有 key
+- 使用 `.map()` 自動生成 UI 選單，避免手寫兩份清單
+- Realtime 模型不屬於 ASR，未納入 ALLOWED_ASR_MODELS
+- 檔案總行數從 494 行減少到 520 行（移除重複宣告後反而增加，因為加入詳細註解）
+
+### 測試與發布
+- [x] TypeScript 編譯驗證（無錯誤）
+- [x] 確認 SSOT 區塊結構正確
+- [x] 確認 WHISPER_CONFIG 引用 SSOT
+- [x] 確認 TRANSLATION_CONFIG 引用 SSOT
+- [x] 更新 todo.md
+- [ ] 建立 checkpoint
+- [ ] 推送到 GitHub

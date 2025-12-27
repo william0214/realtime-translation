@@ -3,6 +3,136 @@
  * 集中管理所有 VAD、ASR 和翻譯相關參數
  */
 
+// ==================== 模型治理：Single Source of Truth (SSOT) ====================
+
+/**
+ * 所有允許的 ASR 模型（一次性 Audio → Text 轉錄）
+ * 
+ * ASR (Automatic Speech Recognition) = 一次性轉錄模型
+ * - 輸入：音訊檔案
+ * - 輸出：文字轉錄結果
+ * - API 範式：單次請求/回應
+ * 
+ * ⚠️ 注意：Realtime Audio 模型不屬於 ASR，請勿加入此清單
+ */
+export const ALLOWED_ASR_MODELS = [
+  "whisper-1",
+  "gpt-4o-mini-transcribe",
+  "gpt-4o-transcribe",
+  "gpt-4o-transcribe-diarize",
+] as const;
+
+export type AllowedASRModel = (typeof ALLOWED_ASR_MODELS)[number];
+
+/**
+ * 所有允許的翻譯模型
+ * 
+ * 分類說明：
+ * - gpt-4.1-mini: 預設翻譯模型（平衡速度和品質）
+ * - gpt-4o-mini: 可選翻譯模型（最快速、最低成本）
+ * - gpt-4.1: 高品質翻譯
+ * - gpt-4o: 最高品質翻譯
+ */
+export const ALLOWED_TRANSLATION_MODELS = [
+  "gpt-4o-mini",
+  "gpt-4.1-mini",
+  "gpt-4.1",
+  "gpt-4o",
+] as const;
+
+export type AllowedTranslationModel = (typeof ALLOWED_TRANSLATION_MODELS)[number];
+
+/**
+ * 所有允許的模型（ASR + 翻譯）
+ * 用於統一驗證
+ */
+export const ALLOWED_MODELS = [
+  ...ALLOWED_ASR_MODELS,
+  ...ALLOWED_TRANSLATION_MODELS,
+] as const;
+
+export type AllowedModel = (typeof ALLOWED_MODELS)[number];
+
+// ==================== UI Meta（由 allowlist 生成 UI 選單，避免兩份清單分岐） ====================
+
+/**
+ * ASR 模型 UI 元資料
+ * 使用 satisfies 強制覆蓋所有 allowlist key，避免漏寫
+ */
+export const ASR_MODEL_META = {
+  "whisper-1": {
+    label: "Whisper-1",
+    description: "原版 Whisper（API 入口）",
+    icon: "🎙️",
+  },
+  "gpt-4o-mini-transcribe": {
+    label: "GPT-4o Mini",
+    description: "快速、低成本",
+    icon: "⚡",
+  },
+  "gpt-4o-transcribe": {
+    label: "GPT-4o",
+    description: "高品質、較慢",
+    icon: "🎯",
+  },
+  "gpt-4o-transcribe-diarize": {
+    label: "GPT-4o Diarize",
+    description: "含說話者辨識",
+    icon: "👥",
+  },
+} as const satisfies Record<
+  AllowedASRModel,
+  { label: string; description: string; icon: string }
+>;
+
+/**
+ * 可用的 ASR 模型列表（由 SSOT 自動生成）
+ * 用於前端 UI 選擇器
+ */
+export const AVAILABLE_ASR_MODELS = ALLOWED_ASR_MODELS.map((value) => ({
+  value,
+  ...ASR_MODEL_META[value],
+}));
+
+/**
+ * 翻譯模型 UI 元資料
+ * 使用 satisfies 強制覆蓋所有 allowlist key，避免漏寫
+ */
+export const TRANSLATION_MODEL_META = {
+  "gpt-4o-mini": {
+    name: "GPT-4o Mini",
+    description: "最快速、最低成本",
+    icon: "⚡",
+  },
+  "gpt-4.1-mini": {
+    name: "GPT-4.1 Mini",
+    description: "平衡速度和品質（推薦）",
+    icon: "⭐",
+  },
+  "gpt-4.1": {
+    name: "GPT-4.1",
+    description: "高品質",
+    icon: "🎯",
+  },
+  "gpt-4o": {
+    name: "GPT-4o",
+    description: "最高品質、最慢",
+    icon: "💎",
+  },
+} as const satisfies Record<
+  AllowedTranslationModel,
+  { name: string; description: string; icon: string }
+>;
+
+/**
+ * 可用的翻譯模型列表（由 SSOT 自動生成）
+ * 用於前端 UI 選擇器
+ */
+export const AVAILABLE_TRANSLATION_MODELS = ALLOWED_TRANSLATION_MODELS.map((id) => ({
+  id,
+  ...TRANSLATION_MODEL_META[id],
+}));
+
 // ==================== VAD (Voice Activity Detection) 參數 ====================
 
 /**
@@ -58,50 +188,21 @@ export const VAD_CONFIG = {
 /**
  * Whisper API 配置
  * 控制 Whisper API 呼叫的參數
+ * 
+ * ⚠️ 注意：此處僅允許轉錄類模型（一次性 Audio → Text），非 Realtime
  */
 export const WHISPER_CONFIG = {
   /**
-   * Whisper 模型
-   * 支援的模型：
-   * - "whisper-1": 原版 Whisper 模型（API 入口）
-   * - "gpt-4o-mini-transcribe": GPT-4o mini 轉錄模型（快速、低成本）
-   * - "gpt-4o-transcribe": GPT-4o 轉錄模型（高品質、較慢）
-   * - "gpt-4o-transcribe-diarize": GPT-4o 轉錄模型（含說話者辨識與時間資訊）
-   * 
-   * 當前設定：gpt-4o-mini-transcribe（預設）
+   * ASR 模型（一次性 Audio → Text）
+   * 注意：此處僅允許轉錄類模型（非 Realtime）
    */
-  MODEL: "gpt-4o-mini-transcribe" as const,
+  MODEL: "gpt-4o-mini-transcribe" as AllowedASRModel,
 
   /**
-   * 可用的 ASR 模型列表
+   * 可用的 ASR 模型列表（SSOT）
    * 用於前端 UI 選擇器
    */
-  AVAILABLE_MODELS: [
-    {
-      value: "whisper-1",
-      label: "Whisper-1",
-      description: "原版 Whisper（API 入口）",
-      icon: "🎙️",
-    },
-    {
-      value: "gpt-4o-mini-transcribe",
-      label: "GPT-4o Mini",
-      description: "快速、低成本",
-      icon: "⚡",
-    },
-    {
-      value: "gpt-4o-transcribe",
-      label: "GPT-4o",
-      description: "高品質、較慢",
-      icon: "🎯",
-    },
-    {
-      value: "gpt-4o-transcribe-diarize",
-      label: "GPT-4o Diarize",
-      description: "含說話者辨識",
-      icon: "👥",
-    },
-  ] as const,
+  AVAILABLE_MODELS: AVAILABLE_ASR_MODELS,
 
   /**
    * 回應格式
@@ -202,38 +303,13 @@ export const TRANSLATION_CONFIG = {
    * 
    * 當前設定：gpt-4.1-mini（最佳平衡）
    */
-  LLM_MODEL: "gpt-4.1-mini" as string,
+  LLM_MODEL: "gpt-4.1-mini" as AllowedTranslationModel,
 
   /**
-   * 可用的翻譯模型列表
+   * 可用的翻譯模型列表（SSOT）
    * 使用者可在設定頁面選擇
    */
-  AVAILABLE_TRANSLATION_MODELS: [
-    {
-      id: "gpt-4o-mini",
-      name: "GPT-4o Mini",
-      description: "最快速、最低成本",
-      icon: "⚡",
-    },
-    {
-      id: "gpt-4.1-mini",
-      name: "GPT-4.1 Mini",
-      description: "平衡速度和品質（推薦）",
-      icon: "⭐",
-    },
-    {
-      id: "gpt-4.1",
-      name: "GPT-4.1",
-      description: "高品質",
-      icon: "🎯",
-    },
-    {
-      id: "gpt-4o",
-      name: "GPT-4o",
-      description: "最高品質、最慢",
-      icon: "💎",
-    },
-  ] as const,
+  AVAILABLE_TRANSLATION_MODELS: AVAILABLE_TRANSLATION_MODELS,
 
   /**
    * 翻譯 Provider
@@ -327,8 +403,6 @@ export const VAD_PRESETS = {
     RMS_THRESHOLD: 0.08,
   },
 } as const;
-
-// ==================== 類型定義 ====================
 
 // ==================== ASR 模式配置 ====================
 
@@ -438,56 +512,9 @@ export function getASRModeConfig(mode: ASRMode) {
 
 // ==================== 類型定義 ====================
 
-// ==================== 模型允許清單 ====================
-
-/**
- * 所有允許的 ASR 模型（一次性 Audio → Text 轉錄）
- * 用於驗證文件和程式碼中的模型引用
- * 
- * ASR (Automatic Speech Recognition) = 一次性轉錄模型
- * - 輸入：音訊檔案
- * - 輸出：文字轉錄結果
- * - API 範式：單次請求/回應
- */
-export const ALLOWED_ASR_MODELS = [
-  "whisper-1",                      // ASR: 原版 Whisper（API 入口）
-  "gpt-4o-mini-transcribe",         // ASR: 快速、低成本
-  "gpt-4o-transcribe",              // ASR: 高品質
-  "gpt-4o-transcribe-diarize",      // ASR: 含說話者辨識
-] as const;
-
-/**
- * 所有允許的翻譯模型
- * 用於驗證文件和程式碼中的模型引用
- * 
- * 分類說明：
- * - gpt-4.1-mini: 預設翻譯模型（平衡速度和品質）
- * - gpt-4o-mini: 可選翻譯模型（最快速、最低成本）
- * - gpt-4.1: 高品質翻譯
- * - gpt-4o: 最高品質翻譯
- */
-export const ALLOWED_TRANSLATION_MODELS = [
-  "gpt-4o-mini",    // Translation option: 最快速、最低成本
-  "gpt-4.1-mini",   // Translation default: 平衡速度和品質（推薦）
-  "gpt-4.1",        // Translation: 高品質
-  "gpt-4o",         // Translation: 最高品質、最慢
-] as const;
-
-/**
- * 所有允許的模型（ASR + 翻譯）
- * 用於統一驗證
- */
-export const ALLOWED_MODELS = [
-  ...ALLOWED_ASR_MODELS,
-  ...ALLOWED_TRANSLATION_MODELS,
-] as const;
-
 export type VADConfig = typeof VAD_CONFIG;
 export type ASRConfig = typeof ASR_CONFIG;
 export type TranslationConfig = typeof TRANSLATION_CONFIG;
 export type AudioConfig = typeof AUDIO_CONFIG;
 export type VADPreset = keyof typeof VAD_PRESETS;
 export type ASRModeConfig = typeof ASR_MODE_CONFIG[ASRMode];
-export type AllowedASRModel = typeof ALLOWED_ASR_MODELS[number];
-export type AllowedTranslationModel = typeof ALLOWED_TRANSLATION_MODELS[number];
-export type AllowedModel = typeof ALLOWED_MODELS[number];
