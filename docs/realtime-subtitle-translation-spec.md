@@ -531,13 +531,13 @@ function hardTrimFinalBuffer(buffer: Float32Array, maxDurationSec: number): Floa
 
 | 參數名稱 | 資料型別 | 預設值 | 說明 | 可選值 |
 |---------|---------|--------|------|--------|
-| `model` | string | 系統預設 | ASR 模型識別碼 | 支援的模型列表請參考 `shared/config.ts` 中的 `ASR_MODEL_ALLOWLIST` |
+| `model` | string | 系統預設 | ASR 模型識別碼 | 支援的模型列表請參考 `shared/config.ts` 中的 `ALLOWED_ASR_MODELS` |
 | `language` | string | `auto` | 來源語言代碼（ISO-639-1） | `zh`, `en`, `vi`, `id`, `th`, `ja`, `ko`, `tl`, `my`, `auto` |
 | `temperature` | number | `0.0` | 取樣溫度，控制輸出隨機性 | `0.0` - `1.0` |
 | `response_format` | string | `json` | 回應格式 | `json`, `text`, `verbose_json` |
 | `timestamp_granularities` | array | `["segment"]` | 時間戳記粒度 | `["segment"]`, `["word"]`, `["segment", "word"]` |
 
-**模型選擇建議**：系統支援多種 Whisper 系列 ASR 模型與 Realtime Audio 模型，各模型具有不同的延遲、品質與功能特性。具體支援的模型列表請參考 `shared/config.ts` 中的 `ASR_MODEL_ALLOWLIST`。
+**模型選擇建議**：系統支援多種 Whisper 系列 ASR 模型與 Realtime Audio 模型，各模型具有不同的延遲、品質與功能特性。具體支援的模型列表請參考 `shared/config.ts` 中的 `ALLOWED_ASR_MODELS`。
 
 **基礎 ASR 模型**提供穩定的轉錄品質與較低的 API 成本，適用於一般對話場景，支援多語言轉錄。
 
@@ -1295,8 +1295,8 @@ Server -> Client: WebSocket Close Frame (Code: 1000, Reason: "Normal Closure")
 **設定方式**：
 ```typescript
 // shared/config.ts
-// 使用 ASR_MODEL_ALLOWLIST 中的快速模型
-WHISPER_CONFIG.MODEL = ASR_MODEL_ALLOWLIST[1]; // 範例：選擇快速模型
+// 使用 ALLOWED_ASR_MODELS 中的快速模型
+WHISPER_CONFIG.MODEL = ALLOWED_ASR_MODELS[1]; // 範例：選擇快速模型
 ```
 
 **預期效果**：
@@ -1320,8 +1320,8 @@ WHISPER_CONFIG.MODEL = ASR_MODEL_ALLOWLIST[1]; // 範例：選擇快速模型
 **設定方式**：
 ```typescript
 // shared/config.ts
-// 使用 ASR_MODEL_ALLOWLIST 中的高品質模型
-WHISPER_CONFIG.MODEL = ASR_MODEL_ALLOWLIST[2]; // 範例：選擇高品質模型
+// 使用 ALLOWED_ASR_MODELS 中的高品質模型
+WHISPER_CONFIG.MODEL = ALLOWED_ASR_MODELS[2]; // 範例：選擇高品質模型
 ```
 
 **預期效果**：
@@ -1345,8 +1345,8 @@ WHISPER_CONFIG.MODEL = ASR_MODEL_ALLOWLIST[2]; // 範例：選擇高品質模型
 **設定方式**：
 ```typescript
 // shared/config.ts
-// 使用 ASR_MODEL_ALLOWLIST 中的進階模型
-WHISPER_CONFIG.MODEL = ASR_MODEL_ALLOWLIST[3]; // 範例：選擇進階模型
+// 使用 ALLOWED_ASR_MODELS 中的進階模型
+WHISPER_CONFIG.MODEL = ALLOWED_ASR_MODELS[3]; // 範例：選擇進階模型
 ```
 
 **預期效果**：

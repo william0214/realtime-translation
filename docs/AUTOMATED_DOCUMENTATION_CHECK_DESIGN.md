@@ -285,7 +285,7 @@ function checkModelConsistency(
 **實作檔案**：`scripts/doc-check/check-models.ts`
 
 **檢查流程**：
-1. 從 `shared/config.ts` 提取 `ASR_MODEL_ALLOWLIST` 和 `TRANSLATION_MODEL_ALLOWLIST`
+1. 從 `shared/config.ts` 提取 `ALLOWED_ASR_MODELS` 和 `ALLOWED_TRANSLATION_MODELS`
 2. 掃描所有 `.md` 檔案，使用正則表達式提取模型名稱引用
 3. 比對引用與 allowlist，產生錯誤報告
 4. **重要**：文件中不應出現 realtime/audio 類模型的具體名稱，應使用抽象概念（如「Realtime Audio 模型」）

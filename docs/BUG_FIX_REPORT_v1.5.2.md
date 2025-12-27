@@ -361,7 +361,7 @@ git add .
 git commit -m "v1.5.2: Fix VAD segmentation and data flow pollution
 
 - Enhanced detectWhisperHallucination to block prompt leaks
-- Lowered minSpeechMs to 300ms (normal) / 400ms (precise)
+- Lowered minSpeechDurationMs to 300ms (normal) / 400ms (precise)
 - Lowered partialMinBuffers to 6 (normal) / 8 (precise)
 - Unified finalMaxDurationMs to 2000ms
 - Added 33 data flow pollution tests (all passed)"

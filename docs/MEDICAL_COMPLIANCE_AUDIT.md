@@ -261,17 +261,19 @@ if (isHallucination) {
 **實作**:
 ```typescript
 // Dual-threshold logic with consecutive frame counting
+// 注意：參數來自 ASR_MODE_CONFIG.normal/precise
+const modeConfig = getASRModeConfig(currentMode);
 if (!currentlySpeaking) {
-  if (rms > VAD_START_THRESHOLD) {
+  if (rms > modeConfig.vadStartThreshold) {
     vadStartFrameCountRef.current++;
-    if (vadStartFrameCountRef.current >= VAD_START_FRAMES) {
+    if (vadStartFrameCountRef.current >= modeConfig.vadStartFrames) {
       return true; // Speech started
     }
   }
 } else {
-  if (rms < VAD_END_THRESHOLD) {
+  if (rms < modeConfig.vadEndThreshold) {
     vadEndFrameCountRef.current++;
-    if (vadEndFrameCountRef.current >= VAD_END_FRAMES) {
+    if (vadEndFrameCountRef.current >= modeConfig.vadEndFrames) {
       return false; // Speech ended
     }
   }
