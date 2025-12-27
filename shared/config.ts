@@ -457,31 +457,6 @@ export const ALLOWED_ASR_MODELS = [
 ] as const;
 
 /**
- * Realtime Audio 模型（事件流、session 為核心）
- * 用於驗證文件和程式碼中的 Realtime Audio Agent 引用
- * 
- * Realtime Audio Agent = 雙向即時音訊互動
- * - 輸入：WebSocket 事件流
- * - 輸出：即時音訊/文字回應
- * - API 範式：session-based、事件驅動
- * 
- * 注意：Realtime Audio 模型與 ASR 模型是完全不同的 API 範式，
- * 不應混在 ALLOWED_ASR_MODELS 中，以避免語義污染。
- */
-export const REALTIME_AUDIO_MODELS = [
-  "gpt-4o-realtime-preview",        // Realtime: 即時音訊處理（非 ASR）
-] as const;
-
-/**
- * Legacy 翻譯模型（已棄用，僅供相容性）
- * 不建議在新專案中使用
- */
-export const LEGACY_TRANSLATION_MODELS = [
-  "gpt-3.5-turbo",          // 使用 gpt-4.1-mini 替代
-  "gpt-3.5-turbo-instruct", // 使用 gpt-4.1-mini 替代
-] as const;
-
-/**
  * 所有允許的翻譯模型
  * 用於驗證文件和程式碼中的模型引用
  * 
@@ -499,14 +474,12 @@ export const ALLOWED_TRANSLATION_MODELS = [
 ] as const;
 
 /**
- * 所有允許的模型（ASR + Realtime Audio + 翻譯 + Legacy）
- * 用於統一驗證（包含 legacy 模型以支援相容性檢查）
+ * 所有允許的模型（ASR + 翻譯）
+ * 用於統一驗證
  */
 export const ALLOWED_MODELS = [
   ...ALLOWED_ASR_MODELS,
-  ...REALTIME_AUDIO_MODELS,
   ...ALLOWED_TRANSLATION_MODELS,
-  ...LEGACY_TRANSLATION_MODELS,
 ] as const;
 
 export type VADConfig = typeof VAD_CONFIG;
@@ -516,6 +489,5 @@ export type AudioConfig = typeof AUDIO_CONFIG;
 export type VADPreset = keyof typeof VAD_PRESETS;
 export type ASRModeConfig = typeof ASR_MODE_CONFIG[ASRMode];
 export type AllowedASRModel = typeof ALLOWED_ASR_MODELS[number];
-export type RealtimeAudioModel = typeof REALTIME_AUDIO_MODELS[number];
 export type AllowedTranslationModel = typeof ALLOWED_TRANSLATION_MODELS[number];
 export type AllowedModel = typeof ALLOWED_MODELS[number];

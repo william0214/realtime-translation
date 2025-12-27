@@ -298,25 +298,13 @@ const MODEL_PATTERNS = [
   /MODEL\s*=\s*["']([^"']+)["']/g,          // Assignment
 ];
 
-// 禁止在文件中出現 realtime/audio 類模型的具體名稱
-const FORBIDDEN_PATTERNS = [
-  /gpt-4o-realtime-preview/gi,
-  /realtime-preview/gi,
-];
+// 所有模型名稱均應從 config.ts 中的 allowlist 提取
+// 不再特別禁止特定模型名稱
 ```
 
 **錯誤訊息範例**：
 ```
-❌ docs/realtime-subtitle-translation-spec.md:534
-   Forbidden model reference: "gpt-4o-realtime-preview"
-   
-   文件中不應直接引用 realtime/audio 類模型的具體名稱。
-   
-   建議修改：
-   - 使用抽象概念：「Realtime Audio 模型」
-   - 或引用 allowlist：「請參考 `shared/config.ts` 中的 `ASR_MODEL_ALLOWLIST`」
-   
-❌ docs/example.md:120
+❓ docs/example.md:120
    Invalid translation model: "gpt-3.5-turbo-instruct"
    
    Valid models (from TRANSLATION_MODEL_ALLOWLIST):
@@ -775,11 +763,11 @@ API Interfaces      |      0 |     100%
 **File**: `docs/realtime-subtitle-translation-spec.md:534`  
 **Severity**: 🔴 Critical
 
-**Problem**: Document references forbidden model "gpt-4o-realtime-preview"
+**Problem**: Document references invalid model "gpt-3.5-turbo-instruct"
 
-**Expected**: 使用抽象概念或引用 allowlist
+**Expected**: 使用 config.ts 中定義的模型
 
-**Fix**: 使用「Realtime Audio 模型」或「請參考 `shared/config.ts` 中的 `ASR_MODEL_ALLOWLIST`」
+**Fix**: 更換為 "gpt-4.1-mini" (預設) 或 "gpt-4o" (高品質)
 
 ---
 
