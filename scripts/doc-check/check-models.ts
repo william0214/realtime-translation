@@ -45,6 +45,22 @@ function extractModelDefinitions(configPath: string): ModelDefinition[] {
     }
   }
   
+  // 提取 Realtime Audio 模型（從 REALTIME_AUDIO_MODELS 常數）
+  const realtimeModelsMatch = content.match(/export const REALTIME_AUDIO_MODELS = \[([^\]]+)\]/s);
+  if (realtimeModelsMatch) {
+    const realtimeModelsContent = realtimeModelsMatch[1];
+    const modelMatches = findAllMatches(realtimeModelsContent, /"([^"]+)"/g);
+    
+    for (const match of modelMatches) {
+      const modelName = match[1];
+      models.push({
+        name: modelName,
+        type: "realtime",
+        description: `Realtime Audio model: ${modelName}`,
+      });
+    }
+  }
+  
   // 提取翻譯模型（從 ALLOWED_TRANSLATION_MODELS 常數）
   const translationModelsMatch = content.match(/export const ALLOWED_TRANSLATION_MODELS = \[([^\]]+)\]/s);
   if (translationModelsMatch) {
@@ -267,6 +283,7 @@ export async function checkModels(): Promise<CheckResult> {
   
   console.log(`✓ 從 config.ts 提取到 ${models.length} 個模型定義`);
   console.log(`  - ASR 模型: ${models.filter(m => m.type === "asr").map(m => m.name).join(", ")}`);
+  console.log(`  - Realtime Audio 模型: ${models.filter(m => m.type === "realtime").map(m => m.name).join(", ")}`);
   console.log(`  - 翻譯模型: ${models.filter(m => m.type === "translation").map(m => m.name).join(", ")}`);
   
   // 掃描所有 Markdown 檔案

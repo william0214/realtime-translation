@@ -80,8 +80,8 @@ export interface CheckReport {
 export interface ModelDefinition {
   /** 模型名稱 */
   name: string;
-  /** 模型類型（asr/translation） */
-  type: "asr" | "translation";
+  /** 模型類型（asr/realtime/translation） */
+  type: "asr" | "realtime" | "translation";
   /** 模型描述 */
   description?: string;
 }
