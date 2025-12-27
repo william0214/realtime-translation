@@ -294,11 +294,12 @@
 
 ## 📝 文件待辦
 
-- [x] 測試報告（TEST_REPORT.md）
-- [x] 版本歷史（VERSION_HISTORY.md）
-- [x] 測試程序（TESTING_PROCEDURE.md）
-- [x] 開發時程（DEVELOPMENT_SCHEDULE.md）
-- [x] 待辦事項（todo.md）
+- [x] 測試報告(TEST_REPORT.md)
+- [x] 版本歷史(VERSION_HISTORY.md)
+- [x] 測試程序(TESTING_PROCEDURE.md)
+- [x] 開發時程(DEVELOPMENT_SCHEDULE.md)
+- [x] 待辦事項(todo.md)
+- [x] Manus AI System Prompt 工程文件(docs/ai/ManusAI_SystemPrompt_Engineering.md)
 - [ ] API 文件
 - [ ] 使用者手冊
 - [ ] 部署指南
