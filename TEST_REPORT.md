@@ -168,7 +168,7 @@ AssertionError: expected 79.63 to be greater than or equal to 80
 
 ### 建議優化方向
 1. 使用 Whisper Streaming API（降低 ASR 延遲 50%）
-2. 使用更快的翻譯模型（gpt-3.5-turbo-instruct）
+2. 使用更快的翻譯模型
 3. 實作音訊預處理（降噪、壓縮）
 
 ---
