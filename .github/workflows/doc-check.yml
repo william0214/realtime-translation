@@ -1,4 +1,4 @@
-name: Documentation Check
+name: Doc Check
 
 on:
   pull_request:
@@ -31,15 +31,18 @@ jobs:
     timeout-minutes: 15
 
     env:
-      # PR：soft gate（降低歷史遺留噪音，先阻擋違反 SSOT 的錯誤）
+      # PR：soft gate（降低歷史噪音，只擋 SSOT 違規/關鍵錯誤）
       # main：hard gate（嚴格治理）
       DOC_CHECK_MODE: ${{ github.event_name == 'pull_request' && 'soft' || 'hard' }}
 
       DOC_CHECK_REPORT_DIR: artifacts/doc-check
-      DOC_CHECK_REPORT_FILE: doc-check-report.md
+      DOC_CHECK_REPORT_MD: doc-check-report.md
 
-      # SSOT allowlist 來源
+      # SSOT allowlist 來源（給 checker 使用）
       DOC_CHECK_SSOT_CONFIG_PATH: shared/config.ts
+
+      # 對齊 package.json 的 packageManager（pnpm@10.4.1）
+      PNPM_VERSION: "10.4.1"
 
     steps:
       - name: Checkout
@@ -51,29 +54,36 @@ jobs:
           node-version: "20"
           cache: "pnpm"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Activate pnpm (match packageManager)
+        run: corepack prepare pnpm@${PNPM_VERSION} --activate
+
+      - name: Show tool versions
+        run: |
+          node -v
+          pnpm -v
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run doc check (soft/hard)
+      - name: Run doc check (soft/hard) and write report to artifacts/
         run: |
           set -euo pipefail
           mkdir -p "${DOC_CHECK_REPORT_DIR}"
 
-          # 確保 script 存在
-          if ! pnpm -s run | grep -q "^doc:check"; then
-            echo "ERROR: pnpm script 'doc:check' not found in package.json"
-            echo "Please add: \"doc:check\": \"<your doc-check command>\""
+          # 你 repo 的 script 名稱是 doc-check（不是 doc:check）
+          if ! pnpm -s run | grep -q "^doc-check"; then
+            echo "ERROR: pnpm script 'doc-check' not found in package.json"
             exit 1
           fi
 
-          pnpm -s doc:check -- \
+          # 產出 markdown 報告到 artifacts/，避免落在 repo 根目錄造成後續誤掃
+          pnpm -s doc-check -- \
             --mode="${DOC_CHECK_MODE}" \
-            --report="${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" \
+            --format=markdown \
+            --output="${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_MD}" \
             --ssot="${DOC_CHECK_SSOT_CONFIG_PATH}"
 
       - name: Upload report artifact
@@ -91,10 +101,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Mode: \`${DOC_CHECK_MODE}\`" >> $GITHUB_STEP_SUMMARY
           echo "- SSOT: \`${DOC_CHECK_SSOT_CONFIG_PATH}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Report: \`${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}\` (see artifact)" >> $GITHUB_STEP_SUMMARY
+          echo "- Report: \`${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_MD}\` (artifact: doc-check-report)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" ]; then
-            sed -n '1,200p' "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" >> $GITHUB_STEP_SUMMARY
+          if [ -f "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_MD}" ]; then
+            sed -n '1,200p' "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_MD}" >> $GITHUB_STEP_SUMMARY
           else
             echo "Report not found." >> $GITHUB_STEP_SUMMARY
           fi
