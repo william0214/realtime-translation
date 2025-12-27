@@ -1553,20 +1553,4 @@ function detectNumberLoss(source: string, translation: string): Issue[] {
 
 ---
 
-## 附錄 A：已棄用模型
-
-以下模型已不再建議使用，請使用新版模型替代：
-
-### A.1 ASR 模型
-
-**gpt-4o-audio-preview-2024-10-01**（日期版本）已被 **gpt-4o-audio-preview**（canonical 版本）取代。日期版本僅供相容性使用，新專案請使用 canonical 版本。
-
-### A.2 翻譯模型
-
-**gpt-3.5-turbo** 系列模型（包含 `gpt-3.5-turbo` 和 `gpt-3.5-turbo-instruct`）已被 **gpt-4.1-mini** 取代。新版模型提供更好的翻譯品質、更快的回應速度，以及更優異的醫療術語處理能力。
-
-**遷移建議：**
-- 將所有 `gpt-3.5-turbo` 引用替換為 `gpt-4.1-mini`（Fast Pass 預設）
-- 將所有 `gpt-3.5-turbo-instruct` 引用替換為 `gpt-4.1-mini`
-- 將所有 `gpt-4o-audio-preview-2024-10-01` 引用替換為 `gpt-4o-audio-preview`
 
