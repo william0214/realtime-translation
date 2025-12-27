@@ -997,3 +997,36 @@
 - 保留了 Speech END freeze audio pipeline 機制
 
 ---
+
+---
+
+## ✅ 修復 Speech END 重複觸發 processFinalTranscript（2025-12-27 完成）
+
+### 問題描述
+從 Console log 發現 `processFinalTranscript` 被呼叫了兩次，導致產生兩個相同的翻譯泡泡。
+
+### 根本原因
+程式碼中有兩個地方會觸發 `processFinalTranscript`：
+1. `checkAudioLevel` 中的 VAD Speech END 偵測（新機制）✅
+2. `startVADMonitoring` 中的舊 Speech END 邏輯（應該移除）❌
+
+### 修復方案
+- [x] 移除 `startVADMonitoring` 中的舊 Speech END 邏輯（line ~840-945，共 105 行）
+- [x] 只保留 `checkAudioLevel` 中的 VAD Speech END 觸發
+- [x] 保留 auto-cut 超時保護機制（語音持續超過 maxSegmentMs）
+- [x] 確保 `endTriggeredSegmentsRef` 防護機制正常運作
+
+### 驗收標準
+- [x] TypeScript 編譯無錯誤
+- [x] 所有 VAD/Segmenter 測試通過（10/10）
+- [x] 程式碼邏輯正確（移除重複觸發）
+- [ ] 實際測試：Console log 只出現一次 "Triggering final transcript"
+- [ ] 實際測試：每句話只產生一個翻譯泡泡
+- [ ] 實際測試：Speech END 後立即 finalize（0.4-0.6 秒）
+
+### 修復效果
+- `processFinalTranscript` 現在只會被呼叫一次（由 VAD Speech END 觸發）
+- 不會再產生重複的翻譯泡泡
+- Console log 只會出現一次 "Triggering final transcript"
+- Auto-cut 機制仍然保留作為超時保護
+
