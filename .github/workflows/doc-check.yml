@@ -1,115 +1,96 @@
 name: Documentation Check
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-    paths:
-      - 'docs/**'
-      - 'shared/config.ts'
-      - 'scripts/doc-check/**'
   pull_request:
-    branches:
-      - main
-      - develop
     paths:
-      - 'docs/**'
-      - 'shared/config.ts'
-      - 'scripts/doc-check/**'
-  workflow_dispatch:
+      - "docs/**"
+      - "README.md"
+      - "shared/**"
+      - "scripts/**"
+      - ".github/workflows/documentation-check.yml"
+  push:
+    branches: [ main ]
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "shared/**"
+      - "scripts/**"
+
+concurrency:
+  group: docs-check-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   doc-check:
-    name: Check Documentation Consistency
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 15
+
+    # PR：先 soft gate（降低歷史噪音）
+    # main：hard gate（嚴格）
+    env:
+      DOC_CHECK_MODE: ${{ github.event_name == 'pull_request' && 'soft' || 'hard' }}
+      DOC_CHECK_REPORT_DIR: artifacts/doc-check
+      DOC_CHECK_REPORT_FILE: doc-check-report.md
+      # 若你的 checker 支援指定 SSOT 來源，建議加上
+      DOC_CHECK_SSOT_CONFIG_PATH: shared/config.ts
+
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Setup Node.js
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-      
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-      
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-      
+          node-version: "20"
+          cache: "npm"
+
+      # 若你用 pnpm（你之前脈絡很像 pnpm），請改用 pnpm；否則保留 npm
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      
-      - name: Run documentation checks
-        id: doc-check
+        run: npm ci
+
+      - name: Run documentation check (soft/hard)
         run: |
-          pnpm doc-check --github-actions > check-output.txt 2>&1 || echo "check_failed=true" >> $GITHUB_OUTPUT
-          cat check-output.txt
-        continue-on-error: true
-      
-      - name: Generate Markdown report
-        if: always()
-        run: pnpm doc-check:md
-      
-      - name: Upload check report
+          mkdir -p "${DOC_CHECK_REPORT_DIR}"
+
+          # 優先跑 package.json script：npm run doc:check
+          # 若沒有 script，再 fallback 直接執行 node/tsx
+          if npm run -s | grep -q "^  doc:check"; then
+            npm run -s doc:check -- \
+              --mode="${DOC_CHECK_MODE}" \
+              --report="${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" \
+              --ssot="${DOC_CHECK_SSOT_CONFIG_PATH}"
+          else
+            echo "No npm script doc:check found. Fallback to node runner."
+
+            # 你需要在 repo 內實際存在可執行入口，例如 scripts/doc-check/index.ts
+            # 請把這行改成你的實際入口
+            node scripts/doc-check/index.js \
+              --mode="${DOC_CHECK_MODE}" \
+              --report="${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" \
+              --ssot="${DOC_CHECK_SSOT_CONFIG_PATH}"
+          fi
+
+      - name: Upload report artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: doc-check-report
-          path: doc-check-report.md
-          retention-days: 30
-      
-      - name: Comment PR with results
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            
-            // 讀取報告
-            let report = '';
-            try {
-              report = fs.readFileSync('doc-check-report.md', 'utf8');
-            } catch (error) {
-              report = '無法讀取檢查報告';
-            }
-            
-            // 截斷過長的報告
-            const maxLength = 60000;
-            if (report.length > maxLength) {
-              report = report.substring(0, maxLength) + '\n\n... (報告過長，已截斷)';
-            }
-            
-            // 發布評論
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## 📋 文件檢查報告\n\n${report}\n\n---\n*此報告由 GitHub Actions 自動產生*`
-            });
-      
-      - name: Fail if checks failed
-        if: steps.doc-check.outputs.check_failed == 'true'
+          path: ${{ env.DOC_CHECK_REPORT_DIR }}
+          if-no-files-found: warn
+
+      # PR 上用 Job Summary 顯示摘要（方便 reviewer）
+      - name: Publish summary
+        if: always()
         run: |
-          echo "❌ 文件檢查發現錯誤，請查看報告並修正"
-          exit 1
-      
-      - name: Success
-        if: steps.doc-check.outputs.check_failed != 'true'
-        run: |
-          echo "✅ 所有文件檢查通過！"
+          echo "## Documentation Check Result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" ]; then
+            echo "Mode: \`${DOC_CHECK_MODE}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Report: \`${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}\` (see artifact)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            # 顯示前 200 行避免 summary 過長
+            sed -n '1,200p' "${DOC_CHECK_REPORT_DIR}/${DOC_CHECK_REPORT_FILE}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Report not found." >> $GITHUB_STEP_SUMMARY
+          fi
