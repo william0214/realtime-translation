@@ -12,9 +12,9 @@
 ### 1. ❌ 缺少 shouldRunQualityPass() 成本控制機制
 
 **問題描述**:
-- 目前**所有句子**都會執行 Quality Pass（gpt-4o）
-- 短句（「好」、「謝謝」、「嗯」）也會觸發 Quality Pass
-- 成本浪費：每句話 2 次 API 呼叫（Fast Pass + Quality Pass）
+- 目前**所有句子**都會執行 Quality Pass（gpt-4o，來自 `shared/config.ts` SSOT）
+- 短句（「好」、「謝謝」、「嘔」）也會觸發 Quality Pass
+- 成本浪費：每句話 2 次 API 呼叫（Fast Pass: gpt-4.1-mini + Quality Pass: gpt-4o）
 
 **風險等級**: 🔴 Critical  
 **影響**: 成本失控、延遲增加、醫院 demo 時可能因成本過高被質疑

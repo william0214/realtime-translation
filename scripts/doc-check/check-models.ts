@@ -22,13 +22,19 @@ import {
 } from "./utils";
 
 /**
- * 從 shared/config.ts 提取模型定義
+ * 從 shared/config.ts 提取模型定義（SSOT 區塊）
+ * 
+ * SSOT (Single Source of Truth) 架構：
+ * - ALLOWED_ASR_MODELS: 所有允許的 ASR 模型
+ * - ALLOWED_TRANSLATION_MODELS: 所有允許的翻譯模型
+ * 
+ * 所有其他配置（WHISPER_CONFIG, TRANSLATION_CONFIG）均引用這兩個 SSOT 常數
  */
 function extractModelDefinitions(configPath: string): ModelDefinition[] {
   const content = readFile(configPath);
   const models: ModelDefinition[] = [];
   
-  // 提取 ASR 模型（從 ALLOWED_ASR_MODELS 常數）
+  // 提取 ASR 模型（從 ALLOWED_ASR_MODELS SSOT 常數）
   const asrModelsMatch = content.match(/export const ALLOWED_ASR_MODELS = \[([^\]]+)\]/s);
   if (asrModelsMatch) {
     const asrModelsContent = asrModelsMatch[1];
@@ -45,7 +51,7 @@ function extractModelDefinitions(configPath: string): ModelDefinition[] {
     }
   }
   
-  // 提取翻譯模型（從 ALLOWED_TRANSLATION_MODELS 常數）
+  // 提取翻譯模型（從 ALLOWED_TRANSLATION_MODELS SSOT 常數）
   const translationModelsMatch = content.match(/export const ALLOWED_TRANSLATION_MODELS = \[([^\]]+)\]/s);
   if (translationModelsMatch) {
     const translationModelsContent = translationModelsMatch[1];

@@ -27,14 +27,25 @@
 - `docs/realtime-subtitle-translation-spec.md`（第 534 行）
 - `docs/ai/ManusAI_SystemPrompt_Engineering.md`（第 66 行）
 
-#### 實際實作（`shared/config.ts`）
+#### 實際實作（`shared/config.ts` - SSOT 架構）
 ```typescript
-WHISPER_CONFIG.AVAILABLE_MODELS = [
-  { value: "whisper-1", label: "Whisper-1" },
-  { value: "gpt-4o-mini-transcribe", label: "GPT-4o Mini" },
-  { value: "gpt-4o-transcribe", label: "GPT-4o" },
-  { value: "gpt-4o-transcribe-diarize", label: "GPT-4o Diarize" }
-]
+// SSOT (Single Source of Truth) 區塊
+export const ALLOWED_ASR_MODELS = [
+  "whisper-1",
+  "gpt-4o-mini-transcribe",
+  "gpt-4o-transcribe",
+  "gpt-4o-transcribe-diarize",
+] as const;
+
+// UI 選單自動生成（引用 SSOT）
+const AVAILABLE_ASR_MODELS = ALLOWED_ASR_MODELS.map(...);
+
+// WHISPER_CONFIG 引用 SSOT
+export const WHISPER_CONFIG = {
+  MODEL: "gpt-4o-mini-transcribe" as AllowedASRModel,
+  AVAILABLE_MODELS: AVAILABLE_ASR_MODELS,
+  // ...
+} as const;
 ```
 
 #### 修正行動
@@ -53,15 +64,25 @@ WHISPER_CONFIG.AVAILABLE_MODELS = [
 #### 影響文件
 - `docs/realtime-subtitle-translation-spec.md`（第 556, 568 行）
 
-#### 實際實作（`shared/config.ts`）
+#### 實際實作（`shared/config.ts` - SSOT 架構）
 ```typescript
-TRANSLATION_CONFIG.LLM_MODEL = "gpt-4.1-mini"
-TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS = [
-  { id: "gpt-4o-mini", name: "GPT-4o Mini" },
-  { id: "gpt-4.1-mini", name: "GPT-4.1 Mini" }, // 預設
-  { id: "gpt-4.1", name: "GPT-4.1" },
-  { id: "gpt-4o", name: "GPT-4o" }
-]
+// SSOT (Single Source of Truth) 區塊
+export const ALLOWED_TRANSLATION_MODELS = [
+  "gpt-4o-mini",
+  "gpt-4.1-mini",
+  "gpt-4.1",
+  "gpt-4o",
+] as const;
+
+// UI 選單自動生成（引用 SSOT）
+const AVAILABLE_TRANSLATION_MODELS = ALLOWED_TRANSLATION_MODELS.map(...);
+
+// TRANSLATION_CONFIG 引用 SSOT
+export const TRANSLATION_CONFIG = {
+  LLM_MODEL: "gpt-4.1-mini" as AllowedTranslationModel,
+  AVAILABLE_TRANSLATION_MODELS: AVAILABLE_TRANSLATION_MODELS,
+  // ...
+} as const;
 ```
 
 #### 修正行動

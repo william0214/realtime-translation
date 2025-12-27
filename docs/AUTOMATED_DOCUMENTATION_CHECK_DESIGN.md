@@ -31,9 +31,11 @@
 **檢查目標**：確保文件中引用的模型名稱與 `shared/config.ts` 中定義的模型名稱一致。
 
 **驗證方式**：
-- 從 `shared/config.ts` 提取所有模型名稱（ASR 模型、翻譯模型）
+- 從 `shared/config.ts` 的 **SSOT 區塊**提取所有模型名稱：
+  * `ALLOWED_ASR_MODELS`：whisper-1, gpt-4o-mini-transcribe, gpt-4o-transcribe, gpt-4o-transcribe-diarize
+  * `ALLOWED_TRANSLATION_MODELS`：gpt-4o-mini, gpt-4.1-mini, gpt-4.1, gpt-4o
 - 掃描所有 Markdown 文件，提取模型名稱引用
-- 比對文件引用與實際定義，標記不一致項目
+- 比對文件引用與 SSOT 定義，標記不一致項目
 
 **可檢測的不一致**：
 - 使用不在 allowlist 中的模型名稱
@@ -305,9 +307,9 @@ const MODEL_PATTERNS = [
 **錯誤訊息範例**：
 ```
 ❓ docs/example.md:120
-   Invalid translation model: "gpt-3.5-turbo-instruct"
+   Invalid translation model: "gpt-3.5-turbo" (example of outdated model)
    
-   Valid models (from TRANSLATION_MODEL_ALLOWLIST):
+   Valid models (from ALLOWED_TRANSLATION_MODELS SSOT):
    - gpt-4.1-mini
    - gpt-4o-mini
    - gpt-4.1
@@ -672,11 +674,11 @@ Total issues found: 5
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. docs/realtime-subtitle-translation-spec.md:534
-   Forbidden model reference: "gpt-4o-realtime-preview"
+   Forbidden model reference: "gpt-4o-realtime-preview" (example)
    
    文件中不應直接引用 realtime/audio 類模型的具體名稱。
    
-   Fix: 使用抽象概念「Realtime Audio 模型」或引用 `ASR_MODEL_ALLOWLIST`
+   Fix: 使用抽象概念「Realtime Audio 模型」或引用 `ALLOWED_ASR_MODELS` SSOT
 
 2. docs/realtime-subtitle-translation-spec.md:556
    Parameter default value mismatch
@@ -763,9 +765,9 @@ API Interfaces      |      0 |     100%
 **File**: `docs/realtime-subtitle-translation-spec.md:534`  
 **Severity**: 🔴 Critical
 
-**Problem**: Document references invalid model "gpt-3.5-turbo-instruct"
+**Problem**: Document references invalid model "gpt-3.5-turbo" (example of outdated model)
 
-**Expected**: 使用 config.ts 中定義的模型
+**Expected**: 使用 config.ts SSOT 區塊中定義的模型
 
 **Fix**: 更換為 "gpt-4.1-mini" (預設) 或 "gpt-4o" (高品質)
 

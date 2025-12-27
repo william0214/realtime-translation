@@ -244,7 +244,7 @@ for (const pattern of suspiciousPatterns) {
 - 只有 Medium 或 Low 問題
 - 無 Critical 或 High 問題
 
-**動作**：使用 Fast Pass（gpt-4.1）重試
+**動作**：使用 Fast Pass（gpt-4.1-mini，來自 `shared/config.ts` SSOT）重試
 
 **範例**：
 - 分數：65
@@ -257,7 +257,7 @@ for (const pattern of suspiciousPatterns) {
 - 分數 < 70
 - 有 Critical 或 High 問題
 
-**動作**：使用 Quality Pass（gpt-4o）重試
+**動作**：使用 Quality Pass（gpt-4o，來自 `shared/config.ts` SSOT）重試
 
 **範例**：
 - 分數：60
@@ -278,7 +278,7 @@ Quality Gate 檢查
     │
     └─ 不通過 (< 70)
         │
-        ├─ 有 Critical/High ──→ Retry Quality (gpt-4o)
+        ├─ 有 Critical/High ──→ Retry Quality (gpt-4o, SSOT)
         │                           │
         │                           ▼
         │                      Quality Gate 檢查
@@ -287,7 +287,7 @@ Quality Gate 檢查
         │                           │
         │                           └─ 不通過 ──→ Accept（已達最大重試次數）
         │
-        └─ 只有 Medium/Low ──→ Retry Fast (gpt-4.1)
+        └─ 只有 Medium/Low ──→ Retry Fast (gpt-4.1-mini, SSOT)
                                     │
                                     ▼
                                Quality Gate 檢查
