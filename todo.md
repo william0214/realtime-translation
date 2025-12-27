@@ -769,3 +769,17 @@
 - ✅ 建立 TranslationStatusBadge 組件（支援 5 種狀態顯示）
 - ✅ 修正 bubble 產生邏輯（移除 finalMessage，確保每句話只有一顆 bubble）
 - ✅ 驗證狀態機約束（pending → provisional → final / failed）
+
+## 文件檢查器升級 v0 → v1（已完成，2025-12-27）
+
+- [x] 補齊 shared/config.ts allowlist（4 個有效模型）
+  - [x] gpt-4o-audio-preview（audio/realtime 類）
+  - [x] gpt-4o-mini-transcribe（ASR）
+  - [x] gpt-4.1-mini（translation default）
+  - [x] gpt-4o-mini（translation option）
+- [x] 修正 docs/realtime-subtitle-translation-spec.md default model（gpt-4o-mini → gpt-4.1-mini）
+- [x] 升級 scripts/doc-check/check-models.ts 排除誤判
+  - [x] 排除 code block 內容（```...```）
+  - [x] 排除 error report 內容（❌ docs/...）
+  - [x] 排除 diagnostics 內容（Documentation Consistency Check Report）
+- [x] 驗證並推送到 GitHub

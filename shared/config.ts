@@ -449,14 +449,18 @@ export function getASRModeConfig(mode: ASRMode) {
 /**
  * 所有允許的 ASR 模型
  * 用於驗證文件和程式碼中的模型引用
+ * 
+ * 分類說明：
+ * - Transcription (ASR): whisper-1, gpt-4o-mini-transcribe, gpt-4o-transcribe, gpt-4o-transcribe-diarize
+ * - Audio/Realtime: gpt-4o-audio-preview, gpt-4o-realtime-preview
  */
 export const ALLOWED_ASR_MODELS = [
-  "whisper-1",
-  "gpt-4o-mini-transcribe",
-  "gpt-4o-transcribe",
-  "gpt-4o-transcribe-diarize",
-  "gpt-4o-audio-preview",
-  "gpt-4o-realtime-preview",
+  "whisper-1",                      // ASR: 原版 Whisper（API 入口）
+  "gpt-4o-mini-transcribe",         // ASR: 快速、低成本
+  "gpt-4o-transcribe",              // ASR: 高品質
+  "gpt-4o-transcribe-diarize",      // ASR: 含說話者辨識
+  "gpt-4o-audio-preview",           // Audio/Realtime: 音訊預覽版本（非 ASR）
+  "gpt-4o-realtime-preview",        // Audio/Realtime: 即時音訊處理（非 ASR）
 ] as const;
 
 /**
@@ -479,12 +483,18 @@ export const LEGACY_TRANSLATION_MODELS = [
 /**
  * 所有允許的翻譯模型
  * 用於驗證文件和程式碼中的模型引用
+ * 
+ * 分類說明：
+ * - gpt-4.1-mini: 預設翻譯模型（平衡速度和品質）
+ * - gpt-4o-mini: 可選翻譯模型（最快速、最低成本）
+ * - gpt-4.1: 高品質翻譯
+ * - gpt-4o: 最高品質翻譯
  */
 export const ALLOWED_TRANSLATION_MODELS = [
-  "gpt-4o-mini",
-  "gpt-4.1-mini",
-  "gpt-4.1",
-  "gpt-4o",
+  "gpt-4o-mini",    // Translation option: 最快速、最低成本
+  "gpt-4.1-mini",   // Translation default: 平衡速度和品質（推薦）
+  "gpt-4.1",        // Translation: 高品質
+  "gpt-4o",         // Translation: 最高品質、最慢
 ] as const;
 
 /**

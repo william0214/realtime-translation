@@ -19,7 +19,7 @@
 
 **語音識別模組**整合 OpenAI Whisper 系列模型，支援 `whisper-1`、`gpt-4o-audio-preview`、`gpt-4o-realtime-preview` 等 ASR 模型。系統採用混合架構設計，透過 Hybrid ASR WebSocket 實現低延遲轉錄，並提供即時字幕（Partial）與最終確認（Final）兩階段輸出機制。
 
-**翻譯引擎模組**採用 OpenAI GPT 系列模型執行雙向翻譯任務，支援中文與八種外語（英語、越南語、印尼語、泰語、日語、韓語、菲律賓語、緬甸語）之間的互譯。翻譯引擎針對醫療場景進行優化，保留專業術語準確性，並支援多種翻譯模型（`gpt-4o`、`gpt-4o-mini`、`gpt-4.1-mini`、`gpt-4.1`）動態切換。
+**翻譯引擎模組**採用 OpenAI GPT 系列模型執行雙向翻譯任務，支援中文與八種外語（英語、越南語、印尼語、泰語、日語、韓語、菲律賓語、緬甸語）之間的互譯。翻譯引擎針對醫療場景進行優化，保留專業術語準確性，並支援多種翻譯模型（`gpt-4.1-mini`、`gpt-4o-mini`、`gpt-4.1`、`gpt-4o`）動態切換。
 
 **語音合成模組**提供多語言 TTS 功能，支援翻譯結果的語音播放。系統整合 OpenAI TTS API，提供自然流暢的語音輸出，並支援語速調整與音量控制。
 
@@ -553,7 +553,7 @@ function hardTrimFinalBuffer(buffer: Float32Array, maxDurationSec: number): Floa
 
 | 參數名稱 | 資料型別 | 預設值 | 說明 | 可選值 |
 |---------|---------|--------|------|--------|
-| `model` | string | `gpt-4.1-mini` | 翻譯模型識別碼 | `gpt-4o`, `gpt-4o-mini`, `gpt-4.1-mini`, `gpt-4.1` |
+| `model` | string | `gpt-4.1-mini` | 翻譯模型識別碼 | `gpt-4.1-mini`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4o` |
 | `temperature` | number | `0.3` | 取樣溫度，控制翻譯創意性 | `0.0` - `1.0` |
 | `max_tokens` | number | `500` | 最大輸出 Token 數 | `1` - `4096` |
 | `top_p` | number | `1.0` | Nucleus sampling 參數 | `0.0` - `1.0` |
@@ -569,7 +569,7 @@ function hardTrimFinalBuffer(buffer: Float32Array, maxDurationSec: number): Floa
 
 **gpt-4.1** 為高品質翻譯模型，提供優異的翻譯品質與專業術語處理能力。適用於進階翻譯場景，延遲約 1.2-1.8 秒。該模型在醫療術語翻譯與文化適應性上表現優異，可作為 Quality Pass 的替代選擇。
 
-**gpt-4o-mini** 為輕量模型，在保持高品質的同時大幅降低延遲與成本。適用於一般對話場景，延遲約 0.8-1.3 秒。該模型提供良好的效能與成本平衡，可作為 Fast Pass 的替代選擇。
+**gpt-4o-mini** 為輕量模型，在保持高品質的同時大幅降低延遲與成本。適用於一般對話場景，延遲約 0.8-1.3 秒。該模型提供良好的效能與成本平衡，可作為 Fast Pass 的替代選擇（非預設模型）。
 
 
 ### 4.3 TTS 參數
