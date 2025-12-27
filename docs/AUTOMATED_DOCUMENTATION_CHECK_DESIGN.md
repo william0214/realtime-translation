@@ -674,7 +674,7 @@ Total issues found: 5
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. docs/realtime-subtitle-translation-spec.md:534
-   Forbidden model reference: "gpt-4o-realtime-preview" (example)
+   Forbidden model reference: "gpt-4o-audio-preview" (example)
    
    文件中不應直接引用 realtime/audio 類模型的具體名稱。
    

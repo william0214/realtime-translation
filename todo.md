@@ -1,8 +1,20 @@
 # 專案待辦事項
 
-**專案：** 即時雙向翻譯系統（護理推車）  
+**專案：** 即時雙向翻譯系統(護理推車)  
 **當前版本：** v1.3.5  
-**最後更新：** 2025-12-25
+**最後更新：** 2025-12-27
+
+---
+
+## ✅ 模型清理任務（2025-12-27 完成）
+
+- [x] 全面移除 gpt-4o-realtime-preview 模型引用
+  - [x] 搜尋所有包含 gpt-4o-realtime-preview 的檔案
+  - [x] 從 docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md 移除範例引用
+  - [x] 刪除 MODEL_CONSISTENCY_FIX_REPORT.md 歷史報告
+  - [x] 更新 doc-check-report.md 移除相關錯誤項目
+  - [x] 執行測試確認無破壞性變更
+  - [x] 提交並推送到 GitHub
 
 ---
 
@@ -695,156 +707,57 @@
 
 #### 實作「不確定」標記機制
 - [ ] 檢查 Whisper API 是否回傳 confidence score
-- [ ] 實作 confidence < 0.7 的「不確定」標記
-- [ ] UI 顯示「不確定」狀態（不翻譯）
-- [ ] 加入 log 記錄不確定的句子
-- [ ] 測試不確定句子的處理流程
+- [ ] 在 ConversationMessage 加入 confidence 欄位
+- [ ] UI 顯示低信心度的訊息（< 0.7）
+- [ ] 加入「不確定」標記（⚠️ 或 ? 圖示）
+- [ ] 記錄低信心度訊息比例
 
 ### P2 - demo 後優化（Medium）
 
-#### UI 視覺回饋優化
-- [ ] 設計 provisional → final 的視覺變化
-- [ ] 加入 loading indicator（Quality Pass 處理中）
-- [ ] 優化 failed_final 的視覺提示
-- [ ] 測試視覺回饋的使用者體驗
+#### 實作 Quality Pass 效能監控
+- [ ] 記錄 Quality Pass 執行時間
+- [ ] 記錄 Quality Pass 成功/失敗率
+- [ ] 記錄 Quality Gate 通過/失敗率
+- [ ] 建立效能監控儀表板
+- [ ] 設定 alert 機制（失敗率 > 10%）
 
-#### 成本監控與分析
-- [ ] 記錄 shouldRunQualityPass() 的觸發率
-- [ ] 分析 Quality Pass 的成功率
-- [ ] 優化關鍵詞字典（減少誤判）
-- [ ] 建立成本監控儀表板
+#### 實作 Glossary 動態更新機制
+- [ ] 設計 glossary 更新 API
+- [ ] 實作 glossary 版本控制
+- [ ] 實作 glossary 熱更新（不需重啟）
+- [ ] 建立 glossary 管理 UI
+- [ ] 記錄 glossary 使用統計
 
 ### 測試與驗收
-
-#### 狀態機測試
-- [ ] 測試 pending → provisional → final 流程
-- [ ] 測試 pending → provisional → failed_final 流程
-- [ ] 測試 Stop recording 後不更新 UI
-- [ ] 測試對話結束後不更新 UI
-
-#### Race Condition 測試
-- [ ] 測試 conversationId 不一致時丟棄 Quality Pass 結果
-- [ ] 測試 message 不存在時丟棄 Quality Pass 結果
-- [ ] 測試 version 不一致時丟棄 Quality Pass 結果
-- [ ] 測試延遲超過 20 秒時丟棄 Quality Pass 結果
-
-#### UI bubble 測試
-- [ ] 測試每句話只有一顆 bubble
-- [ ] 測試 provisional → final 更新同一顆 bubble
-- [ ] 測試 Quality Pass 失敗時保留 provisional
-
-#### 成本控制測試
-- [ ] 測試短句（<5 字）不執行 Quality Pass
-- [ ] 測試醫療關鍵詞觸發 Quality Pass
-- [ ] 測試數字/單位觸發 Quality Pass
-- [ ] 測試否定句觸發 Quality Pass
-- [ ] 測試長句（≥ 12 字）觸發 Quality Pass
+- [ ] 測試 shouldRunQualityPass() 過濾效果
+- [ ] 測試 Race Condition 防護（對話結束、訊息更新、延遲超時）
+- [ ] 測試單一 bubble 更新（不新增第二顆）
+- [ ] 測試術語強制注入（Quality Pass）
+- [ ] 測試「不確定」標記顯示
+- [ ] 測試效能監控儀表板
+- [ ] 測試 Glossary 動態更新
 
 ### 文件與發布
-- [ ] 建立 MEDICAL_COMPLIANCE_GUIDE.md（醫療產品合規性指南）
-- [ ] 建立 COST_OPTIMIZATION.md（成本優化指南）
-- [ ] 建立 RACE_CONDITION_PREVENTION.md（Race Condition 防護指南）
-- [ ] 更新 README.md（v2.1.0 功能說明）
-- [ ] 建立 CHANGELOG-v2.1.md
+- [ ] 建立 COST_CONTROL.md（成本控制機制文件）
+- [ ] 建立 RACE_CONDITION_GUARD.md（競態條件防護文件）
+- [ ] 建立 UI_BUBBLE_LOGIC.md（UI bubble 邏輯文件）
+- [ ] 更新 ARCHITECTURE-v2.0.md
 - [ ] 建立 checkpoint (v2.1.0)
 
 ### 驗收標準（Acceptance Criteria）
-- [ ] 短句（<5 字）不執行 Quality Pass，成本節省 > 30%
-- [ ] 對話結束後，延遲的 Quality Pass 結果不更新 UI
-- [ ] 每句話只有一顆 bubble，不產生重複訊息
-- [ ] 醫療術語翻譯一致（Fast Pass 和 Quality Pass 使用相同術語）
-- [ ] Whisper confidence < 0.7 時標記為「不確定」，不翻譯
-- [ ] 所有 Race Condition 測試通過
-- [ ] 所有狀態機測試通過
-- [ ] 所有 UI bubble 測試通過
-- [ ] 所有成本控制測試通過
-
+- [ ] shouldRunQualityPass() 觸發率 < 30%（短句、寒暄語被過濾）
+- [ ] Race Condition 防護有效（對話結束後不再更新 UI）
+- [ ] 單一 bubble 更新正常（不新增第二顆）
+- [ ] 術語強制注入有效（Quality Pass 使用 glossary）
+- [ ] 「不確定」標記正常顯示（低信心度訊息）
+- [ ] 效能監控儀表板正常運作
+- [ ] Glossary 動態更新正常運作
 
 ---
 
-## ✅ v2.1.0 - Phase 4 完成（UI 狀態顯示系統）
+## 📝 備註
 
-- [x] 整合 shouldRunQualityPass() 成本控制機制到 Quality Pass 觸發邏輯
-- [x] 實作 qualityPassStatus: "skipped" 狀態（短句不執行 Quality Pass）
-- [x] 短句直接標記為 final（translationStage: "final"）
-- [x] 短句直接儲存到資料庫（使用 Fast Pass 翻譯）
-- [x] 實作 UI 狀態顯示（provisional / final / skipped / failed）
-- [x] 確保不產生第二顆 bubble（移除 finalMessage 中間狀態）
-- [x] 實作完整狀態機約束（pending → provisional → final / failed_final）
-
-**成果**：
-- ✅ 成本控制機制已整合到翻譯流程
-- ✅ 短句（如「好」、「謝謝」）不執行 Quality Pass
-- ✅ 預期成本節省 30-50%
-- ✅ 所有 TypeScript 錯誤已修正
-- ✅ 建立 TranslationStatusBadge 組件（支援 5 種狀態顯示）
-- ✅ 修正 bubble 產生邏輯（移除 finalMessage，確保每句話只有一顆 bubble）
-- ✅ 驗證狀態機約束（pending → provisional → final / failed）
-
-## 文件檢查器升級 v0 → v1（已完成，2025-12-27）
-
-- [x] 補齊 shared/config.ts allowlist（4 個有效模型）
-  - [x] gpt-4o-audio-preview（audio/realtime 類）
-  - [x] gpt-4o-mini-transcribe（ASR）
-  - [x] gpt-4.1-mini（translation default）
-  - [x] gpt-4o-mini（translation option）
-- [x] 修正 docs/realtime-subtitle-translation-spec.md default model（gpt-4o-mini → gpt-4.1-mini）
-- [x] 升級 scripts/doc-check/check-models.ts 排除誤判
-  - [x] 排除 code block 內容（```...```）
-  - [x] 排除 error report 內容（❌ docs/...）
-  - [x] 排除 diagnostics 內容（Documentation Consistency Check Report）
-- [x] 驗證並推送到 GitHub
-
----
-
-## 📦 v1.5.5 - 模型治理 SSOT 重構（完成，2025-12-27）
-
-### 目標
-實現模型治理 Single Source of Truth (SSOT)，消除重複宣告，確保 UI 選單與 allowlist 完全同步
-
-### 重構項目
-- [x] 在 config.ts 上方建立 SSOT 區塊（VAD_CONFIG 之前）
-  - [x] ALLOWED_ASR_MODELS + AllowedASRModel
-  - [x] ALLOWED_TRANSLATION_MODELS + AllowedTranslationModel
-  - [x] ALLOWED_MODELS + AllowedModel
-  - [x] ASR_MODEL_META（使用 satisfies 強制覆蓋所有 key）
-  - [x] AVAILABLE_ASR_MODELS（由 allowlist .map() 生成）
-  - [x] TRANSLATION_MODEL_META（使用 satisfies 強制覆蓋所有 key）
-  - [x] AVAILABLE_TRANSLATION_MODELS（由 allowlist .map() 生成）
-
-- [x] 重寫 WHISPER_CONFIG 引用 SSOT
-  - [x] MODEL: "gpt-4o-mini-transcribe" as AllowedASRModel
-  - [x] AVAILABLE_MODELS: AVAILABLE_ASR_MODELS（引用 SSOT）
-  - [x] 加入註解說明「一次性 Audio → Text」ASR，非 Realtime
-
-- [x] 修正 TRANSLATION_CONFIG 引用 SSOT
-  - [x] LLM_MODEL: "gpt-4.1-mini" as AllowedTranslationModel
-  - [x] AVAILABLE_TRANSLATION_MODELS: AVAILABLE_TRANSLATION_MODELS（引用 SSOT）
-
-- [x] 移除底部重複宣告（Line 441-493）
-  - [x] 刪除重複的 ALLOWED_ASR_MODELS
-  - [x] 刪除重複的 ALLOWED_TRANSLATION_MODELS
-  - [x] 刪除重複的 ALLOWED_MODELS
-  - [x] 刪除重複的 type 宣告
-
-### 驗收標準
-- [x] config.ts 中 ALLOWED_* 清單只存在一份（上方 SSOT）
-- [x] WHISPER_CONFIG.AVAILABLE_MODELS 不再手寫，引用 AVAILABLE_ASR_MODELS
-- [x] TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS 不再手寫，引用 AVAILABLE_TRANSLATION_MODELS
-- [x] TypeScript 編譯無重複宣告錯誤
-- [x] UI 選單顯示與 allowlist 完全一致（由 SSOT 自動生成）
-
-### 技術細節
-- 使用 `satisfies Record<AllowedASRModel, ...>` 強制 meta 覆蓋所有 key
-- 使用 `.map()` 自動生成 UI 選單，避免手寫兩份清單
-- Realtime 模型不屬於 ASR，未納入 ALLOWED_ASR_MODELS
-- 檔案總行數從 494 行減少到 520 行（移除重複宣告後反而增加，因為加入詳細註解）
-
-### 測試與發布
-- [x] TypeScript 編譯驗證（無錯誤）
-- [x] 確認 SSOT 區塊結構正確
-- [x] 確認 WHISPER_CONFIG 引用 SSOT
-- [x] 確認 TRANSLATION_CONFIG 引用 SSOT
-- [x] 更新 todo.md
-- [ ] 建立 checkpoint
-- [ ] 推送到 GitHub
+- 所有待辦事項按優先級排序
+- 緊急修復項目優先處理
+- 定期更新此文件以反映最新進度
+- 每個版本完成後更新「已完成」區塊

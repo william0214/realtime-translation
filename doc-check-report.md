@@ -243,13 +243,7 @@
 - **實際:** `gpt-3.5-turbo-instruct`
 - **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
 
-#### 4. ❌ 未知的模型名稱: "gpt-4o-realtime-preview"
-
-- **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:677`
-- **實際:** `gpt-4o-realtime-preview`
-- **建議:** 請檢查 shared/config.ts 中是否定義此模型，或更新文件中的模型名稱
-
-#### 5. ❌ 未知的模型名稱: "gpt-3.5-turbo-instruct"
+#### 4. ❌ 未知的模型名稱: "gpt-3.5-turbo-instruct"
 
 - **檔案:** `docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md:768`
 - **實際:** `gpt-3.5-turbo-instruct`
