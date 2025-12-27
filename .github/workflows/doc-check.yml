@@ -31,39 +31,41 @@ jobs:
     timeout-minutes: 15
 
     env:
-      # PR：soft gate（降低歷史噪音，只擋 SSOT 違規/關鍵錯誤）
-      # main：hard gate（嚴格治理）
       DOC_CHECK_MODE: ${{ github.event_name == 'pull_request' && 'soft' || 'hard' }}
-
       DOC_CHECK_REPORT_DIR: artifacts/doc-check
       DOC_CHECK_REPORT_MD: doc-check-report.md
-
-      # SSOT allowlist 來源（給 checker 使用）
       DOC_CHECK_SSOT_CONFIG_PATH: shared/config.ts
-
-      # 對齊 package.json 的 packageManager（pnpm@10.4.1）
       PNPM_VERSION: "10.4.1"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 1) Node 先裝好，但不要用 setup-node 的 pnpm cache（會先呼叫 pnpm）
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
 
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Activate pnpm (match packageManager)
-        run: corepack prepare pnpm@${PNPM_VERSION} --activate
-
-      - name: Show tool versions
+      # 2) 啟用 pnpm（對齊 packageManager）
+      - name: Enable pnpm via corepack
         run: |
-          node -v
+          corepack enable
+          corepack prepare pnpm@${PNPM_VERSION} --activate
           pnpm -v
+
+      # 3) 手動 cache pnpm store（最穩、無需 setup-node cache）
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -73,13 +75,7 @@ jobs:
           set -euo pipefail
           mkdir -p "${DOC_CHECK_REPORT_DIR}"
 
-          # 你 repo 的 script 名稱是 doc-check（不是 doc:check）
-          if ! pnpm -s run | grep -q "^doc-check"; then
-            echo "ERROR: pnpm script 'doc-check' not found in package.json"
-            exit 1
-          fi
-
-          # 產出 markdown 報告到 artifacts/，避免落在 repo 根目錄造成後續誤掃
+          # scripts 裡是 doc-check（你 package.json 已確認）
           pnpm -s doc-check -- \
             --mode="${DOC_CHECK_MODE}" \
             --format=markdown \
