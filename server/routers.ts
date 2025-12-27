@@ -672,6 +672,14 @@ export const appRouter = router({
       }),
 
     // Quality Pass Translation (gpt-4o, medical-grade final translation)
+    /**
+     * @deprecated v2.2.0: Quality Pass 已停用
+     * 
+     * 原因：Race Condition 問題（messageId 使用 array index）
+     * 將在 v3.0.0+ 之後 messageId UUID 化後重新啟用
+     * 
+     * 此 endpoint 保留以便未來恢復，但前端已不再呼叫
+     */
     qualityPass: publicProcedure
       .input(
         z.object({
@@ -693,6 +701,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
+        console.warn("[translate.qualityPass] ⚠️ This endpoint is deprecated in v2.2.0");
         const { qualityPassTranslation } = await import("./twoPassTranslation");
 
         try {

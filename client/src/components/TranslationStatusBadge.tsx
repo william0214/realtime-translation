@@ -1,4 +1,13 @@
 /**
+ * @deprecated v2.2.0: This component is deprecated
+ * 
+ * Reason: Quality Pass has been disabled due to Race Condition issues
+ * Will be re-enabled in v3.0.0+ after messageId UUID migration
+ * 
+ * This file is kept for reference but is no longer used in the UI
+ */
+
+/**
  * TranslationStatusBadge - 翻譯狀態指示器
  * 
  * 顯示兩段式翻譯的狀態：
@@ -18,6 +27,7 @@ export function TranslationStatusBadge({
   translationStage,
   qualityPassStatus,
 }: TranslationStatusBadgeProps) {
+  console.warn("[TranslationStatusBadge] ⚠️ This component is deprecated in v2.2.0");
   // provisional + pending: 不顯示（等待 Quality Pass 開始）
   if (translationStage === "provisional" && qualityPassStatus === "pending") {
     return null;

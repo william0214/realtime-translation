@@ -1,0 +1,58 @@
+/**
+ * v2.2.0 Patch: 移除 Quality Pass 相關欄位和邏輯
+ * 
+ * 修改項目：
+ * 1. ConversationMessage interface - 移除 translationStage, qualityPassStatus, conversationContext
+ * 2. 移除 QUALITY_PASS_TIMEOUT_MS 常數
+ * 3. 移除 qualityPassMutation
+ * 4. 移除 processFinalTranscript 中的 Quality Pass 邏輯（line 789-1040）
+ * 5. 移除 UI 中的 TranslationStatusBadge 組件
+ * 6. 簡化 status 欄位（只保留 partial/final）
+ * 7. 移除 Race Condition 防護相關欄位（version, conversationKey, createdAt）
+ * 
+ * 保留項目：
+ * - sourceLang, targetLang（翻譯需要）
+ * - conversationId（儲存對話記錄需要）
+ * 
+ * 修改策略：
+ * - 使用 file edit 工具進行多處修改
+ * - 先移除 interface 定義
+ * - 再移除使用這些欄位的程式碼
+ * - 最後移除 UI 顯示
+ */
+
+// Step 1: 簡化 ConversationMessage interface
+type ConversationMessage = {
+  id: number;
+  speaker: "nurse" | "patient";
+  originalText: string;
+  translatedText: string;
+  detectedLanguage: string;
+  timestamp: Date;
+  status: "partial" | "final"; // 簡化：移除 "translated" 狀態
+  // 翻譯相關（保留）
+  sourceLang?: string; // 原文語言
+  targetLang?: string; // 目標語言
+  // 對話記錄相關（保留）
+  conversationId: number | null; // 對話 ID（DB），用於 saveTranslation
+};
+
+// Step 2: 移除常數
+// - 移除 QUALITY_PASS_TIMEOUT_MS
+
+// Step 3: 移除 tRPC mutation
+// - 移除 const qualityPassMutation = trpc.translate.qualityPass.useMutation();
+
+// Step 4: 簡化 processFinalTranscript
+// - 移除 line 789-1040 的 Quality Pass 邏輯
+// - 只保留 Fast Pass 翻譯（直接標記為 final）
+
+// Step 5: 移除 UI 組件
+// - 移除 <TranslationStatusBadge /> 組件
+// - 移除 import TranslationStatusBadge
+
+// Step 6: 移除 Race Condition 防護
+// - 移除 currentConversationKey, currentConversationKeyRef
+// - 移除 shouldApplyQualityPassResult 函數
+// - 移除 startRecording 中的 conversationKey 生成
+// - 移除 stopRecording 中的 conversationKey 清空

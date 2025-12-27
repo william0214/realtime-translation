@@ -102,7 +102,14 @@ const MIN_LENGTH_FOR_SHORT_SENTENCE = 3;
 /**
  * Determine whether a sentence should run Quality Pass
  * 
+ * ⚠️ v2.2.0: Quality Pass 已完全停用
+ * 
  * Decision logic:
+ * - Always return false (Quality Pass disabled)
+ * - Reason: Race Condition issues (messageId using array index)
+ * - Will be re-enabled in v3.0.0+ after messageId UUID migration
+ * 
+ * Original logic (preserved for reference):
  * 1. If sentence is in SHORT_SENTENCE_BLACKLIST → NO
  * 2. If sentence length < 5 chars → NO
  * 3. If sentence contains medical keywords → YES
@@ -119,6 +126,11 @@ export function shouldRunQualityPass(
   sourceText: string,
   sourceLang: string = "zh"
 ): boolean {
+  // v2.2.0: Quality Pass 完全停用
+  console.log(`[Cost Control] ⚠️ Quality Pass disabled (v2.2.0): "${sourceText}" → Skip Quality Pass`);
+  return false;
+  
+  /* Original logic (disabled in v2.2.0):
   // Only apply cost control for Chinese source text
   if (sourceLang !== "zh") {
     return true; // Always run Quality Pass for non-Chinese text (to be safe)
@@ -170,6 +182,7 @@ export function shouldRunQualityPass(
   // Rule 7: Default to NO (skip Quality Pass)
   console.log(`[Cost Control] ❌ No trigger condition met: "${sourceText}" → Skip Quality Pass`);
   return false;
+  */
 }
 
 /**

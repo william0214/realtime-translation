@@ -479,6 +479,16 @@
   - [x] 在 Quality Pass 完成時檢查 shouldApplyQualityPassResult()
   - [x] 建立 shared/raceConditionGuard.ts 工具模組
   - [x] 所有 ConversationMessage 建立位置都加入必要欄位
+- [x] **Phase 4: 移除 Quality Pass（v2.2.0）**
+  - [x] 停用 Cost Control 的 Quality Pass 觸發機制（shouldRunQualityPass 一律回傳 false）
+  - [x] 簡化 ConversationMessage interface（移除 translationStage, qualityPassStatus, version, conversationKey, createdAt）
+  - [x] 移除 qualityPassMutation
+  - [x] 簡化 processFinalTranscript（只保留 Fast Pass）
+  - [x] 移除 UI 中的 TranslationStatusBadge 組件
+  - [x] 移除 Race Condition 防護相關程式碼
+  - [x] 調整 VAD 段落切分參數（maxSegmentMs: normal 8000ms, precise 10000ms）
+  - [x] 標記後端 qualityPass endpoint 為已棄用
+  - [x] 標記 TranslationStatusBadge 組件為已棄用
 
 ### B. 上下文注入（Context）
 - [ ] 實作對話 context 管理（最近 3-6 句）
@@ -670,14 +680,14 @@
 
 ### P0 - 必須在 demo 前完成（Critical）
 
-#### 實作 shouldRunQualityPass() 成本控制機制
-- [ ] 建立醫療關鍵詞字典（痛、發燒、血壓、藥、過敏、劑量等）
-- [ ] 實作長度檢查（中文 ≥ 12-15 字）
-- [ ] 實作數字/單位檢測
-- [ ] 實作否定句檢測（沒有、不、不是）
-- [ ] 實作短句過濾（<5 字直接跳過）
-- [ ] 整合到 processFinalTranscript 流程
-- [ ] 記錄 shouldRunQualityPass() 觸發率
+#### ✅ 實作 shouldRunQualityPass() 成本控制機制（2025-12-27 完成）
+- [x] 建立醫療關鍵詞字典（痛、發燒、血壓、藥、過敏、劑量等）
+- [x] 實作長度檢查（中文 ≥ 12 字）
+- [x] 實作數字/單位檢測
+- [x] 實作否定句檢測（沒有、不、不是）
+- [x] 實作短句過濾（<3 字直接跳過）
+- [x] 整合到 processFinalTranscript 流程
+- [x] 建立完整單元測試（25/25 通過）
 
 #### 強化 Race Condition 防護機制
 - [ ] 在 ConversationMessage 加入 version 或 createdAt timestamp
@@ -761,3 +771,46 @@
 - 緊急修復項目優先處理
 - 定期更新此文件以反映最新進度
 - 每個版本完成後更新「已完成」區塊
+
+
+---
+
+## 🔄 v2.2.0 - 移除 Quality Pass，改採 Fast Pass only（2025-12-27）
+
+### 背景
+- Quality Pass 經常因 Race Condition 導致 "Message not found" 錯誤
+- 根本原因：messageId 使用 array index（不穩定）
+- 目前 maxSegmentMs=2000ms 過於激進，造成句子碎片化
+- 決策：先把 Quality Pass 完全關掉，做一條穩定的 VAD-only baseline
+
+### 目標
+- 完全停用 Quality Pass（包含醫療關鍵字觸發）
+- 段落切分由 VAD 控制（不再 2 秒硬切）
+- 每個段落只做一次翻譯（Fast Pass only）
+- 調整 maxSegmentMs ≥ 6000ms（避免碎句）
+
+### 實作項目
+- [ ] 在 shared/config.ts 加入 ENABLE_QUALITY_PASS feature flag（預設 false）
+- [ ] 修改 shared/costControl.ts 的 shouldRunQualityPass() 一律回傳 false
+- [ ] 移除前端 Quality Pass 觸發邏輯（Home.tsx）
+- [ ] 移除前端 Quality Pass 回寫邏輯（applyQualityPassResult）
+- [ ] 移除前端 Race Guard 對 Quality Pass 的處理
+- [ ] 調整 ASR_MODE_CONFIG 的 maxSegmentMs（normal: 8000ms, precise: 10000ms）
+- [ ] 移除 UI 的 Quality Pass 狀態顯示（processing/completed/failed）
+- [ ] 簡化 ConversationMessage 狀態（只保留 partial/final）
+- [ ] 更新單元測試（移除 Quality Pass 相關測試）
+
+### 驗收標準
+- [ ] Console log 不再出現 "Quality Pass Starting..."
+- [ ] Console log 不再出現 "Message not found, discarding Quality Pass result"
+- [ ] 同一句只觸發一次翻譯請求
+- [ ] VAD 切段正常（Speech START/END）
+- [ ] maxSegmentMs 可配置且預設 ≥ 6000ms
+- [ ] 長句不再被 2 秒硬切（至少 6-10 秒）
+- [ ] 翻譯品質提升（完整句子翻譯）
+
+### 後續改進（v3.0.0+）
+- [ ] messageId 全面 UUID 化（不使用 array index）
+- [ ] messagesById（Map）取代 array index 查找
+- [ ] race guard 粒度改為 per-message（messageId + version）
+- [ ] 條件式恢復 Quality Pass（醫療關鍵句）

@@ -281,6 +281,16 @@ export const ASR_CONFIG = {
  */
 export const TRANSLATION_CONFIG = {
   /**
+   * Quality Pass 功能開關
+   * 設定為 false 則停用 Quality Pass（只使用 Fast Pass）
+   * 設定為 true 則啟用兩段式翻譯（Fast Pass + Quality Pass）
+   * 
+   * 建議值：
+   * - v2.2.0: false（停用 Quality Pass，避免 Race Condition）
+   * - v3.0.0+: true（messageId UUID 化後可重新啟用）
+   */
+  ENABLE_QUALITY_PASS: false,
+  /**
    * 翻譯功能開關
    * 設定為 false 只做語音識別，不翻譯
    * 設定為 true 則同時執行語音識別和翻譯
@@ -447,7 +457,7 @@ export const ASR_MODE_CONFIG = {
     
     // Final 參數
     finalMinDurationMs: 300,  // v1.5.2: 降低從 800ms 到 300ms
-    finalMaxDurationMs: 2000,  // v1.5.2: 降低從 4000ms 到 2000ms，符合 OpenAI API 限制
+    finalMaxDurationMs: 8000,  // v2.2.0: 調整從 2000ms 到 8000ms，避免磎句
     discardBelowMs: 200,
     
     // Whisper 參數
@@ -490,7 +500,7 @@ export const ASR_MODE_CONFIG = {
     
     // Final 參數
     finalMinDurationMs: 400,   // v1.5.2: 降低從 800ms 到 400ms
-    finalMaxDurationMs: 2000,  // v1.5.2: 降低從 4000ms 到 2000ms，符合 OpenAI API 限制
+    finalMaxDurationMs: 10000, // v2.2.0: 調整從 2000ms 到 10000ms，確保完整句子
     discardBelowMs: 300,       // 調整從 400ms 到 300ms
     
     // Whisper 參數
