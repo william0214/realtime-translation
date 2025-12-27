@@ -290,6 +290,8 @@ export default function Home() {
   const currentSegmentIdRef = useRef<number>(0); // Auto-incrementing segment ID
   const activeSegmentsRef = useRef<Set<number>>(new Set()); // Track active segments
   const cancelledSegmentsRef = useRef<Set<number>>(new Set()); // Track cancelled segments
+  const audioFrozenSegmentsRef = useRef<Set<number>>(new Set()); // Track segments with frozen audio pipeline
+  const endTriggeredSegmentsRef = useRef<Set<number>>(new Set()); // Track segments that have triggered END event
   const segmentToPartialMessageRef = useRef<Map<number, number>>(new Map()); // segmentId -> partialMessageId
   const partialAbortControllersRef = useRef<Map<number, AbortController>>(new Map()); // segmentId -> AbortController for partial requests
   const finalAbortControllersRef = useRef<Map<number, AbortController>>(new Map()); // segmentId -> AbortController for final requests
@@ -453,9 +455,68 @@ export default function Home() {
         
         // Need consecutive frames below end threshold to trigger speech end
         if (vadEndFrameCountRef.current >= VAD_END_FRAMES) {
+          const currentSegmentId = currentSegmentIdRef.current;
+          
+          // 🚧 Prevent duplicate END events for the same segment
+          if (endTriggeredSegmentsRef.current.has(currentSegmentId)) {
+            console.log(`[VAD] ⚠️ Speech END already triggered for Segment#${currentSegmentId}, ignoring duplicate`);
+            return false; // Already triggered, ignore
+          }
+          
           // Log RMS value when speech ends
           console.log(`[VAD] 🔇 Speech END detected: RMS=${rms.toFixed(4)} < endThreshold=${VAD_END_THRESHOLD.toFixed(4)} (${vadEndFrameCountRef.current} consecutive frames)`);
           vadEndFrameCountRef.current = 0; // Reset for next detection
+          
+          // 🔒 Mark END as triggered for this segment
+          endTriggeredSegmentsRef.current.add(currentSegmentId);
+          
+          // 🧊 Freeze audio pipeline for this segment
+          audioFrozenSegmentsRef.current.add(currentSegmentId);
+          console.log(`🟫 [VAD/Segment#${currentSegmentId}] Speech END detected, freezing audio pipeline`);
+          
+          // 🎯 Immediately trigger final transcript processing
+          if (sentenceBufferRef.current.length > 0) {
+            console.log(`🟢 [VAD/Segment#${currentSegmentId}] Triggering final transcript (Speech END finalize)`);
+            // Use current sentenceBufferRef content
+            const finalBuffers = [...sentenceBufferRef.current];
+            
+            // 🔥 Hard-trim to ensure duration ≤ maxFinalSec
+            const totalSamples = finalBuffers.reduce((acc, buf) => acc + buf.length, 0);
+            const totalDurationSec = totalSamples / SAMPLE_RATE;
+            const maxFinalSec = FINAL_MAX_DURATION_MS / 1000; // Convert ms to seconds
+            
+            if (totalDurationSec > maxFinalSec) {
+              const maxSamples = Math.floor(maxFinalSec * SAMPLE_RATE);
+              let currentSamples = 0;
+              const trimmedBuffers: Float32Array[] = [];
+              
+              // Take from the end (most recent audio)
+              for (let i = finalBuffers.length - 1; i >= 0; i--) {
+                const buf = finalBuffers[i];
+                if (currentSamples + buf.length <= maxSamples) {
+                  trimmedBuffers.unshift(buf);
+                  currentSamples += buf.length;
+                } else {
+                  const remaining = maxSamples - currentSamples;
+                  if (remaining > 0) {
+                    const trimmed = buf.slice(buf.length - remaining);
+                    trimmedBuffers.unshift(trimmed);
+                    currentSamples += trimmed.length;
+                  }
+                  break;
+                }
+              }
+              
+              const trimmedDurationSec = currentSamples / SAMPLE_RATE;
+              console.log(`✏️ [VAD/Segment#${currentSegmentId}] Hard-trimmed final chunk: ${totalDurationSec.toFixed(2)}s → ${trimmedDurationSec.toFixed(2)}s (max: ${maxFinalSec}s)`);
+              processFinalTranscript(trimmedBuffers, currentSegmentId);
+            } else {
+              processFinalTranscript(finalBuffers, currentSegmentId);
+            }
+          } else {
+            console.warn(`⚠️ [VAD/Segment#${currentSegmentId}] Speech END detected but sentenceBuffer is empty`);
+          }
+          
           return false; // Speech ended
         }
       } else {
@@ -900,6 +961,14 @@ export default function Home() {
         // Get current segment ID
         const currentSegmentId = currentSegmentIdRef.current;
         
+        // 🧊 Check if current segment is frozen (Speech END detected)
+        const isAudioFrozen = audioFrozenSegmentsRef.current.has(currentSegmentId);
+        if (isAudioFrozen) {
+          console.log(`🚧 [Partial/Segment#${currentSegmentId}] Audio frozen, skipping partial chunk processing`);
+          lastPartialTimeRef.current = now;
+          return;
+        }
+        
         // 🆕 Use separate partialBufferRef for sliding window (audio path separation)
         // Prohibit chunks < min buffers (prevent short chunks)
         if (partialBufferRef.current.length < PARTIAL_CHUNK_MIN_BUFFERS) {
@@ -951,6 +1020,11 @@ export default function Home() {
           partialBufferRef.current = []; // Clear partial buffer (audio path separation)
           partialMessageIdRef.current = null;
           lastPartialTimeRef.current = 0;
+          
+          // 🧊 Clear frozen/end flags for new segment (fresh start)
+          // Note: Old segment flags remain in the Set for guard purposes
+          // They will be cleaned up in stopRecording
+          
           console.log(`🔵 [Segment#${newSegmentId}] Speech started (both buffers force-cleared)`);
           
           setProcessingStatus("vad-detected");
@@ -1397,10 +1471,18 @@ export default function Home() {
         if (event.data.type === "audioData") {
           // Collect PCM data for both tracks
           currentChunkBufferRef.current.push(event.data.data);
-          if (isSpeakingRef.current) {
+          
+          // 🧊 Check if current segment is frozen (Speech END detected)
+          const currentSegmentId = currentSegmentIdRef.current;
+          const isAudioFrozen = audioFrozenSegmentsRef.current.has(currentSegmentId);
+          
+          if (isSpeakingRef.current && !isAudioFrozen) {
             // 🆕 Audio path separation: accumulate to both buffers
             sentenceBufferRef.current.push(event.data.data); // For final transcript
             partialBufferRef.current.push(event.data.data); // For partial transcript (sliding window)
+          } else if (isAudioFrozen) {
+            // 🚧 Audio frozen, stop accumulating new audio
+            // (Speech END has been triggered, waiting for final transcript to complete)
           }
         }
       };
@@ -1475,6 +1557,10 @@ export default function Home() {
     });
     activeSegmentsRef.current.clear();
     segmentToPartialMessageRef.current.clear();
+    
+    // 🧊 Clean up frozen/end flags
+    audioFrozenSegmentsRef.current.clear();
+    endTriggeredSegmentsRef.current.clear();
     
     // Clear buffers
     currentChunkBufferRef.current = [];

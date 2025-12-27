@@ -6,6 +6,67 @@
 
 ---
 
+## 🔥 緊急修復（立即處理）
+
+### VAD Speech END 後 Audio Pipeline 未立即停止問題（2025-12-27 新增）
+
+#### 問題描述
+- VAD 已正確偵測到 Speech END（RMS < endThreshold 連續 endFrames）
+- 但 audio pipeline 沒有在 END 時立即停止
+- segment 繼續接收音訊和 partial ASR 請求
+- 最終由 auto-cut 超時機制觸發 finalize（而非 VAD END）
+- 導致 finalize 延遲，使用者體驗不佳
+
+#### 根本原因
+- checkAudioLevel 偵測到 END 後，只設定 isSpeakingRef.current = false
+- 但 partial chunk interval（每 300ms）仍持續執行
+- sentenceBufferRef 仍持續累積新的 audio buffer
+- 沒有機制阻止 END 後的 audio 進入 pipeline
+
+#### 修復方案
+1. **首次 Speech END 時立即 freeze audio pipeline**
+   - 設定 segment.audioFrozen = true flag
+   - 停止 sentenceBufferRef 累積新音訊
+   - 取消 partial chunk interval
+   - 立即觸發 processFinalTranscript
+
+2. **防止重複 END 事件**
+   - 加入 segment.endTriggered flag
+   - 首次 END 後設定為 true
+   - 後續 END 事件直接 return
+
+3. **確保 finalize 由 VAD END 觸發**
+   - Speech END 時立即呼叫 processFinalTranscript
+   - auto-cut 只作為保底機制（超過 maxSegmentMs）
+   - Console log 清楚區分 "Speech END finalize" vs "auto-cut finalize"
+
+#### 實作清單
+- [x] 在 Segment refs 中加入 audioFrozenSegmentsRef 和 endTriggeredSegmentsRef
+- [x] checkAudioLevel 偵測 END 時設定 audioFrozen = true
+- [x] checkAudioLevel 偵測 END 時設定 endTriggered = true
+- [x] checkAudioLevel 偵測 END 時立即呼叫 processFinalTranscript
+- [x] 修改 audio buffer 累積邏輯，檢查 audioFrozen flag
+- [x] 修改 partial chunk interval，檢查 audioFrozen flag
+- [x] 防止重複 END 事件（檢查 endTriggered flag）
+- [x] 更新 Console log 區分 VAD END vs auto-cut
+- [x] 在 stopRecording 時清理 frozen/end flags
+
+#### 預期效果
+- Speech END 後立即停止接收新音訊
+- Speech END 後立即觸發 final transcript
+- Console log 顯示 "Speech END finalize" 而非 "auto-cut finalize"
+- finalize 延遲從 8-10 秒降至 0.4-0.6 秒
+- auto-cut 只在極端情況下觸發（語音持續超過 maxSegmentMs）
+
+#### 驗收標準
+- [ ] Console log 顯示 "🟢 Speech END detected, freezing audio pipeline"
+- [ ] Console log 顯示 "Speech END finalize" 而非 "auto-cut finalize"
+- [ ] 短句（1-2 秒）在停止說話後 0.4-0.6 秒內 finalize
+- [ ] 不會出現重複 END 事件的 log
+- [ ] sentenceBufferRef 在 END 後不再增長
+
+---
+
 ## ✅ 模型清理任務（2025-12-27 完成）
 
 - [x] 全面移除 gpt-4o-realtime-preview 模型引用
