@@ -71,7 +71,15 @@ function extractModelDefinitions(configPath: string): ModelDefinition[] {
 }
 
 /**
- * 判斷是否為誤判內容（error report / diagnostics / CI output）
+ * 判斷是否為誤判內容（error report / diagnostics / CI output / legacy 說明）
+ * 
+ * 排除規則：
+ * 1. Error report 格式
+ * 2. Diagnostics block
+ * 3. CI output / test result
+ * 4. 範例輸出 block
+ * 5. Legacy 模型說明（已被取代、已棄用等）
+ * 6. 模型比較說明（vs, 對比等）
  */
 function isExcludedContext(content: string, position: number): boolean {
   // 提取位置附近的上下文（前後 200 字元）
@@ -96,6 +104,26 @@ function isExcludedContext(content: string, position: number): boolean {
   
   // 排除規則 4: 範例輸出 block（Example Output, Sample Output）
   if (/Example Output|Sample Output|Output Example/i.test(context)) {
+    return true;
+  }
+  
+  // 排除規則 5: Legacy 模型說明（已被取代、已棄用、outdated、deprecated、legacy）
+  if (
+    /已被取代|已棄用|不再使用|停用|淘汰/i.test(context) ||
+    /outdated|deprecated|legacy|replaced by|superseded by|obsolete/i.test(context) ||
+    /example of outdated|example of invalid/i.test(context)
+  ) {
+    return true;
+  }
+  
+  // 排除規則 6: 模型比較說明（vs, 對比, 比較）
+  if (/\s+vs\s+|對比|比較|comparison/i.test(context)) {
+    return true;
+  }
+  
+  // 排除規則 7: 引號說明（「...」或 "..." 包圍的說明性文字）
+  // 檢查是否在「已被...取代」這類句型中
+  if (/[「"].*?(已被|replaced|superseded).*?[」"]/i.test(context)) {
     return true;
   }
   
