@@ -24,6 +24,7 @@ type ConversationMessage = {
   detectedLanguage: string;
   timestamp: Date;
   status: "partial" | "final"; // v2.2.0: 簡化，移除 "translated" 狀態
+  finalized?: boolean; // v2.3.0: 標記是否已產生 final transcript，保護免被 cleanup 清除
   // 翻譯相關（保留）
   sourceLang?: string; // 原文語言
   targetLang?: string; // 目標語言
@@ -764,10 +765,16 @@ export default function Home() {
               const isHallucination = detectWhisperHallucination(result.sourceText);
               if (isHallucination) {
                 console.warn(`[Final] Whisper hallucination detected, skipping: "${result.sourceText.substring(0, 50)}..."`);
-                // Remove partial message if exists
+                // Remove partial message if exists (only if not finalized)
                 if (partialMessageIdRef.current !== null) {
-                  setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageIdRef.current));
-                  console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (hallucination)`);
+                  setConversations((prev) => {
+                    const msgToRemove = prev.find((msg) => msg.id === partialMessageIdRef.current);
+                    if (msgToRemove && !msgToRemove.finalized) {
+                      console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (hallucination)`);
+                      return prev.filter((msg) => msg.id !== partialMessageIdRef.current);
+                    }
+                    return prev;
+                  });
                   partialMessageIdRef.current = null;
                 }
                 setProcessingStatus("listening");
@@ -794,6 +801,7 @@ export default function Home() {
                             originalText: result.sourceText || "",
                             translatedText: result.translatedText || "",
                             status: "final" as const,
+                            finalized: true, // v2.3.0: 標記為 finalized，保護免被 cleanup 清除
                             timestamp: new Date(),
                             sourceLang: result.sourceLang,
                             targetLang: result.targetLang,
@@ -802,7 +810,7 @@ export default function Home() {
                         : msg
                     )
                   );
-                  console.log(`[Translation] Updated partial #${finalMessageId} to final: "${result.sourceText}"`);
+                  console.log(`[Translation] Updated partial #${finalMessageId} to final (finalized=true): "${result.sourceText}"`);
                   partialMessageIdRef.current = null; // Reset partial message ID
                 } else {
                   // No partial message, create new final message
@@ -815,12 +823,13 @@ export default function Home() {
                     detectedLanguage: result.sourceLang || "unknown",
                     timestamp: new Date(),
                     status: "final",
+                    finalized: true, // v2.3.0: 標記為 finalized，保護免被 cleanup 清除
                     sourceLang: result.sourceLang,
                     targetLang: result.targetLang,
                     conversationId: currentConversationId,
                   };
                   setConversations((prev) => [...prev, finalMessage]);
-                  console.log(`[Translation] Created final translation #${finalMessageId} (speaker: ${sourceSpeaker})`);
+                  console.log(`[Translation] Created final translation #${finalMessageId} (speaker: ${sourceSpeaker}, finalized=true)`);
                 }
                 
                 // v2.2.0: 移除 Quality Pass 邏輯，直接儲存翻譯結果
@@ -1478,12 +1487,14 @@ export default function Home() {
     setIsRecording(false);
 
     // 🔥 FIX: Remove any partial messages from UI when stopping recording
-    // Always remove all partial messages, regardless of partialMessageIdRef state
+    // v2.3.0: 保留 finalized message（已產生 final transcript），只清除 partial-only segment
     setConversations((prev) => {
       const partialCount = prev.filter((msg) => msg.status === "partial").length;
+      const nonFinalizedCount = prev.filter((msg) => msg.status === "partial" && !msg.finalized).length;
       if (partialCount > 0) {
-        console.log(`[Stop Recording] Removing ${partialCount} partial message(s)`);
-        return prev.filter((msg) => msg.status !== "partial");
+        console.log(`[Stop Recording] Found ${partialCount} partial message(s), removing ${nonFinalizedCount} non-finalized message(s)`);
+        // 只清除未 finalized 的 partial message
+        return prev.filter((msg) => !(msg.status === "partial" && !msg.finalized));
       }
       return prev;
     });

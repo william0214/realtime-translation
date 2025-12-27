@@ -20,6 +20,27 @@
 
 ## 🔥 緊急修復（立即處理）
 
+### Final Segment 翻譯結果無法顯示問題（2025-12-27 新增）
+
+#### 問題描述
+- [x] Final segment 在 stopRecording 時被取消，導致翻譯結果無法顯示
+- [x] 翻譯只在 final segment 觸發，但 cleanup 時 segment 被標記為 cancelled
+- [x] 需要保護已產生 final transcript 的 message，避免被 cleanup 清除
+
+#### 修復方案
+- [x] 在 ConversationMessage 加入 `finalized: boolean` 欄位
+- [x] 在 processFinalTranscript 產生 final transcript 後，標記該 message 為 finalized
+- [x] 修改 stopRecording cleanup 邏輯：
+  - [x] 保留 finalized message（已產生 final transcript）
+  - [x] 只清理 partial-only segment（未產生 final transcript）
+- [x] 確保翻譯泡泡能正常顯示於 UI
+- [x] 修正 hallucination 檢測邏輯，避免誤刪 finalized message
+
+#### 驗收標準
+- [ ] 點擊「結束對話」後，已產生的翻譯泡泡仍然顯示
+- [ ] Console log 不再出現 segment cancelled 導致翻譯失敗的錯誤
+- [ ] 只有 partial-only message 被清除，finalized message 保留
+
 ### VAD/ASR 系統修復（2025-12-25 新增）
 
 #### 核心問題
