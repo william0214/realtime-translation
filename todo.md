@@ -405,6 +405,17 @@
 
 ---
 
+## 📖 文件架構改進（2025-01-27 新增）
+
+### 抽象化 Realtime/Audio 模型引用
+- [x] 將 docs/realtime-subtitle-translation-spec.md 改用抽象概念（Realtime Audio Model）
+- [x] 將 docs/AUTOMATED_DOCUMENTATION_CHECK_DESIGN.md 範例改用通用模型名稱
+- [x] 確保文件不寫死具體 realtime/audio 模型名稱
+- [x] 檢查器只驗證 allowlist 中的具體模型 ID
+- [x] 驗證文件檢查器邏輯正確性
+
+---
+
 ## 📖 設計規格文件開發（2025-12-25 新增）
 
 ### 文件撰寫

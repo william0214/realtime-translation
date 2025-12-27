@@ -1,8 +1,8 @@
 # 即時雙向翻譯系統設計規格
 
 **專案名稱：** 護理推車即時雙向翻譯系統  
-**版本：** v1.5.0  
-**文件日期：** 2025-12-25  
+**版本：** v1.7.0  
+**文件日期：** 2025-01-27  
 **作者：** Manus AI
 
 ---
@@ -17,7 +17,7 @@
 
 **語音處理模組**負責即時音訊擷取與處理，採用 WebAudio API 實現 16kHz 單聲道音訊串流，並透過語音活動檢測（VAD）技術自動識別語音片段起止點。該模組支援動態靜音檢測與雜訊過濾，確保只有有效語音片段進入後續處理流程。
 
-**語音識別模組**整合 OpenAI Whisper 系列模型，支援 `whisper-1`、`gpt-4o-mini-transcribe`、`gpt-4o-transcribe`、`gpt-4o-transcribe-diarize` 等 ASR 模型，以及 `gpt-4o-realtime-preview` 即時音訊模型。系統採用混合架構設計，透過 Hybrid ASR WebSocket 實現低延遲轉錄，並提供即時字幕（Partial）與最終確認（Final）兩階段輸出機制。
+**語音識別模組**整合 OpenAI Whisper 系列 ASR 模型與 Realtime Audio 模型。系統採用混合架構設計,透過 Hybrid ASR WebSocket 實現低延遲轉錄,並提供即時字幕(Partial)與最終確認(Final)兩階段輸出機制。具體支援的模型列表定義於 `shared/config.ts` 的 allowlist 中。
 
 **翻譯引擎模組**採用 OpenAI GPT 系列模型執行雙向翻譯任務，支援中文與八種外語（英語、越南語、印尼語、泰語、日語、韓語、菲律賓語、緬甸語）之間的互譯。翻譯引擎針對醫療場景進行優化，保留專業術語準確性，並支援多種翻譯模型（`gpt-4.1-mini`、`gpt-4o-mini`、`gpt-4.1`、`gpt-4o`）動態切換。
 
@@ -531,21 +531,23 @@ function hardTrimFinalBuffer(buffer: Float32Array, maxDurationSec: number): Floa
 
 | 參數名稱 | 資料型別 | 預設值 | 說明 | 可選值 |
 |---------|---------|--------|------|--------|
-| `model` | string | `gpt-4o-mini-transcribe` | ASR 模型識別碼 | `whisper-1`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`, `gpt-4o-transcribe-diarize` |
+| `model` | string | 系統預設 | ASR 模型識別碼 | 支援的模型列表請參考 `shared/config.ts` 中的 `ASR_MODEL_ALLOWLIST` |
 | `language` | string | `auto` | 來源語言代碼（ISO-639-1） | `zh`, `en`, `vi`, `id`, `th`, `ja`, `ko`, `tl`, `my`, `auto` |
 | `temperature` | number | `0.0` | 取樣溫度，控制輸出隨機性 | `0.0` - `1.0` |
 | `response_format` | string | `json` | 回應格式 | `json`, `text`, `verbose_json` |
 | `timestamp_granularities` | array | `["segment"]` | 時間戳記粒度 | `["segment"]`, `["word"]`, `["segment", "word"]` |
 
-**模型選擇建議**如下：
+**模型選擇建議**：系統支援多種 Whisper 系列 ASR 模型與 Realtime Audio 模型，各模型具有不同的延遲、品質與功能特性。具體支援的模型列表請參考 `shared/config.ts` 中的 `ASR_MODEL_ALLOWLIST`。
 
-**whisper-1** 為基礎模型，提供穩定的轉錄品質與較低的 API 成本。適用於一般對話場景，延遲約 2.5-3.5 秒。該模型支援多語言轉錄，但不支援即時串流輸出。
+**基礎 ASR 模型**提供穩定的轉錄品質與較低的 API 成本，適用於一般對話場景，支援多語言轉錄。
 
-**gpt-4o-mini-transcribe** 為快速轉錄模型（**系統預設**），提供最佳的速度與成本平衡。適用於即時對話場景，延遲約 1.5-2.5 秒。該模型在保持良好轉錄品質的同時大幅降低 API 成本，是大多數場景的最佳選擇。
+**快速 ASR 模型**提供最佳的速度與成本平衡，適用於即時對話場景，在保持良好轉錄品質的同時大幅降低 API 成本。
 
-**gpt-4o-transcribe** 為高品質轉錄模型，提供更高的轉錄準確度與更好的雜訊抑制能力。適用於複雜對話場景與醫療專業場景，延遲約 2.0-3.0 秒。該模型在專業術語識別與口音適應上表現優異。
+**高品質 ASR 模型**提供更高的轉錄準確度與更好的雜訊抑制能力，適用於複雜對話場景與醫療專業場景，在專業術語識別與口音適應上表現優異。
 
-**gpt-4o-transcribe-diarize** 為進階轉錄模型，在 `gpt-4o-transcribe` 基礎上加入說話者辨識（Speaker Diarization）與詳細時間資訊。適用於多人對話場景與會議記錄，延遲約 2.5-3.5 秒。該模型可自動識別不同說話者並標記時間戳記。
+**進階 ASR 模型**在高品質模型基礎上加入說話者辨識（Speaker Diarization）與詳細時間資訊，適用於多人對話場景與會議記錄。
+
+**Realtime Audio 模型**支援即時音訊處理，提供最低延遲的轉錄體驗，適用於對延遲極度敏感的場景。
 
 ### 4.2 翻譯模型參數
 
@@ -1283,7 +1285,7 @@ Server -> Client: WebSocket Close Frame (Code: 1000, Reason: "Normal Closure")
 
 **場景描述**：護理人員與外籍病患進行日常對話，環境噪音低，語速正常。
 
-**模型選擇**：`gpt-4o-mini-transcribe`
+**模型選擇**：快速 ASR 模型（系統預設）
 
 **選擇理由**：
 - 最佳的速度與成本平衡（延遲 1.5-2.5 秒）
@@ -1293,7 +1295,8 @@ Server -> Client: WebSocket Close Frame (Code: 1000, Reason: "Normal Closure")
 **設定方式**：
 ```typescript
 // shared/config.ts
-WHISPER_CONFIG.MODEL = "gpt-4o-mini-transcribe";
+// 使用 ASR_MODEL_ALLOWLIST 中的快速模型
+WHISPER_CONFIG.MODEL = ASR_MODEL_ALLOWLIST[1]; // 範例：選擇快速模型
 ```
 
 **預期效果**：
@@ -1307,7 +1310,7 @@ WHISPER_CONFIG.MODEL = "gpt-4o-mini-transcribe";
 
 **場景描述**：醫生與病患討論病情，涉及大量醫療術語與藥物名稱。
 
-**模型選擇**：`gpt-4o-transcribe`
+**模型選擇**：高品質 ASR 模型
 
 **選擇理由**：
 - 高轉錄準確度，適合複雜專業術語
@@ -1317,7 +1320,8 @@ WHISPER_CONFIG.MODEL = "gpt-4o-mini-transcribe";
 **設定方式**：
 ```typescript
 // shared/config.ts
-WHISPER_CONFIG.MODEL = "gpt-4o-transcribe";
+// 使用 ASR_MODEL_ALLOWLIST 中的高品質模型
+WHISPER_CONFIG.MODEL = ASR_MODEL_ALLOWLIST[2]; // 範例：選擇高品質模型
 ```
 
 **預期效果**：
@@ -1331,7 +1335,7 @@ WHISPER_CONFIG.MODEL = "gpt-4o-transcribe";
 
 **場景描述**：醫療團隊會議，需要識別不同說話者並記錄時間資訊。
 
-**模型選擇**：`gpt-4o-transcribe-diarize`
+**模型選擇**：進階 ASR 模型（支援 Speaker Diarization）
 
 **選擇理由**：
 - 支援說話者辨識（Speaker Diarization）
@@ -1341,7 +1345,8 @@ WHISPER_CONFIG.MODEL = "gpt-4o-transcribe";
 **設定方式**：
 ```typescript
 // shared/config.ts
-WHISPER_CONFIG.MODEL = "gpt-4o-transcribe-diarize";
+// 使用 ASR_MODEL_ALLOWLIST 中的進階模型
+WHISPER_CONFIG.MODEL = ASR_MODEL_ALLOWLIST[3]; // 範例：選擇進階模型
 ```
 
 **預期效果**：
@@ -1542,7 +1547,8 @@ function detectNumberLoss(source: string, translation: string): Issue[] {
 
 | 版本 | 日期 | 作者 | 變更說明 |
 |-----|------|------|------|
-| v1.6.0 | 2025-12-27 | Manus AI | 更新 ASR 模型名稱（gpt-4o-mini-transcribe, gpt-4o-transcribe, gpt-4o-transcribe-diarize）；更新翻譯模型預設值（gpt-4.1-mini）；新增附錄 D 使用範例（9 個範例） |
+| v1.7.0 | 2025-01-27 | Manus AI | 文件架構改進：改用抽象概念（Realtime Audio Model）取代具體模型名稱，模型列表由 `shared/config.ts` 中的 allowlist 定義 |
+| v1.6.0 | 2025-12-27 | Manus AI | 更新 ASR 模型支援；更新翻譯模型預設值；新增附錄 D 使用範例（9 個範例） |
 | v1.5.0 | 2025-12-25 | Manus AI | 新增 3.4 節「Segment 執行期一致性規範」，補強即時字幕與 Final 翻譯的執行期行為約束 |
 | v1.4.0 | 2025-12-25 | Manus AI | VAD/ASR 系統全面修復 |
 | v1.0 | 2025-12-25 | Manus AI | 初始版本，包含完整設計規格 |

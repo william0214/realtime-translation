@@ -1,7 +1,8 @@
 # 自動化文件檢查機制設計
 
-**文件版本**：v1.0  
+**文件版本**：v1.1  
 **建立日期**：2025-12-27  
+**更新日期**：2025-01-27  
 **作者**：Manus AI  
 **目的**：設計 CI/CD 自動驗證方案，確保文件與實作持續一致
 
@@ -35,7 +36,7 @@
 - 比對文件引用與實際定義，標記不一致項目
 
 **可檢測的不一致**：
-- 使用已棄用的模型名稱（如 `gpt-3.5-turbo`）
+- 使用不在 allowlist 中的模型名稱
 - 使用不存在的模型名稱
 - 預設值與實作不符
 
@@ -282,31 +283,49 @@ function checkModelConsistency(
 **實作檔案**：`scripts/doc-check/check-models.ts`
 
 **檢查流程**：
-1. 從 `shared/config.ts` 提取 `WHISPER_CONFIG.AVAILABLE_MODELS` 和 `TRANSLATION_CONFIG.AVAILABLE_TRANSLATION_MODELS`
+1. 從 `shared/config.ts` 提取 `ASR_MODEL_ALLOWLIST` 和 `TRANSLATION_MODEL_ALLOWLIST`
 2. 掃描所有 `.md` 檔案，使用正則表達式提取模型名稱引用
-3. 比對引用與定義，產生錯誤報告
+3. 比對引用與 allowlist，產生錯誤報告
+4. **重要**：文件中不應出現 realtime/audio 類模型的具體名稱，應使用抽象概念（如「Realtime Audio 模型」）
 
 **正則表達式模式**：
 ```typescript
+// 只檢查 allowlist 中的具體模型 ID
 const MODEL_PATTERNS = [
-  /`(whisper-1|gpt-4o-[a-z-]+)`/g,           // Inline code
+  /`([a-z0-9-]+(?:-preview)?)`/g,            // Inline code
   /\|\s*`([^`]+)`\s*\|/g,                     // Table cells
   /model:\s*"([^"]+)"/g,                      // Code blocks
+  /MODEL\s*=\s*["']([^"']+)["']/g,          // Assignment
+];
+
+// 禁止在文件中出現 realtime/audio 類模型的具體名稱
+const FORBIDDEN_PATTERNS = [
+  /gpt-4o-realtime-preview/gi,
+  /realtime-preview/gi,
 ];
 ```
 
 **錯誤訊息範例**：
 ```
 ❌ docs/realtime-subtitle-translation-spec.md:534
-   Invalid ASR model: "gpt-3.5-turbo"
+   Forbidden model reference: "gpt-4o-realtime-preview"
    
-   Valid models:
-   - whisper-1
-   - gpt-4o-mini-transcribe
-   - gpt-4o-transcribe
-   - gpt-4o-transcribe-diarize
+   文件中不應直接引用 realtime/audio 類模型的具體名稱。
    
-   Suggestion: Replace with "gpt-4.1-mini" (for translation) or "gpt-4o-mini-transcribe" (for ASR)
+   建議修改：
+   - 使用抽象概念：「Realtime Audio 模型」
+   - 或引用 allowlist：「請參考 `shared/config.ts` 中的 `ASR_MODEL_ALLOWLIST`」
+   
+❌ docs/example.md:120
+   Invalid translation model: "gpt-3.5-turbo-instruct"
+   
+   Valid models (from TRANSLATION_MODEL_ALLOWLIST):
+   - gpt-4.1-mini
+   - gpt-4o-mini
+   - gpt-4.1
+   - gpt-4o
+   
+   Suggestion: Replace with "gpt-4.1-mini" (default) or "gpt-4o" (high quality)
 ```
 
 #### 1.2 配置參數檢查
@@ -665,12 +684,11 @@ Total issues found: 5
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. docs/realtime-subtitle-translation-spec.md:534
-   Invalid translation model: "gpt-3.5-turbo"
+   Forbidden model reference: "gpt-4o-realtime-preview"
    
-   Expected: One of [gpt-4o-mini, gpt-4.1-mini, gpt-4.1, gpt-4o]
-   Found:    "gpt-3.5-turbo"
+   文件中不應直接引用 realtime/audio 類模型的具體名稱。
    
-   Fix: Replace with "gpt-4.1-mini" (recommended default)
+   Fix: 使用抽象概念「Realtime Audio 模型」或引用 `ASR_MODEL_ALLOWLIST`
 
 2. docs/realtime-subtitle-translation-spec.md:556
    Parameter default value mismatch
@@ -757,11 +775,11 @@ API Interfaces      |      0 |     100%
 **File**: `docs/realtime-subtitle-translation-spec.md:534`  
 **Severity**: 🔴 Critical
 
-**Problem**: Document references deprecated model "gpt-3.5-turbo"
+**Problem**: Document references forbidden model "gpt-4o-realtime-preview"
 
-**Expected**: One of `gpt-4o-mini`, `gpt-4.1-mini`, `gpt-4.1`, `gpt-4o`
+**Expected**: 使用抽象概念或引用 allowlist
 
-**Fix**: Replace with `gpt-4.1-mini` (recommended default)
+**Fix**: 使用「Realtime Audio 模型」或「請參考 `shared/config.ts` 中的 `ASR_MODEL_ALLOWLIST`」
 
 ---
 
