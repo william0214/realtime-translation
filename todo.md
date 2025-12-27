@@ -20,6 +20,32 @@
 
 ## 🔥 緊急修復（立即處理）
 
+### VAD Speech END 參數優化（2025-12-27 新增）
+
+#### 問題描述
+- [ ] 當前 endThreshold (0.035) 和 endFrames (8) 偏保守
+- [ ] 短句在語音停止後延遲過久才 finalize
+- [ ] 實務上多數句子由 auto-cut 收尾而非正常 Speech END
+- [ ] 需要降低 endThreshold 和 endFrames 加速 Speech END 檢測
+
+#### 調整方案
+- [x] startThreshold: 0.045（維持不變）
+- [x] endThreshold: 0.035 → **0.028**（降低 20%）
+- [x] endFrames: 8 → **4**（減半）
+- [x] 保留 auto-cut 作為超時保險機制
+- [x] Precise 模式同步優化（endThreshold: 0.032, endFrames: 5）
+
+#### 預期效果
+- [ ] 短句能在語音停止後 ~400ms 內快速 finalize（4 frames × 100ms）
+- [ ] 減少依賴 auto-cut 的情況
+- [ ] 改善使用者體驗（更快看到翻譯結果）
+
+#### 驗收標準
+- [x] 單元測試驗證所有 VAD 參數調整正確（20 個測試全部通過）
+- [ ] 實際測試：說 1-2 秒短句後停止，觀察是否在 0.4-0.6 秒內觸發 final
+- [ ] Console log 顯示 "Speech END detected" 而非 "auto-cut triggered"
+- [ ] 不會因為過於靈敏而誤切長句
+
 ### Final Segment 翻譯結果無法顯示問題（2025-12-27 新增）
 
 #### 問題描述

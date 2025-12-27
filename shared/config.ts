@@ -444,11 +444,11 @@ export const ASR_MODE_CONFIG = {
     silenceDurationMs: 600,    // 調整從 650ms 到 600ms
     rmsThreshold: 0.015, // 降低閖值以適應低音量麥克風 (from 0.055 to 0.015)
     
-    // VAD Hysteresis 參數 (v1.5.4)
+    // VAD Hysteresis 參數 (v1.5.4 → v2.3.1 優化)
     vadStartThreshold: 0.045,  // 語音開始門檻（連續幀數高於此值才算開始）
-    vadEndThreshold: 0.035,    // 語音結束門檻（連續幀數低於此值才算結束）
+    vadEndThreshold: 0.028,    // 語音結束門檻（降低 20% 加速 Speech END 檢測）
     vadStartFrames: 2,         // 開始連續幀數（需連續 N 幀高於 startThreshold）
-    vadEndFrames: 8,           // 結束連續幀數（需連續 N 幀低於 endThreshold）
+    vadEndFrames: 4,           // 結束連續幀數（減半至 4 幀，~400ms 快速 finalize）
     
     // Chunk 參數
     partialChunkIntervalMs: 300,
@@ -487,11 +487,11 @@ export const ASR_MODE_CONFIG = {
     silenceDurationMs: 600,    // 調整從 900ms 到 600ms
     rmsThreshold: 0.025, // 降低閖值以適應低音量麥克風 (from 0.1 to 0.025)
     
-    // VAD Hysteresis 參數 (v1.5.4)
+    // VAD Hysteresis 參數 (v1.5.4 → v2.3.1 優化)
     vadStartThreshold: 0.050,  // 語音開始門檻（Precise 模式較高，減少誤觸發）
-    vadEndThreshold: 0.040,    // 語音結束門檻
+    vadEndThreshold: 0.032,    // 語音結束門檻（降低 20% 加速 Speech END 檢測）
     vadStartFrames: 3,         // 開始連續幀數（Precise 模式較嚴格）
-    vadEndFrames: 10,          // 結束連續幀數（Precise 模式較長，確保完整句子）
+    vadEndFrames: 5,           // 結束連續幀數（減半至 5 幀，~500ms 快速 finalize）
     
     // Chunk 參數
     partialChunkIntervalMs: 400,
