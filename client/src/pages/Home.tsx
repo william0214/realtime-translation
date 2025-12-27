@@ -196,7 +196,7 @@ export default function Home() {
   // Hybrid ASR client
   const hybridClientRef = useRef<HybridASRClient | null>(null);
   const [isHybridConnected, setIsHybridConnected] = useState(false);
-  const [partialSubtitle, setPartialSubtitle] = useState<string>("");
+
   const [titleClickCount, setTitleClickCount] = useState(0);
   const titleClickTimeoutRef = useRef<number | null>(null);
   
@@ -242,8 +242,6 @@ export default function Home() {
   const patientSpeechStartTimeRef = useRef<number>(0);
   const nurseSentenceEndTriggeredRef = useRef<boolean>(false);
   const patientSentenceEndTriggeredRef = useRef<boolean>(false);
-  const nursePartialMessageIdRef = useRef<number | null>(null);
-  const patientPartialMessageIdRef = useRef<number | null>(null);
   
   // Save mirror setting to localStorage
   useEffect(() => {
@@ -292,14 +290,7 @@ export default function Home() {
   const cancelledSegmentsRef = useRef<Set<number>>(new Set()); // Track cancelled segments
   const audioFrozenSegmentsRef = useRef<Set<number>>(new Set()); // Track segments with frozen audio pipeline
   const endTriggeredSegmentsRef = useRef<Set<number>>(new Set()); // Track segments that have triggered END event
-  const segmentToPartialMessageRef = useRef<Map<number, number>>(new Map()); // segmentId -> partialMessageId
-  const partialAbortControllersRef = useRef<Map<number, AbortController>>(new Map()); // segmentId -> AbortController for partial requests
   const finalAbortControllersRef = useRef<Map<number, AbortController>>(new Map()); // segmentId -> AbortController for final requests
-  
-  // Partial transcript state
-  const partialMessageIdRef = useRef<number | null>(null); // Track current partial message ID
-  const lastPartialTimeRef = useRef<number>(0); // Track last partial push time
-  const partialIntervalRef = useRef<number | null>(null); // Interval for partial pushes
 
   // Refs
   const streamRef = useRef<MediaStream | null>(null);
@@ -319,11 +310,6 @@ export default function Home() {
   const speechStartTimeRef = useRef<number>(0); // Track when speech actually started
   const isSpeakingRef = useRef<boolean>(false);
   const vadIntervalRef = useRef<number | null>(null);
-  
-  // 🆕 Audio path separation: Partial vs Final buffers
-  // Partial buffer: Sliding window for real-time subtitles (only last 1.0-1.5s)
-  const partialBufferRef = useRef<Float32Array[]>([]); // Separate buffer for partial transcripts
-  const PARTIAL_WINDOW_DURATION_S = 1.5; // Keep last 1.5 seconds for partial
   
   // Final buffer: Accumulated audio for final transcript (will be hard-trimmed before sending)
   const sentenceBufferRef = useRef<Float32Array[]>([]); // Buffer for final transcript
@@ -527,160 +513,7 @@ export default function Home() {
   }, [VAD_START_THRESHOLD, VAD_END_THRESHOLD, VAD_START_FRAMES, VAD_END_FRAMES]);
 
   // Process partial chunk for immediate subtitle (250-350ms, update same message, no translation)
-  const processPartialChunk = useCallback(async (pcmBuffer: Float32Array[], segmentId: number) => {
-    if (pcmBuffer.length === 0) return;
-
-    // 🔒 Segment guard: Check if segment is still active
-    if (cancelledSegmentsRef.current.has(segmentId)) {
-      console.log(`⚠️ [Partial] Segment #${segmentId} cancelled, ignoring partial request`);
-      return;
-    }
-    
-    if (!activeSegmentsRef.current.has(segmentId)) {
-      console.log(`⚠️ [Partial] Segment #${segmentId} not active, ignoring partial request`);
-      return;
-    }
-
-    // 🔥 OPTIMIZATION #4: Do NOT send ASR during silent loop
-    if (!isSpeakingRef.current) {
-      console.log(`⚠️ [Subtitle] Not speaking, skipping partial ASR`);
-      return;
-    }
-
-    // Calculate buffer duration for logging
-    const bufferSamples = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
-    const bufferDurationMs = (bufferSamples / SAMPLE_RATE) * 1000;
-    console.log(`[Partial/Segment#${segmentId}] Processing chunk with ${pcmBuffer.length} PCM buffers (${bufferSamples} samples, ${bufferDurationMs.toFixed(0)}ms)`);
-    setProcessingStatus("recognizing");
-    
-    // Create AbortController for this partial request
-    const abortController = new AbortController();
-    partialAbortControllersRef.current.set(segmentId, abortController);
-
-    try {
-      // Concatenate PCM buffers
-      const totalLength = pcmBuffer.reduce((acc, buf) => acc + buf.length, 0);
-      const concatenated = new Float32Array(totalLength);
-      let offset = 0;
-      for (const buf of pcmBuffer) {
-        concatenated.set(buf, offset);
-        offset += buf.length;
-      }
-
-      // Create AudioBuffer
-      const audioBuffer = audioContextRef.current!.createBuffer(1, concatenated.length, SAMPLE_RATE);
-      audioBuffer.copyToChannel(concatenated, 0);
-
-      // Convert to WebM using MediaRecorder
-      const tempContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: SAMPLE_RATE });
-      const source = tempContext.createBufferSource();
-      source.buffer = audioBuffer;
-      const dest = tempContext.createMediaStreamDestination();
-      source.connect(dest);
-      source.start();
-
-      const mediaRecorder = new MediaRecorder(dest.stream, {
-        mimeType: "audio/webm;codecs=opus",
-        audioBitsPerSecond: 48000,
-      });
-
-      const chunks: Blob[] = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunks.push(e.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const webmBlob = new Blob(chunks, { type: "audio/webm" });
-        console.log(`[Subtitle] Created WebM blob, size: ${webmBlob.size} bytes`);
-
-        // Skip if blob is too small (< 1KB ≈ 0.15 seconds)
-        if (webmBlob.size < 1000) {
-          console.warn(`[Subtitle] Blob too small (${webmBlob.size} bytes < 1000 bytes), skipping`);
-          setProcessingStatus("listening");
-          return;
-        }
-
-        // Convert to base64 and send to Whisper
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64Audio = (reader.result as string).split(",")[1];
-
-          try {
-            // Log selected models for debugging (subtitle mode)
-            console.log(`[Frontend/Subtitle] 🎤 ASR Model: ${asrModel} (mode: ${asrMode})`);
-            console.log(`[Frontend/Subtitle] 🔧 Backend: ${backend}`);
-            
-            // Call backend based on selection
-            const result = backend === "nodejs"
-              ? await translateMutation.mutateAsync({
-                  audioBase64: base64Audio,
-                  filename: `subtitle-${Date.now()}.webm`,
-                  preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
-                  transcriptOnly: true, // Partial: only transcription, no translation
-                  asrMode,
-                  asrModel, // Pass ASR model to backend
-                  translationModel, // Pass Translation model to backend
-                })
-              : await callGoTranslation({
-                  audioBase64: base64Audio,
-                  filename: `subtitle-${Date.now()}.webm`,
-                  preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
-                  transcriptOnly: true, // Partial: only transcription, no translation
-                });
-
-            // 🔒 Segment guard: Check again before updating UI (async response)
-            if (cancelledSegmentsRef.current.has(segmentId)) {
-              console.log(`⚠️ [Partial/Segment#${segmentId}] Segment cancelled during async request, ignoring response`);
-              return;
-            }
-            
-            if (!activeSegmentsRef.current.has(segmentId)) {
-              console.log(`⚠️ [Partial/Segment#${segmentId}] Segment no longer active, ignoring response`);
-              return;
-            }
-            
-            if (result.success && result.sourceText) {
-              // 🔥 Filter Whisper hallucination (repeated strings)
-              const isHallucination = detectWhisperHallucination(result.sourceText);
-              if (isHallucination) {
-                console.warn(`[Partial/Segment#${segmentId}] Whisper hallucination detected, skipping: "${result.sourceText.substring(0, 50)}..."`);
-                return;
-              }
-              
-              // Update existing partial message (NEVER create new message)
-              const partialMessageId = segmentToPartialMessageRef.current.get(segmentId);
-              if (partialMessageId !== undefined && partialMessageId !== null) {
-                setConversations((prev) =>
-                  prev.map((msg) =>
-                    msg.id === partialMessageId
-                      ? { ...msg, originalText: result.sourceText || "", timestamp: new Date() }
-                      : msg
-                  )
-                );
-                console.log(`[Partial/Segment#${segmentId}] Updated partial message #${partialMessageId}: "${result.sourceText}"`);
-                setCurrentSubtitle(result.sourceText);
-              } else {
-                console.warn(`[Partial/Segment#${segmentId}] No partial message found for this segment, skipping`);
-              }
-            }
-          } catch (error: any) {
-            console.error("[Subtitle] Error:", error);
-          } finally {
-            setProcessingStatus("listening");
-          }
-        };
-        reader.readAsDataURL(webmBlob);
-      };
-
-      mediaRecorder.start();
-      setTimeout(() => mediaRecorder.stop(), (audioBuffer.length / SAMPLE_RATE) * 1000 + 100);
-    } catch (error: any) {
-      console.error("[Subtitle] Error:", error);
-      setProcessingStatus("listening");
-    }
-  }, [targetLanguage, translateMutation]);
+  // processPartialChunk removed - VAD-only segmentation (no partial ASR)
 
   // Process final transcript (覆蓋 partial) + 非阻塞翻譯
   const processFinalTranscript = useCallback(async (pcmBuffer: Float32Array[], segmentId: number) => {
@@ -826,18 +659,6 @@ export default function Home() {
               const isHallucination = detectWhisperHallucination(result.sourceText);
               if (isHallucination) {
                 console.warn(`[Final] Whisper hallucination detected, skipping: "${result.sourceText.substring(0, 50)}..."`);
-                // Remove partial message if exists (only if not finalized)
-                if (partialMessageIdRef.current !== null) {
-                  setConversations((prev) => {
-                    const msgToRemove = prev.find((msg) => msg.id === partialMessageIdRef.current);
-                    if (msgToRemove && !msgToRemove.finalized) {
-                      console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (hallucination)`);
-                      return prev.filter((msg) => msg.id !== partialMessageIdRef.current);
-                    }
-                    return prev;
-                  });
-                  partialMessageIdRef.current = null;
-                }
                 setProcessingStatus("listening");
                 return;
               }
@@ -849,79 +670,54 @@ export default function Home() {
               
               // v2.2.0: 簡化翻譯流程（只使用 Fast Pass）
               if (result.translatedText) {
-                let finalMessageId: number;
-                
-                if (partialMessageIdRef.current !== null) {
-                  // Update partial message to final
-                  finalMessageId = partialMessageIdRef.current;
-                  setConversations((prev) =>
-                    prev.map((msg) =>
-                      msg.id === partialMessageIdRef.current
-                        ? {
-                            ...msg,
-                            originalText: result.sourceText || "",
-                            translatedText: result.translatedText || "",
-                            status: "final" as const,
-                            finalized: true, // v2.3.0: 標記為 finalized，保護免被 cleanup 清除
-                            timestamp: new Date(),
-                            sourceLang: result.sourceLang,
-                            targetLang: result.targetLang,
-                            conversationId: currentConversationId,
-                          }
-                        : msg
-                    )
-                  );
-                  console.log(`[Translation] Updated partial #${finalMessageId} to final (finalized=true): "${result.sourceText}"`);
-                  partialMessageIdRef.current = null; // Reset partial message ID
-                } else {
-                  // No partial message, create new final message
-                  finalMessageId = messageIdRef.current++;
-                  const finalMessage: ConversationMessage = {
-                    id: finalMessageId,
-                    speaker: sourceSpeaker,
-                    originalText: result.sourceText,
-                    translatedText: result.translatedText,
-                    detectedLanguage: result.sourceLang || "unknown",
-                    timestamp: new Date(),
-                    status: "final",
-                    finalized: true, // v2.3.0: 標記為 finalized，保護免被 cleanup 清除
-                    sourceLang: result.sourceLang,
-                    targetLang: result.targetLang,
-                    conversationId: currentConversationId,
-                  };
-                  setConversations((prev) => [...prev, finalMessage]);
-                  console.log(`[Translation] Created final translation #${finalMessageId} (speaker: ${sourceSpeaker}, finalized=true)`);
-                }
-                
-                // v2.2.0: 移除 Quality Pass 邏輯，直接儲存翻譯結果
-                // Save to database
-                if (currentConversationId && result.translatedText) {
-                  saveTranslationMutation.mutate({
-                    conversationId: currentConversationId,
-                    direction: result.direction!,
-                    sourceLang: result.sourceLang || "unknown",
-                    targetLang: result.targetLang || targetLanguage,
-                    sourceText: result.sourceText || "",
-                    translatedText: result.translatedText,
-                  });
-                }
+                // VAD-only: Always create new final message (no partial to update)
+                const finalMessageId = messageIdRef.current++;
+                const finalMessage: ConversationMessage = {
+                  id: finalMessageId,
+                  speaker: sourceSpeaker,
+                  originalText: result.sourceText,
+                  translatedText: result.translatedText,
+                  detectedLanguage: result.sourceLang || "unknown",
+                  timestamp: new Date(),
+                  status: "final",
+                  finalized: true, // v2.3.0: 標記為 finalized，保護免被 cleanup 清除
+                  sourceLang: result.sourceLang,
+                  targetLang: result.targetLang,
+                  conversationId: currentConversationId,
+                };
+                setConversations((prev) => [...prev, finalMessage]);
+                console.log(`[Translation] Created final translation #${finalMessageId} (speaker: ${sourceSpeaker}, finalized=true)`);
               }
+              
+              // v2.2.0: 移除 Quality Pass 邏輯，直接儲存翻譯結果
+              // Save to database
+              if (currentConversationId && result.translatedText) {
+                saveTranslationMutation.mutate({
+                  conversationId: currentConversationId,
+                  direction: result.direction!,
+                  sourceLang: result.sourceLang || "unknown",
+                  targetLang: result.targetLang || targetLanguage,
+                  sourceText: result.sourceText || "",
+                  translatedText: result.translatedText,
+                });
+              }
+              
               
               setCurrentSubtitle(""); // Clear subtitle after final
               setProcessingStatus("listening");
             } else {
-            const errorMsg = result.error || "未知錯誤";
-            console.warn("[Translation] No translation result:", errorMsg);
-            console.warn("[Translation] Full response:", JSON.stringify(result, null, 2));
-            // Only show error toast for real errors (not "No speech detected" or empty audio)
-            if (!errorMsg.includes("No speech detected") && !errorMsg.includes("Audio too short")) {
-              toast.error(`❌ 翻譯失敗: ${errorMsg}`);
-            }
-            setProcessingStatus("listening");
+              const errorMsg = result.error || "未知錯誤";
+              console.warn("[Translation] No translation result:", errorMsg);
+              console.warn("[Translation] Full response:", JSON.stringify(result, null, 2));
+              // Only show error toast for real errors (not "No speech detected" or empty audio)
+              if (!errorMsg.includes("No speech detected") && !errorMsg.includes("Audio too short")) {
+                toast.error(`❌ 翻譯失敗: ${errorMsg}`);
+              }
+              setProcessingStatus("listening");
             }
           } catch (error: any) {
-          console.error("[Translation] Error:", error);
-          toast.error(`❌ 處理語音時發生錯誤: ${error.message || '未知錯誤'}`);
+            console.error("[Translation] Error:", error);
+            toast.error(`❌ 處理語音時發生錯誤: ${error.message || '未知錯誤'}`);
           } finally {
             setProcessingStatus("listening");
           }
@@ -955,44 +751,7 @@ export default function Home() {
       const isSpeaking = checkAudioLevel();
       const now = Date.now();
 
-      // Track 1: Partial chunks (300ms fixed) for immediate subtitle (only when speaking)
-      const partialDuration = now - lastPartialTimeRef.current;
-      if (partialDuration >= PARTIAL_CHUNK_INTERVAL_MS && isSpeakingRef.current && !sentenceEndTriggeredRef.current) {
-        // Get current segment ID
-        const currentSegmentId = currentSegmentIdRef.current;
-        
-        // 🧊 Check if current segment is frozen (Speech END detected)
-        const isAudioFrozen = audioFrozenSegmentsRef.current.has(currentSegmentId);
-        if (isAudioFrozen) {
-          console.log(`🚧 [Partial/Segment#${currentSegmentId}] Audio frozen, skipping partial chunk processing`);
-          lastPartialTimeRef.current = now;
-          return;
-        }
-        
-        // 🆕 Use separate partialBufferRef for sliding window (audio path separation)
-        // Prohibit chunks < min buffers (prevent short chunks)
-        if (partialBufferRef.current.length < PARTIAL_CHUNK_MIN_BUFFERS) {
-          console.log(`⚠️ Partial chunk too short (${partialBufferRef.current.length} buffers < ${PARTIAL_CHUNK_MIN_BUFFERS}), discarding as noise`);
-          lastPartialTimeRef.current = now;
-          return;
-        }
-        
-        // Check minimum chunk duration to avoid fragmentation
-        const speechDuration = now - speechStartTimeRef.current;
-        if (speechDuration >= PARTIAL_CHUNK_MIN_DURATION_MS && partialBufferRef.current.length > 0) {
-          // 🆕 Calculate sliding window size (last 1.5 seconds)
-          const BUFFERS_PER_WINDOW = Math.ceil((SAMPLE_RATE * PARTIAL_WINDOW_DURATION_S) / 960); // ~75 buffers for 1.5s
-          const windowBuffers = partialBufferRef.current.slice(-BUFFERS_PER_WINDOW);
-          
-          const windowSamples = windowBuffers.reduce((acc, buf) => acc + buf.length, 0);
-          const windowDurationMs = (windowSamples / SAMPLE_RATE) * 1000;
-          console.log(`[Partial/Segment#${currentSegmentId}] Using sliding window: ${windowBuffers.length} buffers (${windowSamples} samples, ${windowDurationMs.toFixed(0)}ms) from partialBuffer`);
-          processPartialChunk(windowBuffers, currentSegmentId);
-          // partialBufferRef is NOT cleared - it's a sliding window
-          // sentenceBufferRef is separate and will be used for final transcript
-        }
-        lastPartialTimeRef.current = now;
-      }
+      // Track 1: Partial chunks removed - VAD-only segmentation
       
       // Clear currentChunkBuffer periodically to prevent memory leak
       const chunkDuration = (now - chunkStartTimeRef.current) / 1000;
@@ -1015,37 +774,16 @@ export default function Home() {
           activeSegmentsRef.current.add(newSegmentId);
           console.log(`🆕 [Segment#${newSegmentId}] Created new segment`);
           
-          // 🔥 CRITICAL FIX: Force clear both buffers when new speech starts
+          // 🔥 CRITICAL FIX: Force clear buffer when new speech starts
           sentenceBufferRef.current = []; // Clear final buffer
-          partialBufferRef.current = []; // Clear partial buffer (audio path separation)
-          partialMessageIdRef.current = null;
-          lastPartialTimeRef.current = 0;
           
           // 🧊 Clear frozen/end flags for new segment (fresh start)
           // Note: Old segment flags remain in the Set for guard purposes
           // They will be cleaned up in stopRecording
           
-          console.log(`🔵 [Segment#${newSegmentId}] Speech started (both buffers force-cleared)`);
+          console.log(`🔵 [Segment#${newSegmentId}] Speech started (buffer force-cleared)`);
           
           setProcessingStatus("vad-detected");
-          
-          // Create initial partial message (will be updated by processPartialChunk)
-          if (partialMessageIdRef.current === null) {
-            const newPartialMessage: ConversationMessage = {
-              id: messageIdRef.current++,
-              speaker: "nurse", // Assume nurse for now
-              originalText: "",
-              translatedText: "",
-              detectedLanguage: "zh",
-              timestamp: new Date(),
-              status: "partial",
-              conversationId: currentConversationId,
-            };
-            partialMessageIdRef.current = newPartialMessage.id;
-            segmentToPartialMessageRef.current.set(newSegmentId, newPartialMessage.id);
-            setConversations((prev) => [...prev, newPartialMessage]);
-            console.log(`[Partial/Segment#${newSegmentId}] Created initial partial message #${newPartialMessage.id}`);
-          }
         }
         
         // Auto-cut if speech duration exceeds 4 seconds
@@ -1097,9 +835,6 @@ export default function Home() {
           
           // Reset state after final
           sentenceBufferRef.current = [];
-          partialBufferRef.current = []; // Also clear partial buffer
-          partialMessageIdRef.current = null;
-          lastPartialTimeRef.current = 0;
           setProcessingStatus("listening");
         }
       } else {
@@ -1120,31 +855,14 @@ export default function Home() {
               cancelledSegmentsRef.current.add(currentSegmentId);
               
               // Abort all pending requests for this segment
-              const partialAbortController = partialAbortControllersRef.current.get(currentSegmentId);
-              if (partialAbortController) {
-                partialAbortController.abort();
-                partialAbortControllersRef.current.delete(currentSegmentId);
-              }
               const finalAbortController = finalAbortControllersRef.current.get(currentSegmentId);
               if (finalAbortController) {
                 finalAbortController.abort();
                 finalAbortControllersRef.current.delete(currentSegmentId);
               }
               
-              // Remove the partial message from UI (if exists)
-              const partialMessageId = segmentToPartialMessageRef.current.get(currentSegmentId);
-              if (partialMessageId !== undefined && partialMessageId !== null) {
-                setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageId));
-                console.log(`[ASR/Segment#${currentSegmentId}] Removed partial message #${partialMessageId} (speech too short)`);
-              }
-              
-              // Clean up segment mappings
-              segmentToPartialMessageRef.current.delete(currentSegmentId);
-              
               isSpeakingRef.current = false;
               sentenceBufferRef.current = []; // Clear final buffer
-              partialBufferRef.current = []; // Clear partial buffer
-              partialMessageIdRef.current = null;
               sentenceEndTriggeredRef.current = true;
               setProcessingStatus("listening");
             } else {
@@ -1154,14 +872,8 @@ export default function Home() {
               sentenceEndTriggeredRef.current = true; // Set flag immediately to prevent multiple triggers
               isSpeakingRef.current = false;
               
-              // 🚫 Immediately abort all pending Partial requests for current segment
+              // VAD-only: No partial requests to abort
               const currentSegmentId = currentSegmentIdRef.current;
-              const partialAbortController = partialAbortControllersRef.current.get(currentSegmentId);
-              if (partialAbortController) {
-                partialAbortController.abort();
-                partialAbortControllersRef.current.delete(currentSegmentId);
-                console.log(`🚫 [Segment#${currentSegmentId}] Aborted pending Partial requests (speech ended)`);
-              }
               
               // Calculate final chunk duration
               const totalSamples = sentenceBufferRef.current.reduce((acc, buf) => acc + buf.length, 0);
@@ -1211,32 +923,19 @@ export default function Home() {
                     console.error(`❌ CRITICAL: Final buffer duration ${finalBufferDuration.toFixed(2)}s still exceeds ${MAX_FINAL_DURATION_S}s after hard-trim!`);
                   }
                   
-                  // Reset buffer and timer IMMEDIATELY (before processFinalTranscript starts)
-                  // But DO NOT reset partialMessageIdRef yet - let processFinalTranscript handle it
+                  // Reset buffer IMMEDIATELY (before processFinalTranscript starts)
                   sentenceBufferRef.current = [];
-                  partialBufferRef.current = []; // Also clear partial buffer
-                  lastPartialTimeRef.current = 0;
-                  console.log(`[ASR] Resetting segment state (both buffers cleared, timer reset)`);
+                  console.log(`[ASR] Resetting segment state (buffer cleared)`);
                   
                   // Now call async function with copied buffer
-                  // processFinalTranscript will update the existing partial message to final
-                  // and reset partialMessageIdRef.current after success
                   const currentSegmentId = currentSegmentIdRef.current;
                   processFinalTranscript(finalBuffers, currentSegmentId);
                 }
               } else {
                 console.log(`⚠️ Final chunk duration ${finalChunkDuration.toFixed(2)}s < ${finalMinDurationS}s, discarding`);
                 
-                // Remove the partial message from UI (if exists) to avoid "stuck partial bubble"
-                if (partialMessageIdRef.current !== null) {
-                  setConversations((prev) => prev.filter((msg) => msg.id !== partialMessageIdRef.current));
-                  console.log(`[ASR] Removed partial message #${partialMessageIdRef.current} (chunk too short)`);
-                }
-                
                 // Reset state when discarding
                 sentenceBufferRef.current = [];
-                partialMessageIdRef.current = null;
-                lastPartialTimeRef.current = 0;
               }
               
               setProcessingStatus("listening");
@@ -1245,7 +944,7 @@ export default function Home() {
         }
       }
     }, 100);
-  }, [checkAudioLevel, processPartialChunk, processFinalTranscript]);
+  }, [checkAudioLevel, processFinalTranscript]);
 
   // Stop VAD monitoring
   const stopVADMonitoring = useCallback(() => {
@@ -1271,10 +970,9 @@ export default function Home() {
       );
 
       // Set callbacks
+      // VAD-only: No partial transcript handling
       client.onPartialTranscript = (data) => {
-        console.log(`[Hybrid Partial] ${data.transcript} (${data.latency_ms}ms)`);
-        setPartialSubtitle(data.transcript);
-        setCurrentSubtitle(data.transcript);
+        // Ignored in VAD-only mode
       };
 
       client.onFinalTranscript = (data) => {
@@ -1293,7 +991,6 @@ export default function Home() {
         };
         
         setConversations((prev) => [...prev, newMessage]);
-        setPartialSubtitle("");
         setCurrentSubtitle("");
         
         // Play TTS audio
@@ -1392,23 +1089,11 @@ export default function Home() {
     }
 
     setIsHybridConnected(false);
-    setPartialSubtitle("");
     setCurrentSubtitle("");
     setProcessingStatus("idle");
     setIsRecording(false);
 
-    // 🔥 FIX: Remove any partial messages from UI when stopping Hybrid recording
-    // Always remove all partial messages, regardless of partialMessageIdRef state
-    setConversations((prev) => {
-      const partialCount = prev.filter((msg) => msg.status === "partial").length;
-      if (partialCount > 0) {
-        console.log(`[Stop Hybrid Recording] Removing ${partialCount} partial message(s)`);
-        return prev.filter((msg) => msg.status !== "partial");
-      }
-      return prev;
-    });
-    partialMessageIdRef.current = null;
-    lastPartialTimeRef.current = 0;
+    // VAD-only: No partial messages to remove
     sentenceEndTriggeredRef.current = false;
 
     toast.success("停止 Hybrid ASR 錄音");
@@ -1479,7 +1164,6 @@ export default function Home() {
           if (isSpeakingRef.current && !isAudioFrozen) {
             // 🆕 Audio path separation: accumulate to both buffers
             sentenceBufferRef.current.push(event.data.data); // For final transcript
-            partialBufferRef.current.push(event.data.data); // For partial transcript (sliding window)
           } else if (isAudioFrozen) {
             // 🚧 Audio frozen, stop accumulating new audio
             // (Speech END has been triggered, waiting for final transcript to complete)
@@ -1541,11 +1225,6 @@ export default function Home() {
     console.log(`[Stop Recording] Cleaning up ${activeSegmentsRef.current.size} active segments`);
     activeSegmentsRef.current.forEach((segmentId) => {
       // Abort all pending requests for this segment
-      const partialAbortController = partialAbortControllersRef.current.get(segmentId);
-      if (partialAbortController) {
-        partialAbortController.abort();
-        partialAbortControllersRef.current.delete(segmentId);
-      }
       const finalAbortController = finalAbortControllersRef.current.get(segmentId);
       if (finalAbortController) {
         finalAbortController.abort();
@@ -1556,7 +1235,6 @@ export default function Home() {
       cancelledSegmentsRef.current.add(segmentId);
     });
     activeSegmentsRef.current.clear();
-    segmentToPartialMessageRef.current.clear();
     
     // 🧊 Clean up frozen/end flags
     audioFrozenSegmentsRef.current.clear();
@@ -1565,27 +1243,13 @@ export default function Home() {
     // Clear buffers
     currentChunkBufferRef.current = [];
     sentenceBufferRef.current = [];
-    partialBufferRef.current = []; // Also clear partial buffer
     isSpeakingRef.current = false;
     setAudioLevel(0);
     setCurrentSubtitle("");
     setProcessingStatus("idle");
     setIsRecording(false);
 
-    // 🔥 FIX: Remove any partial messages from UI when stopping recording
-    // v2.3.0: 保留 finalized message（已產生 final transcript），只清除 partial-only segment
-    setConversations((prev) => {
-      const partialCount = prev.filter((msg) => msg.status === "partial").length;
-      const nonFinalizedCount = prev.filter((msg) => msg.status === "partial" && !msg.finalized).length;
-      if (partialCount > 0) {
-        console.log(`[Stop Recording] Found ${partialCount} partial message(s), removing ${nonFinalizedCount} non-finalized message(s)`);
-        // 只清除未 finalized 的 partial message
-        return prev.filter((msg) => !(msg.status === "partial" && !msg.finalized));
-      }
-      return prev;
-    });
-    partialMessageIdRef.current = null;
-    lastPartialTimeRef.current = 0;
+    // VAD-only: No partial messages to remove
     sentenceEndTriggeredRef.current = false;
     
     // Reset VAD frame counters
@@ -1777,20 +1441,7 @@ export default function Home() {
           <div className="bg-gray-900 rounded-2xl p-3 md:p-4 md:rotate-0 rotate-180">
             <h2 className="text-lg md:text-xl font-semibold mb-3 md:mb-4 text-center">台灣人 (中文)</h2>
             <div ref={nurseScrollRef} className="h-[250px] md:h-[400px] overflow-y-auto space-y-3 md:space-y-4">
-              {/* Partial transcript (即時字幕) */}
-              {conversations
-                .filter((msg) => msg.speaker === "nurse" && msg.status === "partial")
-                .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800/70 p-3 md:p-4 rounded-2xl border-l-4 border-yellow-500">
-                    <div className="text-xs text-yellow-400 mb-2 flex items-center gap-2">
-                      <span className="animate-pulse">●</span>
-                      即時字幕
-                    </div>
-                    <div className="font-medium text-base md:text-lg text-gray-200 italic">
-                      {msg.originalText || "偵測中..."}
-                    </div>
-                  </div>
-                ))}
+              {/* VAD-only: No partial transcript display */}
               
               {/* Translated messages (翻譯結果) - iPhone 風格泡泡 */}
               {conversations
@@ -1830,20 +1481,7 @@ export default function Home() {
               ref={patientScrollRef} 
               className={`h-[250px] md:h-[400px] overflow-y-auto space-y-3 md:space-y-4 ${mirrorForeignView ? 'mirror-horizontal' : ''}`}
             >
-              {/* Partial transcript (即時字幕) */}
-              {conversations
-                .filter((msg) => msg.speaker === "patient" && msg.status === "partial")
-                .map((msg) => (
-                  <div key={msg.id} className="bg-gray-800/70 p-3 md:p-4 rounded-2xl border-l-4 border-yellow-500">
-                    <div className="text-xs text-yellow-400 mb-2 flex items-center gap-2">
-                      <span className="animate-pulse">●</span>
-                      即時字幕
-                    </div>
-                    <div className="font-medium text-base md:text-lg text-gray-200 italic">
-                      {msg.originalText || "偵測中..."}
-                    </div>
-                  </div>
-                ))}
+              {/* VAD-only: No partial transcript display */}
               
               {/* Translated messages (翻譯結果) - iPhone 風格泡泡 */}
               {conversations

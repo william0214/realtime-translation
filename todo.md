@@ -922,3 +922,78 @@
 - [ ] messagesById（Map）取代 array index 查找
 - [ ] race guard 粒度改為 per-message（messageId + version）
 - [ ] 條件式恢復 Quality Pass（醫療關鍵句）
+
+## ✅ VAD-only Segmentation 回退（2025-12-27 完成）
+
+### 目標
+將 pipeline 回退為 VAD-only segmentation：
+- 移除 partial ASR 機制（即時字幕）
+- 只在 Speech END 時使用 final transcript 進行翻譯
+- Auto-cut 僅作為 safety net，不作為主要段落結束機制
+
+### 需要移除的 Partial ASR 相關程式碼
+
+#### 1. Partial Buffer 和 State
+- [x] `partialBufferRef` (line 325)
+- [x] `PARTIAL_WINDOW_DURATION_S` (line 326)
+- [x] `partialMessageIdRef` (line 300)
+- [x] `lastPartialTimeRef` (line 301)
+- [x] `partialIntervalRef` (line 302)
+- [x] `segmentToPartialMessageRef` (line 295)
+- [x] `partialAbortControllersRef` (line 296)
+
+#### 2. Partial Config 參數
+- [x] `PARTIAL_CHUNK_INTERVAL_MS` (line 384)
+- [x] `PARTIAL_CHUNK_MIN_DURATION_MS` (line 385)
+- [x] `PARTIAL_CHUNK_MIN_BUFFERS` (line 386)
+
+#### 3. Partial 處理函數
+- [x] `processPartialChunk` 函數 (line 530-683)
+- [x] Partial chunk interval 邏輯 (line 958-993)
+- [x] Partial message 創建邏輯 (line 1032-1048)
+
+#### 4. Partial UI 顯示
+- [x] Nurse partial transcript UI (line 1780-1789)
+- [x] Patient partial transcript UI (line 1833-1842)
+- [x] `setPartialSubtitle` state (line 199)
+
+#### 5. Partial Cleanup 邏輯
+- [x] stopRecording 中的 partial cleanup (line 1575-1589)
+- [x] stopHybridRecording 中的 partial cleanup (line 1400-1412)
+- [x] Speech too short 時的 partial cleanup (line 1134-1139)
+- [x] Final chunk too short 時的 partial cleanup (line 1230-1234)
+
+#### 6. Partial Buffer 累積邏輯
+- [x] Audio buffer 累積到 partialBufferRef (line 1481-1482)
+- [x] Speech start 時清空 partialBufferRef (line 1020)
+- [x] Speech end 時清空 partialBufferRef (line 1100, 1146, 1217, 1238, 1568)
+
+### 保留的功能
+- ✅ VAD Speech START/END detection
+- ✅ Speech END 時立即 freeze audio pipeline
+- ✅ Speech END 時立即觸發 final transcript
+- ✅ Final transcript 翻譯（gpt-4.1-mini）
+- ✅ Auto-cut 作為 safety net（maxSegmentMs）
+
+### 預期效果
+- ✅ 移除即時字幕功能
+- ✅ 只在語音結束時顯示完整翻譯
+- ✅ 簡化 pipeline，降低複雜度
+- ✅ 減少 API 呼叫次數（只有 final transcript）
+- ✅ 提高系統穩定性
+
+### 驗收標準
+- [x] 沒有 partial message 出現在 UI
+- [ ] Console log 沒有 "[Partial]" 相關日誌（需要實際測試）
+- [ ] Speech END 時立即觸發 final transcript（需要實際測試）
+- [ ] Final transcript 正常翻譯並顯示（需要實際測試）
+- [ ] Auto-cut 只在超過 maxSegmentMs 時觸發（需要實際測試）
+
+### 實作摘要
+- 移除了約 200+ 行 partial ASR 相關程式碼
+- 簡化了 VAD monitoring 邏輯（移除 300ms partial chunk interval）
+- processFinalTranscript 成為唯一的 ASR 觸發點
+- UI 移除了黃色邊框的即時字幕區塊
+- 保留了 Speech END freeze audio pipeline 機制
+
+---
