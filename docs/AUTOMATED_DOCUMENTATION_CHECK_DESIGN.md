@@ -35,7 +35,7 @@
 - 比對文件引用與實際定義，標記不一致項目
 
 **可檢測的不一致**：
-- 使用已棄用的模型名稱（如 `gpt-4o-audio-preview`）
+- 使用已棄用的模型名稱（如 `gpt-3.5-turbo`）
 - 使用不存在的模型名稱
 - 預設值與實作不符
 
@@ -298,7 +298,7 @@ const MODEL_PATTERNS = [
 **錯誤訊息範例**：
 ```
 ❌ docs/realtime-subtitle-translation-spec.md:534
-   Invalid ASR model: "gpt-4o-audio-preview"
+   Invalid ASR model: "gpt-3.5-turbo"
    
    Valid models:
    - whisper-1
@@ -306,7 +306,7 @@ const MODEL_PATTERNS = [
    - gpt-4o-transcribe
    - gpt-4o-transcribe-diarize
    
-   Suggestion: Replace with "gpt-4o-mini-transcribe"
+   Suggestion: Replace with "gpt-4.1-mini" (for translation) or "gpt-4o-mini-transcribe" (for ASR)
 ```
 
 #### 1.2 配置參數檢查
@@ -665,13 +665,12 @@ Total issues found: 5
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. docs/realtime-subtitle-translation-spec.md:534
-   Invalid ASR model: "gpt-4o-audio-preview"
+   Invalid translation model: "gpt-3.5-turbo"
    
-   Expected: One of [whisper-1, gpt-4o-mini-transcribe, 
-                     gpt-4o-transcribe, gpt-4o-transcribe-diarize]
-   Found:    "gpt-4o-audio-preview"
+   Expected: One of [gpt-4o-mini, gpt-4.1-mini, gpt-4.1, gpt-4o]
+   Found:    "gpt-3.5-turbo"
    
-   Fix: Replace with "gpt-4o-mini-transcribe"
+   Fix: Replace with "gpt-4.1-mini" (recommended default)
 
 2. docs/realtime-subtitle-translation-spec.md:556
    Parameter default value mismatch
@@ -758,11 +757,11 @@ API Interfaces      |      0 |     100%
 **File**: `docs/realtime-subtitle-translation-spec.md:534`  
 **Severity**: 🔴 Critical
 
-**Problem**: Document references deprecated model "gpt-4o-audio-preview"
+**Problem**: Document references deprecated model "gpt-3.5-turbo"
 
-**Expected**: One of `whisper-1`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`, `gpt-4o-transcribe-diarize`
+**Expected**: One of `gpt-4o-mini`, `gpt-4.1-mini`, `gpt-4.1`, `gpt-4o`
 
-**Fix**: Replace with `gpt-4o-mini-transcribe`
+**Fix**: Replace with `gpt-4.1-mini` (recommended default)
 
 ---
 

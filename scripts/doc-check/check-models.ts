@@ -28,11 +28,12 @@ function extractModelDefinitions(configPath: string): ModelDefinition[] {
   const content = readFile(configPath);
   const models: ModelDefinition[] = [];
   
-  // 提取 ASR 模型（從 ASR_MODELS 常數）
-  const asrModelsMatch = content.match(/export const ASR_MODELS = \{([^}]+)\}/s);
+  // 提取 ASR 模型（從 ALLOWED_ASR_MODELS 常數）
+  const asrModelsMatch = content.match(/export const ALLOWED_ASR_MODELS = \[([^\]]+)\]/s);
   if (asrModelsMatch) {
     const asrModelsContent = asrModelsMatch[1];
-    const modelMatches = findAllMatches(asrModelsContent, /"([^"]+)":/g);
+    // 提取所有引號內的模型名稱（忽略註解）
+    const modelMatches = findAllMatches(asrModelsContent, /"([^"]+)"/g);
     
     for (const match of modelMatches) {
       const modelName = match[1];
@@ -44,8 +45,8 @@ function extractModelDefinitions(configPath: string): ModelDefinition[] {
     }
   }
   
-  // 提取翻譯模型（從 TRANSLATION_MODELS 常數）
-  const translationModelsMatch = content.match(/export const TRANSLATION_MODELS = \[([^\]]+)\]/s);
+  // 提取翻譯模型（從 ALLOWED_TRANSLATION_MODELS 常數）
+  const translationModelsMatch = content.match(/export const ALLOWED_TRANSLATION_MODELS = \[([^\]]+)\]/s);
   if (translationModelsMatch) {
     const translationModelsContent = translationModelsMatch[1];
     const modelMatches = findAllMatches(translationModelsContent, /"([^"]+)"/g);
@@ -61,6 +62,38 @@ function extractModelDefinitions(configPath: string): ModelDefinition[] {
   }
   
   return models;
+}
+
+/**
+ * 判斷是否為誤判內容（error report / diagnostics / CI output）
+ */
+function isExcludedContext(content: string, position: number): boolean {
+  // 提取位置附近的上下文（前後 200 字元）
+  const start = Math.max(0, position - 200);
+  const end = Math.min(content.length, position + 200);
+  const context = content.slice(start, end);
+  
+  // 排除規則 1: error report 格式（✖ docs/... Invalid ASR model ...）
+  if (/✖\s+docs\/.*Invalid.*model/i.test(context)) {
+    return true;
+  }
+  
+  // 排除規則 2: diagnostics block（Documentation Consistency Check Report）
+  if (/Documentation Consistency Check Report/i.test(context)) {
+    return true;
+  }
+  
+  // 排除規則 3: CI output / test result
+  if (/\[PASS\]|\[FAIL\]|\[ERROR\]|\[WARNING\]/i.test(context)) {
+    return true;
+  }
+  
+  // 排除規則 4: 範例輸出 block（Example Output, Sample Output）
+  if (/Example Output|Sample Output|Output Example/i.test(context)) {
+    return true;
+  }
+  
+  return false;
 }
 
 /**
@@ -98,6 +131,11 @@ function extractModelReferencesFromDoc(
         str.includes("4o") ||
         str.includes("turbo")
       ) {
+        // 排除誤判內容
+        if (isExcludedContext(content, strPos)) {
+          continue;
+        }
+        
         // 檢查是否在已知模型列表中
         const isKnownModel = models.some(m => m.name === str);
         
@@ -146,11 +184,17 @@ function extractModelReferencesFromDoc(
               cleanValue.includes("4o") ||
               cleanValue.includes("turbo")
             ) {
+              // 找到表格在文件中的位置
+              const tablePos = content.indexOf(table);
+              
+              // 排除誤判內容
+              if (isExcludedContext(content, tablePos)) {
+                continue;
+              }
+              
               const isKnownModel = models.some(m => m.name === cleanValue);
               
               if (!isKnownModel) {
-                // 找到表格在文件中的位置
-                const tablePos = content.indexOf(table);
                 const line = getLineNumber(content, tablePos);
                 
                 issues.push({
@@ -186,6 +230,11 @@ function extractModelReferencesFromDoc(
       code.includes("4o") ||
       code.includes("turbo")
     ) {
+      // 排除誤判內容
+      if (isExcludedContext(content, pos)) {
+        continue;
+      }
+      
       const isKnownModel = models.some(m => m.name === code);
       
       if (!isKnownModel) {
