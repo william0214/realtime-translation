@@ -195,8 +195,10 @@ export const WHISPER_CONFIG = {
   /**
    * ASR 模型（一次性 Audio → Text）
    * 注意：此處僅允許轉錄類模型（非 Realtime）
+   * 
+   * 當前設定：gpt-4o-transcribe（高品質）
    */
-  MODEL: "gpt-4o-mini-transcribe" as AllowedASRModel,
+  MODEL: "gpt-4o-transcribe" as AllowedASRModel,
 
   /**
    * 可用的 ASR 模型列表（SSOT）
@@ -307,13 +309,13 @@ export const TRANSLATION_CONFIG = {
    * 
    * 可用模型：
    * - "gpt-4o-mini": 最快速、最低成本
-   * - "gpt-4.1-mini": 平衡速度和品質（推薦）
+   * - "gpt-4.1-mini": 平衡速度和品質
    * - "gpt-4.1": 高品質
-   * - "gpt-4o": 最高品質、最慢
+   * - "gpt-4o": 最高品質、最慢（推薦）
    * 
-   * 當前設定：gpt-4.1-mini（最佳平衡）
+   * 當前設定：gpt-4o（最高品質）
    */
-  LLM_MODEL: "gpt-4.1-mini" as AllowedTranslationModel,
+  LLM_MODEL: "gpt-4o" as AllowedTranslationModel,
 
   /**
    * 可用的翻譯模型列表（SSOT）

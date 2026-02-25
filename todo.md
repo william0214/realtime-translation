@@ -1162,3 +1162,27 @@
 - [x] 加入 useEffect 同步 targetLanguage 到 ref
 - [x] 在 processFinalTranscript 中使用 targetLanguageRef.current
 - [x] TypeScript 編譯無錯誤
+
+---
+
+## 🎯 模型品質提升（2025-12-27）
+
+### 目標
+- 提升預設翻譯模型品質
+- 提升預設 ASR 模型品質
+- 改善翻譯準確度和語音辨識準確度
+
+### 當前配置
+- [x] 檢查當前翻譯模型預設值 (gpt-4.1-mini)
+- [x] 檢查當前 ASR 模型預設值 (gpt-4o-mini-transcribe)
+- [x] 檢查當前 ASR 模式預設值 (normal)
+
+### 優化方案
+- [x] 翻譯模型：從 gpt-4.1-mini 升級到 gpt-4o（最高品質）
+- [x] ASR 模型：從 gpt-4o-mini-transcribe 升級到 gpt-4o-transcribe（高品質）
+- [ ] ASR 模式：保持 normal（用戶可在設定頁面切換到 precise）
+
+### 實施詳情
+- [x] shared/config.ts: TRANSLATION_CONFIG.LLM_MODEL = "gpt-4o"
+- [x] shared/config.ts: WHISPER_CONFIG.MODEL = "gpt-4o-transcribe"
+- [x] 更新註釋標示推薦模型
