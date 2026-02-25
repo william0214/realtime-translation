@@ -1087,3 +1087,40 @@
 - [x] 選擇英文後，翻譯結果為英文 (13/13 測試通過)
 - [x] 選擇越南文後，翻譯結果為越南文 (13/13 測試通過)
 - [x] Console log 顯示正確的 targetLang 參數 (已加入 log)
+
+---
+
+## 🐛 語言切換問題（2025-12-27 新增）
+
+### 問題描述
+- 使用者在對話過程中從越南文切換成英文
+- 系統仍然翻譯成越南文，沒有使用新選擇的語言
+- 後端已修復 determineDirection 函數，但前端可能沒有正確傳遞新的語言參數
+
+### 診斷步驟
+- [ ] 檢查前端 targetLanguage state 是否正確更新
+- [ ] 檢查 autoTranslate API 呼叫時是否使用最新的 targetLanguage
+- [ ] 檢查是否有快取或閉包問題導致使用舊的語言值
+
+### 修復方案
+- [ ] 確保 targetLanguage state 更新後立即生效
+- [ ] 確保 API 呼叫使用最新的 targetLanguage 值
+- [ ] 加入 debug log 顯示實際傳遞的語言參數
+
+### 驗收標準
+- [ ] 切換語言後，下一句翻譯使用新的語言
+- [ ] Console log 顯示正確的 targetLanguage 參數
+- [ ] 不需要重新開始對話就能切換語言
+
+### 新增需求（使用者回饋）
+- [x] 結束對話時清除對話記錄
+- [x] 開始對話時重新讀取前端選擇的語系
+- [x] 確保每次開始新對話都使用最新的語言設定
+
+### 實施詳情
+- [x] stopRecording: 加入 setConversations([]) 清除對話記錄
+- [x] stopRecording: 加入 messageIdRef.current = 0 重置訊息 ID
+- [x] startRecording: 已經正確使用 targetLanguage 參數
+- [x] 加入 debug log 顯示開始錄音時使用的語言
+- [x] 加入 debug log 追蹤 targetLanguage 變化
+- [x] 加入 debug log 顯示 API 呼叫時的 targetLanguage

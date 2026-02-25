@@ -625,7 +625,8 @@ export default function Home() {
             // Log selected models for debugging
             console.log(`[Frontend] 🎤 ASR Model: ${asrModel} (mode: ${asrMode})`);
             console.log(`[Frontend] 🌐 Translation Model: ${translationModel}`);
-            console.log(`[Frontend] 🔧 Backend: ${backend}`);
+            console.log(`[Frontend] 🎯 Backend: ${backend}`);
+            console.log(`[Frontend] 🌏 Target Language: ${targetLanguage} (preferredTargetLang: ${targetLanguage === "auto" ? "undefined" : targetLanguage})`);
             
             const result = backend === "nodejs"
               ? await translateMutation.mutateAsync({
@@ -736,12 +737,18 @@ export default function Home() {
       toast.error(`❌ 語音處理失敗: ${error.message || '未知錯誤'}`);
       setProcessingStatus("listening");
     }
-  }, [targetLanguage, translateMutation, dualMicMode, currentSpeaker, backend, asrMode, asrModel]);
+  }, [targetLanguage, translateMutation, dualMicMode, currentSpeaker, backend, asrMode, asrModel, translationModel]);
+
+  // Track targetLanguage changes
+  useEffect(() => {
+    console.log(`[Language Change] Target language changed to: ${targetLanguage}`);
+  }, [targetLanguage]);
 
   // Update ref for processFinalTranscript
   useEffect(() => {
     processSentenceForTranslationRef.current = processFinalTranscript;
-  }, [processFinalTranscript]);
+    console.log(`[Ref Update] processSentenceForTranslationRef updated with new targetLanguage: ${targetLanguage}`);
+  }, [processFinalTranscript, targetLanguage]);
 
   // Start VAD monitoring
   const startVADMonitoring = useCallback(() => {
@@ -1005,6 +1012,8 @@ export default function Home() {
     try {
       // v2.2.0: 移除 conversationKey 生成（Quality Pass 已停用）
 
+      console.log(`[Start Recording] Using target language: ${targetLanguage}`);
+
       // If using Hybrid mode, connect to WebSocket
       if (backend === "hybrid") {
         await startHybridRecording();
@@ -1165,6 +1174,11 @@ export default function Home() {
       console.log(`[Conversation] Ended conversation ID: ${currentConversationId}`);
       setCurrentConversationId(null);
     }
+
+    // Clear conversation history when ending conversation
+    console.log("[Stop Recording] Clearing conversation history");
+    setConversations([]);
+    messageIdRef.current = 0;
 
     toast.success("停止錄音");
   }, [stopVADMonitoring, currentConversationId, endConversationMutation, backend, stopHybridRecording]);
