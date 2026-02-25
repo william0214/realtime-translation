@@ -1124,3 +1124,41 @@
 - [x] 加入 debug log 顯示開始錄音時使用的語言
 - [x] 加入 debug log 追蹤 targetLanguage 變化
 - [x] 加入 debug log 顯示 API 呼叫時的 targetLanguage
+
+---
+
+## 🚨 緊急問題（2025-12-27）
+
+### 問題描述
+- 前端介面選擇英文後，仍然翻譯成越南文
+- 使用者已測試確認問題存在
+- 需要立即檢查並修復
+
+### 診斷步驟
+- [ ] 檢查語言選擇器的選項值是否正確
+- [ ] 檢查 Console log 顯示的實際 targetLanguage 值
+- [ ] 檢查後端收到的 preferredTargetLang 參數
+
+### 可能原因
+- [ ] 語言選擇器的 value 設定錯誤
+- [ ] 前端 state 沒有正確更新
+- [ ] API 呼叫時參數傳遞錯誤
+
+### 問題根源（已確認）
+- [x] 前端選擇器正確顯示「英文」
+- [x] targetLanguage state 正確更新為 "en"
+- [x] processSentenceForTranslationRef 多次更新
+- [x] **但 processFinalTranscript 使用的是閉包中的舊值 "vi"**
+
+### 解決方案
+- [x] 使用 useRef 儲存 targetLanguage，確保總是使用最新值
+- [x] 在 processFinalTranscript 中從 ref 讀取 targetLanguage
+- [x] 修復 Node.js backend 呼叫
+- [x] 修復 Go backend 呼叫
+- [x] 修復 saveTranslation 呼叫
+
+### 實施詳情
+- [x] 加入 targetLanguageRef = useRef<string>("vi")
+- [x] 加入 useEffect 同步 targetLanguage 到 ref
+- [x] 在 processFinalTranscript 中使用 targetLanguageRef.current
+- [x] TypeScript 編譯無錯誤

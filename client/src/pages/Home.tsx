@@ -153,6 +153,7 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [conversations, setConversations] = useState<ConversationMessage[]>([]);
   const [targetLanguage, setTargetLanguage] = useState<string>("vi");
+  const targetLanguageRef = useRef<string>("vi"); // 🔴 Always holds the latest targetLanguage value
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
@@ -622,17 +623,20 @@ export default function Home() {
               forceSpeaker: currentSpeaker,
             } : {};
             
+            // 🔴 Use ref to get the latest targetLanguage (avoid closure issue)
+            const currentTargetLanguage = targetLanguageRef.current;
+            
             // Log selected models for debugging
             console.log(`[Frontend] 🎤 ASR Model: ${asrModel} (mode: ${asrMode})`);
             console.log(`[Frontend] 🌐 Translation Model: ${translationModel}`);
             console.log(`[Frontend] 🎯 Backend: ${backend}`);
-            console.log(`[Frontend] 🌏 Target Language: ${targetLanguage} (preferredTargetLang: ${targetLanguage === "auto" ? "undefined" : targetLanguage})`);
+            console.log(`[Frontend] 🌏 Target Language: ${currentTargetLanguage} (preferredTargetLang: ${currentTargetLanguage === "auto" ? "undefined" : currentTargetLanguage})`);
             
             const result = backend === "nodejs"
               ? await translateMutation.mutateAsync({
                   audioBase64: base64Audio,
                   filename: `translation-${Date.now()}.webm`,
-                  preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
+                  preferredTargetLang: currentTargetLanguage === "auto" ? undefined : currentTargetLanguage,
                   asrMode, // Pass ASR mode to backend
                   asrModel, // Pass ASR model to backend
                   translationModel, // Pass Translation model to backend
@@ -641,7 +645,7 @@ export default function Home() {
               : await callGoTranslation({
                   audioBase64: base64Audio,
                   filename: `translation-${Date.now()}.webm`,
-                  preferredTargetLang: targetLanguage === "auto" ? undefined : targetLanguage,
+                  preferredTargetLang: currentTargetLanguage === "auto" ? undefined : currentTargetLanguage,
                 });
 
             // 🔒 Segment guard: Check if segment is still active before processing response
@@ -701,7 +705,7 @@ export default function Home() {
                   conversationId: currentConversationId,
                   direction: result.direction!,
                   sourceLang: result.sourceLang || "unknown",
-                  targetLang: result.targetLang || targetLanguage,
+                  targetLang: result.targetLang || currentTargetLanguage,
                   sourceText: result.sourceText || "",
                   translatedText: result.translatedText,
                 });
@@ -739,9 +743,10 @@ export default function Home() {
     }
   }, [targetLanguage, translateMutation, dualMicMode, currentSpeaker, backend, asrMode, asrModel, translationModel]);
 
-  // Track targetLanguage changes
+  // Track targetLanguage changes and sync to ref
   useEffect(() => {
     console.log(`[Language Change] Target language changed to: ${targetLanguage}`);
+    targetLanguageRef.current = targetLanguage; // 🔴 Sync to ref for closure-safe access
   }, [targetLanguage]);
 
   // Update ref for processFinalTranscript
