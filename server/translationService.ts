@@ -165,11 +165,11 @@ export function determineDirection(
   // Vietnamese has very distinctive diacritical marks that are unmistakable
   // This overrides Whisper's language detection because Whisper often misidentifies Vietnamese as Chinese
   if (sourceText && containsVietnameseDiacritics(sourceText)) {
-    console.log(`[determineDirection] ✅ Detected Vietnamese from text content (overriding Whisper: ${normalizedLang}): "${sourceText.substring(0, 50)}..."`);
+    console.log(`[determineDirection] ✅ Detected Vietnamese from text content (overriding Whisper: ${normalizedLang}): "${sourceText.substring(0, 50)}...", target: ${preferredTargetLang || "zh"}`);
     return {
       direction: "patient_to_nurse",
       sourceLang: "vi",
-      targetLang: "zh",
+      targetLang: preferredTargetLang || "zh",
     };
   }
 
@@ -205,11 +205,11 @@ export function determineDirection(
 
   // Rule 4: If Whisper detected a specific non-Chinese language, trust it
   if (normalizedLang !== "unknown" && !CHINESE_LANGUAGES.includes(normalizedLang)) {
-    console.log(`[determineDirection] Using Whisper detected language: ${normalizedLang}`);
+    console.log(`[determineDirection] Using Whisper detected language: ${normalizedLang}, target: ${preferredTargetLang || "zh"}`);
     return {
       direction: "patient_to_nurse",
       sourceLang: normalizedLang,
-      targetLang: "zh",
+      targetLang: preferredTargetLang || "zh",
     };
   }
 
