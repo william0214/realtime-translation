@@ -1186,3 +1186,19 @@
 - [x] shared/config.ts: TRANSLATION_CONFIG.LLM_MODEL = "gpt-4o"
 - [x] shared/config.ts: WHISPER_CONFIG.MODEL = "gpt-4o-transcribe"
 - [x] 更新註釋標示推薦模型
+
+---
+
+## 🎨 UI 精簡化（2025-12-27）
+
+### 目標
+- 移除前端顯示的開發語言標籤 (Node.js)
+
+### 任務
+- [x] 找到顯示 "(Node.js)" 的位置 (client/src/pages/Home.tsx:1272-1274)
+- [x] 移除該顯示元素
+- [ ] 測試驗證 UI 顯示正確
+
+### 實施詳情
+- [x] 移除 Home.tsx 中的 backend 顯示標籤
+- [x] 保留 Hybrid 後端的連接狀態顯示

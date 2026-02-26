@@ -1269,9 +1269,6 @@ export default function Home() {
             title="連點三次切換後端"
           >
             即時雙向翻譯系統
-            <span className="ml-2 text-xs opacity-50">
-              {backend === "nodejs" ? "(Node.js)" : backend === "go" ? "(Go)" : "(Hybrid)"}
-            </span>
             {backend === "hybrid" && isHybridConnected && (
               <span className="ml-2 text-xs text-green-400 animate-pulse">
                 • 已連接
