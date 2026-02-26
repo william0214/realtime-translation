@@ -6,11 +6,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { Download, History as HistoryIcon, Mic, Trash2, FileText, Settings as SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { callGoTranslation } from "@/services/goBackend";
 import { HybridASRClient } from "@/services/hybridASRClient";
 import { VAD_CONFIG, ASR_CONFIG, AUDIO_CONFIG, ASR_MODE_CONFIG, WHISPER_CONFIG, TRANSLATION_CONFIG, type ASRMode, getASRModeConfig } from "@shared/config";
@@ -152,13 +161,18 @@ function detectWhisperHallucination(text: string): boolean {
 export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [conversations, setConversations] = useState<ConversationMessage[]>([]);
-  const [targetLanguage, setTargetLanguage] = useState<string>("vi");
-  const targetLanguageRef = useRef<string>("vi"); // 🔴 Always holds the latest targetLanguage value
+  const [targetLanguage, setTargetLanguage] = useState<string>("en");
+  const targetLanguageRef = useRef<string>("en"); // 🔴 Always holds the latest targetLanguage value
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
   const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
   const [currentConversationId, setCurrentConversationId] = useState<number | null>(null);
   const [currentConversationKey, setCurrentConversationKey] = useState<string | null>(null); // UUID for Race Condition guard
+  
+  // Password protection for settings
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState(false);
   // v2.2.0: 移除 currentConversationKeyRef（Quality Pass 已停用）
   
   // 對話 context 管理（最近 3-6 句）
@@ -324,6 +338,27 @@ export default function Home() {
   const createConversationMutation = trpc.conversation.create.useMutation();
   const saveTranslationMutation = trpc.conversation.saveTranslation.useMutation();
   const endConversationMutation = trpc.conversation.end.useMutation();
+
+  const [, setLocation] = useLocation();
+
+  // Handle password submit for settings access
+  const handlePasswordSubmit = () => {
+    const correctPassword = "translateAdm88";
+    if (passwordInput === correctPassword) {
+      // Store authentication in localStorage (expires in 24 hours)
+      const expiryTime = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+      localStorage.setItem("settings-auth", JSON.stringify({ expiry: expiryTime }));
+      
+      setShowPasswordDialog(false);
+      setPasswordInput("");
+      setPasswordError(false);
+      
+      // Navigate to settings page
+      setLocation("/settings");
+    } else {
+      setPasswordError(true);
+    }
+  };
 
   // Handle title click for backend switching (3 clicks within 2 seconds)
   const handleTitleClick = () => {
@@ -1277,11 +1312,14 @@ export default function Home() {
           </h1>
           <div className="flex items-center gap-2 md:gap-4">
             {/* Settings Button */}
-            <Link href="/settings">
-              <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
-                <SettingsIcon className="h-3 w-3 md:h-4 md:w-4" />
-              </Button>
-            </Link>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-8 w-8 md:h-10 md:w-10"
+              onClick={() => setShowPasswordDialog(true)}
+            >
+              <SettingsIcon className="h-3 w-3 md:h-4 md:w-4" />
+            </Button>
             
             
             {/* Target Language Selector */}
@@ -1507,6 +1545,56 @@ export default function Home() {
           </Button>
         </div>
       </main>
+
+      {/* Password Dialog for Settings */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle>設定頁面密碼</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              請輸入密碼以存取設定頁面
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Input
+              type="password"
+              placeholder="輸入密碼"
+              value={passwordInput}
+              onChange={(e) => {
+                setPasswordInput(e.target.value);
+                setPasswordError(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handlePasswordSubmit();
+                }
+              }}
+              className={`bg-gray-800 border-gray-700 text-white ${
+                passwordError ? "border-red-500" : ""
+              }`}
+              autoFocus
+            />
+            {passwordError && (
+              <p className="text-sm text-red-500">密碼錯誤，請再試一次</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPasswordDialog(false);
+                setPasswordInput("");
+                setPasswordError(false);
+              }}
+            >
+              取消
+            </Button>
+            <Button onClick={handlePasswordSubmit}>
+              確認
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

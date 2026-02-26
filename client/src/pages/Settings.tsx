@@ -16,6 +16,33 @@ import { useLocation } from "wouter";
 
 export default function Settings() {
   const [, setLocation] = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    const authData = localStorage.getItem("settings-auth");
+    if (authData) {
+      try {
+        const { expiry } = JSON.parse(authData);
+        if (Date.now() < expiry) {
+          setIsAuthenticated(true);
+        } else {
+          // Expired, remove and redirect
+          localStorage.removeItem("settings-auth");
+          toast.error("驗證已過期，請重新輸入密碼");
+          setLocation("/");
+        }
+      } catch (e) {
+        // Invalid data, remove and redirect
+        localStorage.removeItem("settings-auth");
+        setLocation("/");
+      }
+    } else {
+      // No authentication, redirect
+      toast.error("請先輸入密碼以存取設定頁面");
+      setLocation("/");
+    }
+  }, [setLocation]);
 
   // ASR Model
   const [asrModel, setAsrModel] = useState<string>(() => {
@@ -44,6 +71,17 @@ export default function Settings() {
     setTranslationModel(TRANSLATION_CONFIG.LLM_MODEL);
     toast.success("已重置為預設值");
   };
+
+  // Don't render content until authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center">
+        <div className="text-white text-center">
+          <p className="text-xl">正在驗證...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
