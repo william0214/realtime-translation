@@ -309,13 +309,13 @@ export const TRANSLATION_CONFIG = {
    * 
    * 可用模型：
    * - "gpt-4o-mini": 最快速、最低成本
-   * - "gpt-4.1-mini": 平衡速度和品質
+   * - "gpt-4.1-mini": 平衡速度和品質（推薦）
    * - "gpt-4.1": 高品質
-   * - "gpt-4o": 最高品質、最慢（推薦）
+   * - "gpt-4o": 最高品質、最慢
    * 
-   * 當前設定：gpt-4o（最高品質）
+   * 當前設定：gpt-4.1-mini（平衡速度和品質）
    */
-  LLM_MODEL: "gpt-4o" as AllowedTranslationModel,
+  LLM_MODEL: "gpt-4.1-mini" as AllowedTranslationModel,
 
   /**
    * 可用的翻譯模型列表（SSOT）

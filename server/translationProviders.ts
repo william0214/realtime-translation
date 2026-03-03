@@ -55,15 +55,20 @@ async function translateWithOpenAI(
   const sourceName = LANGUAGE_NAMES[sourceLang] || sourceLang;
   const targetName = LANGUAGE_NAMES[targetLang] || targetLang;
 
-  // OPTIMIZED: Very explicit translation prompt for Gemini
-  // Gemini needs very clear instructions to translate correctly
+  // OPTIMIZED: Very explicit translation prompt
+  // Strict rules to ensure correct language output and Traditional Chinese only
+  const isTargetChinese = targetLang === "zh" || targetLang === "zh-TW" || targetLang === "zh-tw";
+  const chineseRule = isTargetChinese
+    ? "\n5. CRITICAL: Output MUST be Traditional Chinese (繁體中文) ONLY. NEVER use Simplified Chinese (簡體中文). Use Taiwan-style Traditional Chinese characters."
+    : "";
+
   const systemPrompt = `TASK: Translate the following text from ${sourceName} to ${targetName}.
 
 RULES:
 1. Output ONLY the translated text in ${targetName}
 2. Do NOT respond or chat - just translate
 3. Do NOT output the original text
-4. Do NOT add any explanation
+4. Do NOT add any explanation${chineseRule}
 
 Target language: ${targetName}`;
   

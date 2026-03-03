@@ -1228,3 +1228,34 @@
 - [x] 密碼：translateAdm88
 - [x] 驗證有效期：24 小時
 - [x] TypeScript 編譯無錯誤
+
+---
+
+## 🔤 嚴格限制繁體中文輸出（2026-03-03）
+
+### 問題
+- 翻譯結果有時出現簡體中文
+
+### 任務
+- [ ] 找到翻譯 system prompt 的位置
+- [ ] 加入嚴格的繁體中文限制指令
+- [ ] 測試驗證
+- [ ] 推送到 GitHub
+
+---
+
+## ⚡ 模型速度優化（2026-03-03）
+
+### 問題
+- v2.3.7 升級到 gpt-4o 和 gpt-4o-transcribe 後速度變慢
+
+### 任務
+- [x] 翻譯模型：從 gpt-4o 降回 gpt-4.1-mini（平衡速度和品質）
+- [x] ASR 模型：保留 gpt-4o-transcribe（高品質 ASR）
+- [x] 加入繁體中文限制（不出現簡體中文）
+- [ ] 推送到 GitHub
+
+### 實施詳情
+- [x] shared/config.ts: LLM_MODEL = "gpt-4.1-mini"
+- [x] server/translationProviders.ts: 加入 chineseRule，當 targetLang=zh 時強制繁體中文
+- [x] TypeScript 編譯無錯誤
